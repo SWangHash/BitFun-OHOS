@@ -215,10 +215,7 @@ fn tool_call_update(tool_event: &ToolEventData) -> Option<ToolCallUpdate> {
             let fields = ToolCallUpdateFields::new().status(ToolCallStatus::Pending);
             if let Ok(wire_input) = serde_json::from_str::<serde_json::Value>(params) {
                 let (tool_name, effective_input) =
-                    bitfun_agent_tools::effective_tool_invocation(
-                        &identity.tool_name,
-                        &wire_input,
-                    );
+                    bitfun_agent_tools::effective_tool_invocation(&identity.tool_name, &wire_input);
                 if is_write_like_tool(tool_name) {
                     fields
                         .raw_input(sanitize_tool_input(tool_name, effective_input.clone()))
@@ -235,6 +232,9 @@ fn tool_call_update(tool_event: &ToolEventData) -> Option<ToolCallUpdate> {
                 fields.content(vec![text_content(format!("Input: {}", params))])
             }
         }
+        ToolEventData::GenUIStream { text, .. } => ToolCallUpdateFields::new()
+            .status(ToolCallStatus::Pending)
+            .content(vec![text_content(text.clone())]),
         ToolEventData::Queued { position, .. } => ToolCallUpdateFields::new()
             .status(ToolCallStatus::Pending)
             .content(vec![text_content(format!(

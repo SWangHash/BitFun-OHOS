@@ -116,6 +116,9 @@ SessionManager -> Session -> DialogTurn -> ModelRound
   Tool implementation groups use the matching `tools-*` owner feature.
   `tools-image-analysis` owns only image inspection; `tools-image-generation`
   separately selects the generation tool and its AI adapter client.
+  `tools-office-documents` owns `GenOfficeFile` and its portable OOXML engine
+  (`bitfun-office-documents`); the tool moves bytes only through the
+  session's workspace file system, so remote workspaces need no extra owner.
   Product Assembly supplies the exact `ProductToolPlan`; Core materialization
   validates that requested owners were compiled and must not infer product
   capability from Cargo's feature union. The Agent Runtime baseline plan is
@@ -192,6 +195,26 @@ Narrower local guides already exist for some subtrees:
 
 ## Verification
 
+For desktop card admission, per-turn Peer origin, recovery context and subagent
+propagation:
+
+```bash
+cargo test --locked -p bitfun-core --no-default-features --features agent-runtime,git --lib -- desktop_card
+```
+
+These tests use a stub card host and simulated remote contexts; they do not
+exercise native card windows or live Peer/mobile/SSH connections. The Desktop
+guide owns the HostInvoke compatibility and native host checks.
+
+For Creative frontend customization origin admission and fresh approval policy:
+
+```bash
+cargo test --locked -p bitfun-core --no-default-features --features agent-runtime,git,tools-creation --lib frontend_workbench
+```
+
+These tests simulate Peer/mobile and remote-workspace origins; they do not
+exercise native recovery controls or live remote connections.
+
 For opt-in category/system-prompt previews and session-storage isolation:
 
 ```bash
@@ -209,6 +232,12 @@ cargo test --locked -p bitfun-core --no-default-features --features agent-runtim
 
 These fixtures cover prompt name mappings and simulated workspace policies;
 they do not establish live SSH, relay, Peer, or Detached Dispatch behavior.
+
+For ordinary subagent shared concurrency, permit release, and cancelled/timed-out waits:
+
+```bash
+cargo test --locked -p bitfun-core --no-default-features --features agent-runtime,git --lib subagent_concurrency_
+```
 
 For smart routing, unchanged subagent model policy and resumed subagent choices:
 
@@ -250,8 +279,16 @@ For image-service selection and compatibility with saved subscription configurat
 
 ```bash
 cargo test --locked -p bitfun-core --no-default-features --features agent-runtime,git,tools-image-generation,subscription-auth --lib agentic::image_generation::tests
+cargo test --locked -p bitfun-core --no-default-features --features agent-runtime,git,tools-image-generation --lib agentic::tools::implementations::generate_image_tool::tests
 cargo test --locked -p bitfun-core --no-default-features --features agent-runtime,git,tools-image-generation --lib agentic::tools::product_runtime::materialization::tests::image_tools_follow_independent_compiled_owners
 cargo test --locked -p bitfun-core --no-default-features --features agent-runtime,git,tools-image-analysis --lib agentic::tools::product_runtime::materialization::tests::image_tools_follow_independent_compiled_owners
+```
+
+For Office file generation (`GenOfficeFile`); the engine itself is covered by
+`cargo test -p bitfun-office-documents`:
+
+```bash
+cargo test --locked -p bitfun-core --no-default-features --features agent-runtime,git,tools-office-documents --lib agentic::tools::implementations::gen_office_file_tool::tests
 ```
 
 These fixtures do not call a provider or exercise live remote hosts. Image wire
@@ -291,6 +328,11 @@ storage fixtures do not require or validate a live SSH connection. CI also runs
 them under `product-full`. `PathManager::with_user_root_for_tests` derives product
 home from the user root's parent, so a fixture that relocates managed paths must
 place its user root below the directory it means to exercise.
+
+For durable per-turn token usage, client checkpoint reconciliation, and recovery:
+`cargo test --locked -p bitfun-core --no-default-features --features agent-runtime,git --lib turn_usage`.
+The fixtures cover host-ledger isolation and client-free completion, not live SSH,
+Relay, Peer Device, or Detached Dispatch connections.
 
 For cold dialog startup and the production-feature scheduler stack regression:
 
@@ -332,6 +374,14 @@ against full materialization locally, use the same target with
 `history_page_benchmark -- --ignored --nocapture`; it checks content equivalence
 and reports timings without asserting a machine-dependent latency in CI.
 
+For opening a staged-revert Session at its last complete visible Turn, run
+`cargo test --locked -p bitfun-core --no-default-features --features agent-runtime,git --lib restore_session_view_tail_with_staged_revert`.
+This exercises local workspace resolution and the host-storage entry used by
+Peer callers, sparse legacy histories, complete payloads and untouched hidden
+files; it does not establish live remote behavior. The same target with
+`staged_revert_tail_benchmark -- --ignored --nocapture` compares real-file full
+materialization with the bounded visible-tail read without a CI timing assertion.
+
 For workspace metadata catalog paging, cache reuse and cross-process invalidation:
 `cargo test --locked -p bitfun-core --no-default-features --features external-sources,git,product-search --lib -- catalog_snapshot_ catalog_query_pages_`.
 
@@ -363,16 +413,23 @@ include the concrete image-tool owner in the same focused fixture:
 cargo test --locked -p bitfun-core --no-default-features --features agent-runtime,git,tools-image-analysis --lib -- image_input input_model_tests
 ```
 
-For model selector latency, run the catalog and session mutation owner fixtures:
+For model selector latency, run the catalog and session owner fixtures:
 
 ```bash
 cargo test --locked -p bitfun-core --no-default-features --features model-catalog --lib infrastructure::ai::reasoning_catalog::tests
 cargo test --locked -p bitfun-core --no-default-features --features agent-runtime,git --lib session_model_update
+cargo test --locked -p bitfun-core --no-default-features --features agent-runtime,git --lib session_model_read
+cargo test --locked -p bitfun-core --no-default-features --features agent-runtime,git --lib -- session_permission_read session_permission_mode active_turn_permission_mode
 cargo test --locked -p bitfun-core --no-default-features --features remote-connect,git --lib remote_attach_and_mutation_paths_preserve_workspace_ownership_facts
 ```
 
-Catalog snapshots remain usable during background refresh. Selector mutations
-must not restore cold transcripts or reserve active-session capacity; preserve
+Catalog snapshots remain usable during background refresh. Selector reads use
+live session facts or a persisted header, without reading Turns/context, acquiring
+the running Turn's mutation permit, or marking a cold runtime as loaded. Desktop
+and CLI Peer adapters preserve storage scope and internal-session visibility.
+Permission reads preserve the optional session override; only the live runtime
+can supply an active Turn and its temporary override.
+Selector mutations must not restore cold transcripts or reserve active-session capacity; preserve
 writer ownership, unknown persisted fields, legacy metadata-only sessions, and
 both state/metadata projections on failure. These fixtures cover local storage
 and remote routing contracts, not live SSH/relay/peer/dispatch connections.

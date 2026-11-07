@@ -5,11 +5,11 @@ pub(super) enum BuiltinSkillGroup {
     MiniApp,
     Creation,
     ComputerUse,
-    Canvas,
     Debugging,
     Coordination,
     Planning,
     HarmonyOS,
+    Canvas,
 }
 
 impl BuiltinSkillGroup {
@@ -20,11 +20,11 @@ impl BuiltinSkillGroup {
             Self::MiniApp => "miniapp",
             Self::Creation => "creation",
             Self::ComputerUse => "computer-use",
-            Self::Canvas => "canvas",
             Self::Debugging => "debugging",
             Self::Coordination => "coordination",
             Self::Planning => "planning",
             Self::HarmonyOS => "harmonyos",
+            Self::Canvas => "canvas",
         }
     }
 }

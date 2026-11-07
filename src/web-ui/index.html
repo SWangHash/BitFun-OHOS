@@ -180,6 +180,27 @@
         z-index: 9999;
       }
 
+      /* Keep the mounting shell from showing through or doubling the tint.
+         Preserve layout so startup readiness and measurements still complete. */
+      #root:has(+ #bitfun-startup-overlay:not(.bitfun-startup-overlay--exiting)) {
+        visibility: hidden;
+      }
+
+      /* The startup mark owns the visible pixels until the handoff completes. */
+      #root:has(+ #bitfun-startup-overlay) [data-startup-logo-target],
+      #root:has(+ #bitfun-startup-overlay) [data-startup-reveal] {
+        opacity: 0;
+      }
+
+      #root:has(+ .bitfun-startup-overlay--exiting) [data-startup-reveal] {
+        animation: bitfun-startup-content-enter 0.2s ease-out both;
+      }
+
+      #root:has(+ .bitfun-startup-overlay--handoff) [data-startup-reveal] {
+        animation-duration: 0.24s;
+        animation-delay: 0.18s;
+      }
+
       .bitfun-sr-only {
         position: absolute;
         width: 1px;
@@ -210,12 +231,32 @@
         pointer-events: none;
       }
 
-      #bitfun-startup-overlay.bitfun-startup-overlay--exiting {
-        animation: bitfun-startup-overlay-exit 0.24s ease-in-out both;
+      @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+        .splash-screen {
+          background: var(--bitfun-color-surface-chrome);
+        }
       }
 
-      /* The pre-React shell mirrors the native window chrome so a window that
-         is revealed before React mounts still has working controls. */
+      #bitfun-startup-overlay.bitfun-startup-overlay--exiting {
+        animation: bitfun-startup-overlay-exit 0.2s ease-in-out both;
+      }
+
+      #bitfun-startup-overlay.bitfun-startup-overlay--handoff {
+        animation: none;
+      }
+
+      #bitfun-startup-overlay.bitfun-startup-overlay--interrupted {
+        animation: bitfun-startup-overlay-exit 0.12s ease-out both;
+      }
+
+      .bitfun-startup-overlay--handoff .splash-screen {
+        animation: bitfun-startup-overlay-exit 0.32s ease-in-out both;
+      }
+
+      .bitfun-startup-overlay--handoff .splash-screen__message {
+        animation: bitfun-startup-overlay-exit 0.08s ease-out both;
+      }
+
       .window-controls.bitfun-startup-window-controls {
         position: fixed;
         top: 0;
@@ -341,7 +382,18 @@
         }
       }
 
+      @keyframes bitfun-startup-content-enter {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
+
       @media (prefers-reduced-motion: reduce) {
+        #bitfun-startup-overlay.bitfun-startup-overlay--exiting,
+        #root:has(+ .bitfun-startup-overlay--exiting) [data-startup-reveal] {
+          animation-duration: 0.12s;
+          animation-delay: 0s;
+        }
+
         .splash-screen__logo-wrap {
           animation: none;
         }

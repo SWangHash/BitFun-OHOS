@@ -11,6 +11,7 @@ name = "bitfun_services_integrations"
 crate-type = ["rlib"]
 
 [dependencies]
+zstd = { workspace = true, optional = true }
 pulldown-cmark = { workspace = true, optional = true }
 tokio = { workspace = true }
 serde = { workspace = true }
@@ -321,6 +322,7 @@ hook-import = [
     "uuid",
 ]
 remote-connect = [
+    "dep:zstd",
     "dep:sioc",
     "dep:pulldown-cmark",
     "fs2",

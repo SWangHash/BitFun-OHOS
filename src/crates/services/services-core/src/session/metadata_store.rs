@@ -14,8 +14,8 @@ use super::types::{SessionMetadata, StoredSessionIndexFile, StoredSessionMetadat
 use super::SessionMetadataPage;
 use crate::file_lock::{FileLock, FileLockError, FileLockMode};
 use crate::json_store::{JsonFileStore, JsonFileStoreError};
-use log::warn;
 use bitfun_core_types::validate_session_id;
+use log::warn;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, OnceLock};
@@ -733,6 +733,7 @@ mod tests {
             workspace_id: "main".into(),
             ordering: super::super::page::SessionCatalogOrdering::Updated,
             source: "all".into(),
+            sources: Vec::new(),
             sort_timestamps: HashMap::new(),
         };
         let page = store
@@ -1174,9 +1175,8 @@ mod tests {
         if std::env::var_os("BITFUN_SESSION_INDEX_LOCK_CHILD").is_none() {
             return;
         }
-        let sessions_root = PathBuf::from(
-            std::env::var_os("BITFUN_SESSION_INDEX_ROOT").expect("index lock root"),
-        );
+        let sessions_root =
+            PathBuf::from(std::env::var_os("BITFUN_SESSION_INDEX_ROOT").expect("index lock root"));
         let ready_path = PathBuf::from(
             std::env::var_os("BITFUN_SESSION_INDEX_READY").expect("index lock ready path"),
         );

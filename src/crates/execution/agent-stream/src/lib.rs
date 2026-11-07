@@ -14,11 +14,11 @@ use crate::tool_call_accumulator::{
     FinalizedToolCall, PendingToolCalls, ToolCallBoundary, ToolCallFinalizeOptions,
     ToolCallStreamKey,
 };
+use bitfun_core_types::{errors::AiProviderError, ReasoningContentKind};
+use bitfun_events::{AgenticEvent, AgenticEventPriority as EventPriority, ToolEventData};
 use futures::{Stream, StreamExt};
 pub use hidden_text::{HiddenTextBlock, HiddenTextStreamParser, HiddenTextTag};
 use log::{debug, error, trace};
-use bitfun_core_types::{errors::AiProviderError, ReasoningContentKind};
-use bitfun_events::{AgenticEvent, AgenticEventPriority as EventPriority, ToolEventData};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::{HashSet, VecDeque};
@@ -726,10 +726,8 @@ impl StreamProcessor {
                 tool_call.tool_id
             );
 
-            let identity = bitfun_events::ToolEventIdentity::direct(
-                tool_call.tool_id,
-                tool_call.tool_name,
-            );
+            let identity =
+                bitfun_events::ToolEventIdentity::direct(tool_call.tool_id, tool_call.tool_name);
             let tool_event = if is_user_cancellation {
                 ToolEventData::Cancelled {
                     identity,
@@ -872,6 +870,44 @@ impl StreamProcessor {
                                 params_partial.tool_name,
                             ),
                             params: params_partial.params_chunk,
+                        },
+                    },
+                    None,
+                )
+                .await;
+        }
+
+        if let Some(genui_stream) = outcome.genui_stream {
+            // A decoded OpenUI source delta is the first renderable output of
+            // a GenUI call. Mark it exactly like ParamsPartial so latency,
+            // cancellation and turn completion observe the same visibility
+            // contract even though the outer tool JSON is still incomplete.
+            ctx.has_effective_output = true;
+            ctx.mark_first_visible_output();
+            let _ = self
+                .event_sink
+                .enqueue(
+                    AgenticEvent::ToolEvent {
+                        session_id: ctx.session_id.clone(),
+                        turn_id: ctx.dialog_turn_id.clone(),
+                        round_id: ctx.round_id.clone(),
+                        attempt_id: Some(ctx.attempt_id.clone()),
+                        attempt_index: Some(ctx.attempt_index),
+                        tool_event: ToolEventData::GenUIStream {
+                            identity: bitfun_events::ToolEventIdentity::direct(
+                                genui_stream.tool_id,
+                                genui_stream.tool_name,
+                            ),
+                            message_id: genui_stream.message_id,
+                            seq: genui_stream.seq,
+                            format: genui_stream.format,
+                            text: genui_stream.text,
+                            reset: genui_stream.reset,
+                            app_id: genui_stream.app_id,
+                            title: genui_stream.title,
+                            template: genui_stream.template,
+                            library_id: genui_stream.library_id,
+                            library_revision: genui_stream.library_revision,
                         },
                     },
                     None,
@@ -1035,13 +1071,20 @@ impl StreamProcessor {
         } else {
             let mut parts = Vec::new();
             if !ctx.full_thinking.is_empty() {
-                parts.push(format!("thinking_chars={}", ctx.full_thinking.chars().count()));
+                parts.push(format!(
+                    "thinking_chars={}",
+                    ctx.full_thinking.chars().count()
+                ));
             }
             if !ctx.full_text.is_empty() {
                 parts.push(format!("text_chars={}", ctx.full_text.chars().count()));
             }
             if !ctx.tool_calls.is_empty() {
-                let tool_names: Vec<&str> = ctx.tool_calls.iter().map(|tc| tc.tool_name.as_str()).collect();
+                let tool_names: Vec<&str> = ctx
+                    .tool_calls
+                    .iter()
+                    .map(|tc| tc.tool_name.as_str())
+                    .collect();
                 parts.push(format!("tool_calls=[{}]", tool_names.join(", ")));
             }
             if !parts.is_empty() {
@@ -1384,10 +1427,10 @@ mod tests {
         ToolCall, ToolCallCompletion,
     };
     use super::{UnifiedResponse, UnifiedTokenUsage, UnifiedToolCall};
-    use futures::StreamExt;
     use bitfun_core_types::errors::{AiProviderError, ErrorCategory};
     use bitfun_core_types::{ModelResponseReplayItem, ReasoningContentKind};
     use bitfun_events::{AgenticEvent, AgenticEventPriority as EventPriority, ToolEventData};
+    use futures::StreamExt;
     use serde_json::json;
     use std::sync::Arc;
     use std::time::Duration;
@@ -1968,6 +2011,63 @@ mod tests {
         );
         assert!(!result.tool_calls[0].is_error);
         assert_eq!(result.usage.as_ref().map(|u| u.total_token_count), Some(7));
+    }
+
+    #[tokio::test]
+    async fn native_genui_source_is_visible_before_tool_arguments_finish() {
+        let sink = Arc::new(RecordingEventSink::default());
+        let processor = StreamProcessor::new(sink.clone());
+        let stream = iter(vec![
+            Ok(UnifiedResponse {
+                tool_call: Some(UnifiedToolCall {
+                    tool_call_index: None,
+                    id: Some("call_genui".to_string()),
+                    name: Some("GenerativeUI".to_string()),
+                    arguments: Some(
+                        r#"{"messages":[{"createSurface":{"id":"app","source":{"kind":"openui-lang","content":"root = Text("#.to_string(),
+                    ),
+                    arguments_is_snapshot: false,
+                }),
+                ..Default::default()
+            }),
+            Ok(UnifiedResponse {
+                tool_call: Some(UnifiedToolCall {
+                    tool_call_index: None,
+                    id: None,
+                    name: None,
+                    arguments: Some(r#"Hello")}}]}"#.to_string()),
+                    arguments_is_snapshot: false,
+                }),
+                ..Default::default()
+            }),
+        ])
+        .boxed();
+
+        let result = processor
+            .process_stream(
+                stream,
+                None,
+                None,
+                "session_1".to_string(),
+                "turn_1".to_string(),
+                "round_1".to_string(),
+                "round_1:attempt:1".to_string(),
+                1,
+                &CancellationToken::new(),
+            )
+            .await
+            .expect("stream result");
+
+        assert!(result.has_effective_output);
+        assert!(result.first_visible_output_ms.is_some());
+        let events = sink.events.lock().await;
+        assert!(events.iter().any(|event| matches!(
+            event,
+            AgenticEvent::ToolEvent {
+                tool_event: ToolEventData::GenUIStream { text, .. },
+                ..
+            } if text == "root = Text("
+        )));
     }
 
     #[tokio::test]

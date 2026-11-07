@@ -130,6 +130,7 @@
     "sections": {
       "text-selection": "文本选择",
       "message-sending": "消息发送",
+      "btw-close-confirmation": "侧问关闭",
       "voice": "语音",
       "shortcuts": "快捷键",
       "session": "会话默认行为",
@@ -325,7 +326,8 @@
         "focusMergedHint": "录制一次修饰键 + 任意数字 1–3；数字 1–3 对应从左到右的场景。",
         "openSession": "打开智能体会话",
         "openSettings": "打开设置",
-        "openTerminal": "打开终端"
+        "openTerminal": "打开终端",
+        "openGit": "打开 Git"
       },
       "canvas": {
         "missionControl": "全景模式",

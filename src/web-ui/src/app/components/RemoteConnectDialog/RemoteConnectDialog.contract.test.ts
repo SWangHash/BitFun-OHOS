@@ -134,8 +134,8 @@ describe('Remote Connect safety contracts', () => {
 
     expect(dialogSource).not.toContain('role="link"');
     expect(dialogSource).toContain('className="bitfun-remote-connect__inline-link" onClick={handleOpenFeishuPlatform}');
-    expect(dialogSource).toContain('<Button variant="outline" tone="danger" size="sm" onClick={handleDisconnectBot}>');
-    expect(networkSource).toContain('<Button variant="outline" tone="danger" size="sm" onClick={onDisconnect}>');
+    expect(dialogSource).toContain('<Button variant="quiet" tone="danger" size="sm" onClick={handleDisconnectBot}>');
+    expect(networkSource).toContain('<Button variant="quiet" tone="danger" size="sm" onClick={onDisconnect}>');
     expect(accountPanelSource).toContain('leadingIcon={<LogOut size={14} />} onClick={handleLogout}');
   });
 
@@ -151,18 +151,18 @@ describe('Remote Connect safety contracts', () => {
     expect(dialogSource).not.toContain('botConciseMode');
   });
 
-  it('keeps device-row actions in fixed columns with the open affordance last', () => {
+  it('keeps device management actions after a passive device summary', () => {
     const deviceRow = accountPanelSource.slice(
-      accountPanelSource.indexOf('const DeviceEntry'),
+      accountPanelSource.indexOf('sortedDevices.map'),
       accountPanelSource.indexOf('export default AccountPanel'),
     );
 
-    expect(deviceRow.indexOf('account-panel__device-actions')).toBeLessThan(
-      deviceRow.indexOf('account-panel__device-chevron'),
+    expect(deviceRow).toContain('account-panel__device-summary');
+    expect(deviceRow.indexOf('account-panel__device-summary')).toBeLessThan(
+      deviceRow.indexOf('account-panel__device-actions'),
     );
-    expect(deviceRow.indexOf('</DeviceEntry>')).toBeLessThan(
-      deviceRow.indexOf('<Icon name="chevron-right"'),
-    );
+    expect(deviceRow).not.toContain('account-panel__device-chevron');
+    expect(deviceRow).not.toContain('selectDevice(');
   });
 
   it('keeps the dialog height stable while selected content scrolls inside it', () => {

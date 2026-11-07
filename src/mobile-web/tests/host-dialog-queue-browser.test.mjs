@@ -86,7 +86,7 @@ test('queue stays above the measured composer across phone, keyboard-height and 
    const layout=await page.evaluate(()=>{
     const box=selector=>document.querySelector(selector).getBoundingClientRect();
     const queue=box('.host-message-queue'),composer=box('.chat-page__composer'),wrap=box('.chat-page__input-wrap');
-    const body=document.querySelector('.host-message-queue__body');
+    const body=document.querySelector('.host-message-queue__list');
     return {noOverlap:queue.bottom<=composer.top,inside:queue.top>=0&&composer.bottom<=innerHeight,
      width:document.body.scrollWidth<=innerWidth,aligned:Math.abs(queue.left-composer.left)<1&&Math.abs(queue.right-composer.right)<1,
      scrollable:body.scrollHeight>body.clientHeight,reserved:parseFloat(getComputedStyle(document.querySelector('.chat-page__messages')).paddingBottom)>=wrap.height};
@@ -100,8 +100,8 @@ test('queue stays above the measured composer across phone, keyboard-height and 
     const r=stop.getBoundingClientRect();
     return {info:center(info),cancel:center(cancel),stop:center(stop),width:r.width,height:r.height,radius:getComputedStyle(stop).borderRadius};
    });
-   assert.ok(Math.abs(controls.info-controls.cancel)<1, 'queue info and remove share a centerline');
-   assert.ok(Math.abs(controls.cancel-controls.stop)<1, 'queue remove and stop share a centerline');
+   assert.ok(Math.abs(controls.info-controls.cancel)<1, 'queue info and overflow share a centerline');
+   assert.ok(Math.abs(controls.cancel-controls.stop)<1, 'queue overflow and stop share a centerline');
    assert.equal(controls.width,controls.height);
    assert.equal(controls.radius,'50%', 'stop control is circular');
 
@@ -121,15 +121,17 @@ test('queue stays above the measured composer across phone, keyboard-height and 
     const composer=box('.chat-page__composer'),stop=box('.chat-page__send-btn.is-stop');
     const plus=box('.chat-page__composer-leading');
     const text=box('.chat-msg__assistant-content');
-    const icon=box('.chat-thinking [data-bitfun-part="leading"]');
+    const message=box('.chat-msg--assistant');
     return {top:stop.top-composer.top,bottom:composer.bottom-stop.bottom,right:composer.right-stop.right,
       left:plus.left-composer.left,width:stop.width,plusWidth:plus.width,
-      textLeft:text.left+parseFloat(getComputedStyle(document.querySelector('.chat-msg__assistant-content')).paddingLeft),iconLeft:icon.left};
+      textLeft:text.left+parseFloat(getComputedStyle(document.querySelector('.chat-msg__assistant-content')).paddingLeft),messageLeft:message.left};
   });
   assert.equal(geometry.width,44);
   assert.equal(geometry.plusWidth,44);
   for(const edge of ['top','bottom','left']) assert.ok(Math.abs(geometry[edge]-geometry.right)<1,JSON.stringify(geometry));
-  assert.ok(Math.abs(geometry.textLeft-geometry.iconLeft)<1,JSON.stringify(geometry));
+  // The transcript gutter owns assistant text alignment; thinking/tool controls
+  // keep their own inset icon column.
+  assert.ok(Math.abs(geometry.textLeft-geometry.messageLeft)<1,JSON.stringify(geometry));
   await page.screenshot({path:path.join(tmpdir(),'mobile-queue-aligned.png'),fullPage:true});
   await page.click('[aria-label="排队消息说明"]');
   await page.waitForSelector('.host-message-queue__help');
@@ -137,8 +139,60 @@ test('queue stays above the measured composer across phone, keyboard-height and 
   assert.equal(await page.$('.host-message-queue__help'),null);
   await page.click('.host-message-queue__actions button');
   await page.waitForFunction(()=>document.querySelectorAll('.host-message-queue li').length===1);
-  await page.click('[aria-label="移出队列"]');
+  await page.click('.host-message-queue__actions button:last-child');
+  await page.waitForFunction(() => {
+    const button = document.querySelector('.host-message-queue__sheet-actions button');
+    if (!button) return false;
+    const rect = button.getBoundingClientRect();
+    // Puppeteer's click does not wait for the sheet's entrance animation.
+    return rect.height > 0 && rect.top >= 0 && rect.bottom <= innerHeight;
+  });
+  await page.click('.host-message-queue__sheet-actions button');
   await page.waitForFunction(()=>!document.querySelector('.host-message-queue'));
   assert.ok(await page.$('.chat-page__composer'),'removing the last queued message preserves the composer');
  }finally{await browser.close();await server.close();}
+});
+
+test('touch-sized queue handles reorder real component rows and overflow removes the selected item', {timeout:60000}, async () => {
+ const server = await startSourceServer(); const browser = await launchBrowser();
+ try {
+  const page = await browser.newPage(); await page.setViewport({width:320,height:568});
+  await page.goto(server.origin + '/tests/fixtures/host-queue.html?count=3&theme=dark');
+  await page.waitForSelector('.host-message-queue__handle');
+  const geometry = await page.evaluate(() => {
+    const rows = document.querySelectorAll('.host-message-queue__row');
+    const last = rows[rows.length - 1];
+    const composer = document.querySelector('.chat-page__composer');
+    return {
+      gap: composer.getBoundingClientRect().top - last.getBoundingClientRect().bottom,
+      firstLine: getComputedStyle(rows[0], '::before').borderTopWidth,
+      lastBottom: getComputedStyle(last, '::after').content,
+      outerBorder: getComputedStyle(document.querySelector('.host-message-queue')).borderTopWidth,
+    };
+  });
+  assert.deepEqual(geometry, {gap: 0, firstLine: '1px', lastBottom: 'none', outerBorder: '0px'});
+  const handles = await page.$$('.host-message-queue__handle');
+  assert.ok((await handles[0].boundingBox()).width >= 44);
+  assert.equal(await handles[0].evaluate(el => el.hasAttribute('title')), false);
+  const before = await page.$$eval('.host-message-queue__preview', nodes => nodes.map(n => n.textContent));
+  await handles[2].focus(); await page.keyboard.press('ArrowUp');
+  await handles[0].focus(); await page.keyboard.press('ArrowDown');
+  assert.deepEqual(await page.$$eval('.host-message-queue__preview', nodes => nodes.map(n => n.textContent)), before);
+  const first = await page.$('.host-message-queue__handle'); const box = await first.boundingBox();
+  const last = await page.$eval('.host-message-queue__row:last-child', el => { const r=el.getBoundingClientRect();return {y:r.bottom-3}; });
+  await page.mouse.move(box.x+box.width/2,box.y+box.height/2); await page.mouse.down();
+  await page.mouse.move(box.x+box.width/2,last.y,{steps:6}); await page.mouse.up();
+  await page.waitForFunction(first => document.querySelector('.host-message-queue__preview').textContent !== first, {}, before[0]);
+  await page.click('.host-message-queue__row .host-message-queue__actions button:last-child');
+  await page.waitForFunction(() => {
+    const button = document.querySelector('.host-message-queue__sheet-actions button');
+    if (!button) return false;
+    const rect = button.getBoundingClientRect();
+    // Puppeteer's click does not wait for the sheet's entrance animation.
+    return rect.height > 0 && rect.top >= 0 && rect.bottom <= innerHeight;
+  });
+  await page.click('.host-message-queue__sheet-actions button');
+  await page.waitForFunction(() => document.querySelectorAll('.host-message-queue__row').length === 2);
+  assert.equal(await page.$eval('body', body=>body.scrollWidth<=innerWidth),true);
+ } finally { await browser.close(); await server.close(); }
 });

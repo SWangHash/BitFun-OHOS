@@ -36,6 +36,8 @@ pub mod macos_menubar;
 mod macos_window_chrome;
 #[cfg(target_os = "macos")]
 mod macos_window_close;
+#[cfg(target_os = "macos")]
+mod macos_window_resize;
 mod miniapp_desktop;
 mod miniapp_web_host;
 
@@ -49,6 +51,7 @@ pub mod startup_trace;
 #[cfg(not(target_env = "ohos"))]
 pub mod tray;
 mod webview_recovery;
+mod window_material;
 #[cfg(not(target_env = "ohos"))]
 mod window_state_support;
 #[cfg(target_os = "windows")]
@@ -1777,6 +1780,9 @@ pub async fn _run() {
             api::agentic_api::reload_session_context,
             api::agentic_api::update_session_title,
             api::agentic_api::ensure_coordinator_session,
+            api::agentic_api::ensure_control_conversation,
+            api::agentic_api::create_control_conversation,
+            api::agentic_api::record_voice_exchange,
             api::agentic_api::start_dialog_turn,
             api::agentic_api::compact_session,
             api::agentic_api::activate_session_goal,
@@ -1879,6 +1885,7 @@ pub async fn _run() {
             bitfun_control_host::mark_bitfun_control_surface_ready,
             bitfun_control_host::mark_bitfun_control_surface_unready,
             bitfun_control_host::product_control_invoke,
+            api::generative_ui_api::gen_ui_provider_call,
             bitfun_control_host::report_bitfun_control_result,
             miniapp_web_host::mark_miniapp_web_surface_ready,
             miniapp_web_host::report_miniapp_web_result,
@@ -2247,6 +2254,9 @@ pub async fn _run() {
             save_text_file_dialog,
             check_for_updates,
             install_update,
+            api::update_api::download_update,
+            api::update_api::get_pending_update,
+            api::update_api::install_pending_update,
             api::system_api::open_html_file_in_browser,
             restart_app,
             check_for_updates_ohos,

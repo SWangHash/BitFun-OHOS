@@ -603,6 +603,7 @@ mod tests {
             dialog_turn_id: None,
             workspace: Some(WorkspaceBinding::new(None, root)),
             loaded_deferred_tool_specs: Vec::new(),
+            model_client: None,
             primary_model_facts: tool_runtime::context::PrimaryModelFacts::default(),
             custom_data: HashMap::new(),
             computer_use_host: None,
@@ -837,8 +838,7 @@ mod tests {
 
     #[tokio::test]
     async fn preflight_write_error_allows_new_file_target() {
-        let root =
-            std::env::temp_dir().join(format!("bitfun-write-test-{}", uuid::Uuid::new_v4()));
+        let root = std::env::temp_dir().join(format!("bitfun-write-test-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&root).expect("create temp workspace");
 
         let error =
@@ -851,8 +851,7 @@ mod tests {
 
     #[tokio::test]
     async fn preflight_write_error_allows_existing_file() {
-        let root =
-            std::env::temp_dir().join(format!("bitfun-write-test-{}", uuid::Uuid::new_v4()));
+        let root = std::env::temp_dir().join(format!("bitfun-write-test-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&root).expect("create temp workspace");
         std::fs::write(root.join("existing.md"), "already here").expect("create existing file");
 
@@ -866,8 +865,7 @@ mod tests {
 
     #[tokio::test]
     async fn call_impl_treats_identical_existing_content_as_success() {
-        let root =
-            std::env::temp_dir().join(format!("bitfun-write-test-{}", uuid::Uuid::new_v4()));
+        let root = std::env::temp_dir().join(format!("bitfun-write-test-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&root).expect("create temp workspace");
         std::fs::write(root.join("existing.md"), "same content").expect("create existing file");
 
@@ -902,8 +900,7 @@ mod tests {
 
     #[tokio::test]
     async fn call_impl_overwrites_different_existing_content() {
-        let root =
-            std::env::temp_dir().join(format!("bitfun-write-test-{}", uuid::Uuid::new_v4()));
+        let root = std::env::temp_dir().join(format!("bitfun-write-test-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&root).expect("create temp workspace");
         std::fs::write(root.join("existing.md"), "old content").expect("create existing file");
 
@@ -931,8 +928,7 @@ mod tests {
 
     #[tokio::test]
     async fn call_impl_appends_warning_for_ignored_top_level_parameters() {
-        let root =
-            std::env::temp_dir().join(format!("bitfun-write-test-{}", uuid::Uuid::new_v4()));
+        let root = std::env::temp_dir().join(format!("bitfun-write-test-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&root).expect("create temp workspace");
 
         let tool = FileWriteTool::new();
@@ -999,8 +995,7 @@ mod tests {
 
     #[tokio::test]
     async fn call_impl_accepts_path_only_for_empty_file() {
-        let root =
-            std::env::temp_dir().join(format!("bitfun-write-test-{}", uuid::Uuid::new_v4()));
+        let root = std::env::temp_dir().join(format!("bitfun-write-test-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&root).expect("create temp workspace");
 
         let tool = FileWriteTool::new();
@@ -1192,8 +1187,7 @@ mod tests {
 
     #[tokio::test]
     async fn call_impl_preserves_malformed_payload_in_workspace_temp_file() {
-        let root =
-            std::env::temp_dir().join(format!("bitfun-write-test-{}", uuid::Uuid::new_v4()));
+        let root = std::env::temp_dir().join(format!("bitfun-write-test-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&root).expect("create temp workspace");
         let original_payload = "def main():\n    print(\"Hello world\")";
 

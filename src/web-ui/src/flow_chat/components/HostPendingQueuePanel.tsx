@@ -1,23 +1,33 @@
 import { pendingQueueManager } from '../services/flow-chat-manager/PendingQueueModule';
 import type { QueuedMessage } from '../types/flow-chat';
-import { useEffect, useId, useState, useSyncExternalStore } from 'react';
+import { useEffect, useId, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { useI18n } from '@/infrastructure/i18n';
 import { Button, Icon, IconButton, OverflowText, Tooltip } from '@bitfun/ui';
-import { RotateCw } from 'lucide-react';
+import { GripVertical, ListEnd, Paperclip, RotateCw } from 'lucide-react';
 import './HostPendingQueuePanel.scss';
+import { useQueueReorder } from '@bitfun/ui/flow-chat';
+import { PendingQueueMessageActions } from './PendingQueueMessageActions';
+import { usePendingQueueDisclosure } from './usePendingQueueDisclosure';
 import { hostQueuePresentation, observePresentedHostQueue } from '../services/hostQueuePresentation';
 import { HostDialogQueue, type QueueOutboxRecord, type QueueItem } from '../../../../shared/dialog-queue/HostDialogQueue';
 import {
-  ChatComposerQueue, ChatComposerQueueHeader, ChatComposerQueueTitle,
-  ChatComposerQueueList, ChatComposerQueueItem, ChatComposerQueueItemContent, ChatComposerQueueItemActions,
+  ChatComposerQueue, ChatComposerQueueHeader, ChatComposerQueueTitle, ChatComposerQueueToggle,
+  ChatComposerQueueList, ChatComposerQueueItem, ChatComposerQueueItemContent, ChatComposerQueueItemMessage, ChatComposerQueueItemActions,
+  ChatComposerQueueItemStatus, ChatComposerQueueAttachmentBadge,
 } from '@bitfun/ui/flow-chat';
+
+function QueueAction({ label, icon, disabled, onClick }: { label: string; icon: ReactNode; disabled: boolean; onClick: () => void }) {
+  return <Tooltip content={label}>
+    <IconButton data-bitfun-product-component="pending-queue-panel" data-bitfun-product-part="action" size="xs" variant="annotation" aria-label={label} icon={icon} disabled={disabled} onClick={onClick} />
+  </Tooltip>;
+}
 
 export function HostPendingQueuePanel({ queue, onRestore }: { queue: HostDialogQueue; onRestore: (item: QueuedMessage) => boolean }) {
   const { t } = useI18n('flow-chat');
   const view = useSyncExternalStore(queue.subscribe, queue.getSnapshot, queue.getSnapshot);
   const presentation = hostQueuePresentation(queue);
   const projected = useSyncExternalStore(presentation.subscribe, presentation.getSnapshot, presentation.getSnapshot);
-  const [expanded, setExpanded] = useState(true);
+  const { expanded, toggle, toggleRef, listRef } = usePendingQueueDisclosure();
   const [showHelp, setShowHelp] = useState(false);
   const listId = useId();
   const [busy, setBusy] = useState(false);
@@ -53,60 +63,105 @@ export function HostPendingQueuePanel({ queue, onRestore }: { queue: HostDialogQ
     await queue.dismiss(saved);
   };
   const items = (view.snapshot?.items ?? []).filter(item => item.status === 'blocked' || !projected.has(item.turnId));
-  const visibleError = error || (view.error?.includes('Session is not loaded') ? null : view.error);
+  const reorderIds = items.filter(item => item.status === 'queued').map(item => item.turnId);
+  const reorder = useQueueReorder(reorderIds, !busy && !view.error && view.snapshot?.supportsReorder === true,
+    `${view.snapshot?.queueEpoch}:${view.snapshot?.revision}`, (id, before) => void run(() => queue.reorder(id, before)));
+  const rawError = error || (view.error?.includes('Session is not loaded') ? null : view.error);
+  const visibleError = rawError?.includes('queue_conflict:') ? t('pendingQueue.orderChanged') : rawError;
   if (!items.length && !view.pending.length && !visibleError) return null;
-  return <ChatComposerQueue data-bitfun-product-component="pending-queue-panel" data-bitfun-product-part="root" className="host-pending-queue" aria-label={t('hostQueue.title')}>
-    <ChatComposerQueueHeader data-bitfun-product-component="pending-queue-panel" data-bitfun-product-part="header">
-      <Button variant="text" size="xs" className="host-pending-queue__toggle" aria-expanded={expanded} aria-controls={listId}
-        onClick={() => setExpanded(value => !value)} trailingIcon={<Icon name={expanded ? 'chevron-down' : 'chevron-up'} />}>
-        <ChatComposerQueueTitle data-bitfun-product-component="pending-queue-panel" data-bitfun-product-part="title" count={items.length + view.pending.length}>{t('hostQueue.title')}</ChatComposerQueueTitle>
-      </Button>
-      <Tooltip content={t('hostQueue.about')}><IconButton size="xs" aria-label={t('hostQueue.about')} aria-expanded={showHelp}
-        icon={<Icon name="info" />} onClick={() => setShowHelp(value => !value)} /></Tooltip>
-    </ChatComposerQueueHeader>
-    {showHelp && <p data-bitfun-product-component="pending-queue-panel" data-bitfun-product-part="status" className="host-pending-queue__note">{t('hostQueue.memoryNotice')}</p>}
-    {visibleError && <div data-bitfun-product-component="pending-queue-panel" data-bitfun-product-part="status" role="alert" className="host-pending-queue__error">{visibleError}<Button size="xs" variant="text" disabled={busy} onClick={() => void run(() => queue.refresh())}>{t('hostQueue.refresh')}</Button></div>}
-    <ChatComposerQueueList data-bitfun-product-component="pending-queue-panel" data-bitfun-product-part="list" id={listId} hidden={!expanded}>
-      {items.map(item => <ChatComposerQueueItem data-bitfun-product-component="pending-queue-panel" data-bitfun-product-part="item" key={item.turnId} state={item.status === 'blocked' ? 'failed' : item.status === 'steering_pending' ? 'sending' : 'default'}>
-        <ChatComposerQueueItemContent data-bitfun-product-component="pending-queue-panel" data-bitfun-product-part="content">
-          <OverflowText title={item.displayContent}>{item.displayContent || t('pendingQueue.emptyPlaceholder')}</OverflowText>
-          {item.status !== 'queued' && <span className="host-pending-queue__status">{item.status === 'blocked' ? t('hostQueue.blocked') : t('hostQueue.steeringPending')}</span>}
-          {item.attachmentCount > 0 && <span className="host-pending-queue__status">{t('hostQueue.attachments', { count: item.attachmentCount })}</span>}
-          {item.reason && <OverflowText className="host-pending-queue__status" title={item.reason}>{item.reason}</OverflowText>}
-        </ChatComposerQueueItemContent>
-        <ChatComposerQueueItemActions data-bitfun-product-component="pending-queue-panel" data-bitfun-product-part="actions">
-          <Tooltip content={t('hostQueue.edit')}><IconButton size="xs" aria-label={t('hostQueue.edit')} icon={<Icon name="edit" />} disabled={busy || !!view.error || item.status === 'steering_pending'} onClick={() => void run(async () => {
+  const locked = busy || !!view.error;
+  const renderPreview = (text: string) => <OverflowText data-bitfun-product-component="pending-queue-panel" data-bitfun-product-part="preview"
+    behavior="fade" data-overflow-trigger tabIndex={0}>{text}</OverflowText>;
+  const renderItem = (item: QueueItem) => {
+    const steering = item.status === 'steering_pending';
+    const blocked = item.status === 'blocked';
+    return <ChatComposerQueueItem data-bitfun-product-component="pending-queue-panel" data-bitfun-product-part="item" key={item.turnId} {...reorder.rowProps(item.turnId)}
+      leadingControl={item.status === 'queued' && view.snapshot?.supportsReorder ? <IconButton variant="annotation" size="xs"
+        aria-label={t('pendingQueue.reorder')} icon={<Icon glyph={GripVertical} size="sm" />} {...reorder.handleProps(item.turnId)} /> : undefined}
+      leadingIcon={<Icon glyph={ListEnd} size="sm" />} state={blocked ? 'failed' : steering ? 'sending' : 'default'}>
+      <ChatComposerQueueItemContent data-bitfun-product-component="pending-queue-panel" data-bitfun-product-part="content">
+        <ChatComposerQueueItemMessage>
+          {renderPreview(item.displayContent || t('pendingQueue.emptyPlaceholder'))}
+          <ChatComposerQueueAttachmentBadge count={item.attachmentCount} icon={<Icon glyph={Paperclip} size="sm" />}
+            label={t('hostQueue.attachments', { count: item.attachmentCount })} />
+        </ChatComposerQueueItemMessage>
+        {(blocked || steering) && <ChatComposerQueueItemStatus data-bitfun-product-component="pending-queue-panel" data-bitfun-product-part="status" tone={blocked ? 'warning' : 'neutral'}>
+          {blocked ? t('hostQueue.blocked') : t('hostQueue.steeringPending')}
+        </ChatComposerQueueItemStatus>}
+        {item.reason && <ChatComposerQueueItemStatus data-bitfun-product-component="pending-queue-panel" data-bitfun-product-part="status" tone={blocked ? 'warning' : 'neutral'}>{item.reason}</ChatComposerQueueItemStatus>}
+      </ChatComposerQueueItemContent>
+      <ChatComposerQueueItemActions data-bitfun-product-component="pending-queue-panel" data-bitfun-product-part="actions">
+        <PendingQueueMessageActions sendLabel={t('hostQueue.sendNow')} sendDisabled={locked || steering}
+          onSend={() => void run(() => queue.act(item, 'promote'))}
+          editLabel={t('hostQueue.edit')} editDisabled={locked || steering} onEdit={() => void run(async () => {
             const saved = await queue.savedDraft(item.turnId);
             if (!saved || saved.request.action !== 'submit') throw new Error(t('hostQueue.noDraft'));
             await restoreDraft(saved, item);
-          })} /></Tooltip>
-          <Tooltip content={t('hostQueue.sendNow')}><IconButton size="xs" aria-label={t('hostQueue.sendNow')} icon={<Icon name="arrow-up" />} disabled={busy || !!view.error || item.status === 'steering_pending'} onClick={() => void run(() => queue.act(item, 'promote'))} /></Tooltip>
-          <Tooltip content={t('hostQueue.cancel')}><IconButton size="xs" aria-label={t('hostQueue.cancel')} icon={<Icon name="xmark" />} disabled={busy || !!view.error || item.status === 'steering_pending'} onClick={() => void run(() => queue.act(item, 'cancel'))} /></Tooltip>
-        </ChatComposerQueueItemActions>
-      </ChatComposerQueueItem>)}
-      {view.pending.map(record => <ChatComposerQueueItem data-bitfun-product-component="pending-queue-panel" data-bitfun-product-part="item" key={record.key} state="failed">
-        <ChatComposerQueueItemContent data-bitfun-product-component="pending-queue-panel" data-bitfun-product-part="content"><OverflowText className="host-pending-queue__status" title={t('hostQueue.unknown')}>{t('hostQueue.unknown')}</OverflowText>
-          {record.request.action === 'submit' && <OverflowText title={record.request.message.displayContent ?? record.request.message.content}>{record.request.message.displayContent ?? record.request.message.content}</OverflowText>}
-        </ChatComposerQueueItemContent>
-        <ChatComposerQueueItemActions data-bitfun-product-component="pending-queue-panel" data-bitfun-product-part="actions">
-          {record.restoreIntent && record.request.action === 'submit'
-            ? <IconButton size="xs" aria-label={t('hostQueue.edit')} title={t('hostQueue.edit')} icon={<Icon name="edit" />} disabled={busy} onClick={() => void run(() => restoreDraft(record))} />
-            : <IconButton size="xs" aria-label={t('hostQueue.checkRetry')} title={t('hostQueue.checkRetry')} icon={<Icon glyph={RotateCw} />} disabled={busy} onClick={() => void run(() => queue.retry(record))} />}
-          {record.request.action === 'submit' && <IconButton size="xs" aria-label={t('hostQueue.copyDraft')} title={t('hostQueue.copyDraft')} icon={<Icon name="duplicate" />} disabled={busy} onClick={() => {
-            if (record.request.action !== 'submit') return;
-            const message = record.request.message;
-            const cache = record.draft as Partial<QueuedMessage> | undefined;
-            // Copy locally even after an owner restart. Keep the unresolved
-            // receipt: copying is neither a cancellation nor a resend.
-            onRestore({ ...cache, id: message.turnId, sessionId: queue.sessionId,
-              content: message.content, displayMessage: message.displayContent,
-              agentType: message.agentType, timestamp: cache?.timestamp ?? Date.now(),
-              status: 'queued', retryCount: cache?.retryCount ?? 0,
-              userMessageMetadata: message.metadata });
-          }} />}
-          <IconButton size="xs" aria-label={t('hostQueue.dismiss')} title={t('hostQueue.dismiss')} icon={<Icon name="xmark" />} disabled={busy} onClick={() => void run(() => queue.dismiss(record))} />
-        </ChatComposerQueueItemActions>
-      </ChatComposerQueueItem>)}
+          })}
+          removeLabel={t('hostQueue.cancel')} removeDisabled={locked || steering}
+          onRemove={() => void run(() => queue.act(item, 'cancel'))}
+          onMoveUp={view.snapshot?.supportsReorder && item.status === 'queued' ? () => void run(() => queue.reorder(item.turnId, reorderIds[reorderIds.indexOf(item.turnId) - 1])) : undefined}
+          onMoveDown={view.snapshot?.supportsReorder && item.status === 'queued' ? () => void run(() => queue.reorder(item.turnId, reorderIds[reorderIds.indexOf(item.turnId) + 2] ?? null)) : undefined}
+          moveUpDisabled={locked || reorderIds.indexOf(item.turnId) <= 0}
+          moveDownDisabled={locked || reorderIds.indexOf(item.turnId) === reorderIds.length - 1}
+          onCollapse={expanded ? toggle : undefined} onAbout={() => setShowHelp(value => !value)} />
+      </ChatComposerQueueItemActions>
+    </ChatComposerQueueItem>;
+  };
+  const renderPending = (record: QueueOutboxRecord) => {
+    const message = record.request.action === 'submit' ? record.request.message : null;
+    return <ChatComposerQueueItem data-bitfun-product-component="pending-queue-panel" data-bitfun-product-part="item" key={record.key} leadingIcon={<Icon glyph={ListEnd} size="sm" />} state="failed">
+      <ChatComposerQueueItemContent data-bitfun-product-component="pending-queue-panel" data-bitfun-product-part="content">
+        {message && <ChatComposerQueueItemMessage>{renderPreview(message.displayContent ?? message.content)}</ChatComposerQueueItemMessage>}
+        <ChatComposerQueueItemStatus data-bitfun-product-component="pending-queue-panel" data-bitfun-product-part="status" tone="warning">{t('hostQueue.unknown')}</ChatComposerQueueItemStatus>
+      </ChatComposerQueueItemContent>
+      <ChatComposerQueueItemActions data-bitfun-product-component="pending-queue-panel" data-bitfun-product-part="actions">
+        <Tooltip content={t(record.restoreIntent && message ? 'hostQueue.edit' : 'hostQueue.checkRetry')}>
+          <Button data-bitfun-product-component="pending-queue-panel" data-bitfun-product-part="action"
+            variant="text" size="xs" labelBehavior="static" disabled={busy}
+            aria-label={t(record.restoreIntent && message ? 'hostQueue.edit' : 'hostQueue.checkRetry')}
+            leadingIcon={record.restoreIntent && message ? <Icon name="edit" size="sm" /> : <Icon glyph={RotateCw} size="sm" />}
+            onClick={() => void run(() => record.restoreIntent && message ? restoreDraft(record) : queue.retry(record))}>
+            {t(record.restoreIntent && message ? 'hostQueue.edit' : 'hostQueue.retry')}
+          </Button>
+        </Tooltip>
+        {message && <QueueAction label={t('hostQueue.copyDraft')} icon={<Icon name="duplicate" size="sm" />} disabled={busy} onClick={() => {
+          const cache = record.draft as Partial<QueuedMessage> | undefined;
+          // Copy locally even after an owner restart. Keep the unresolved
+          // receipt: copying is neither a cancellation nor a resend.
+          onRestore({ ...cache, id: message.turnId, sessionId: queue.sessionId,
+            content: message.content, displayMessage: message.displayContent,
+            agentType: message.agentType, timestamp: cache?.timestamp ?? Date.now(),
+            status: 'queued', retryCount: cache?.retryCount ?? 0,
+            userMessageMetadata: message.metadata });
+        }} />}
+        <QueueAction label={t('hostQueue.dismiss')} icon={<Icon name="xmark" size="sm" />} disabled={busy} onClick={() => void run(() => queue.dismiss(record))} />
+      </ChatComposerQueueItemActions>
+    </ChatComposerQueueItem>;
+  };
+  // Collapsing hides the controlled list. Rows that still need a decision
+  // (blocked or unconfirmed) move to a recovery list outside the disclosure.
+  const recoveryItems = expanded ? [] : items.filter(item => item.status === 'blocked');
+  const recoveryPending = expanded ? [] : view.pending;
+  return <ChatComposerQueue data-bitfun-product-component="pending-queue-panel" data-bitfun-product-part="root" className="host-pending-queue" aria-label={t('pendingQueue.label', { count: items.length + view.pending.length })}>
+    {(!expanded || items.length === 0) && <ChatComposerQueueHeader data-bitfun-product-component="pending-queue-panel" data-bitfun-product-part="header">
+      <ChatComposerQueueToggle ref={toggleRef} className="host-pending-queue__toggle" expanded={expanded} aria-controls={listId}
+        onClick={toggle}>
+        <ChatComposerQueueTitle data-bitfun-product-component="pending-queue-panel" data-bitfun-product-part="title" count={items.length + view.pending.length}>{t('hostQueue.title')}</ChatComposerQueueTitle>
+      </ChatComposerQueueToggle>
+      <Tooltip content={t('hostQueue.about')}><IconButton size="xs" variant="annotation" aria-label={t('hostQueue.about')} aria-expanded={showHelp}
+        icon={<Icon name="info" />} onClick={() => setShowHelp(value => !value)} /></Tooltip>
+    </ChatComposerQueueHeader>}
+    {showHelp && <p data-bitfun-product-component="pending-queue-panel" data-bitfun-product-part="status" className="host-pending-queue__note">{t('hostQueue.memoryNotice')}{!view.snapshot?.supportsReorder && ` ${t('pendingQueue.reorderUnsupported')}`}</p>}
+    {visibleError && <div data-bitfun-product-component="pending-queue-panel" data-bitfun-product-part="status" role="alert" className="host-pending-queue__error">
+      <span className="host-pending-queue__error-text">{visibleError}</span>
+      <Button size="xs" variant="text" disabled={busy} onClick={() => void run(() => queue.refresh())}>{t('hostQueue.refresh')}</Button>
+    </div>}
+    <ChatComposerQueueList data-bitfun-product-component="pending-queue-panel" data-bitfun-product-part="list" ref={listRef} id={listId} hidden={!expanded}>
+      {expanded && <>{items.map(renderItem)}{view.pending.map(renderPending)}</>}
     </ChatComposerQueueList>
+    {(recoveryItems.length > 0 || recoveryPending.length > 0) && <ChatComposerQueueList data-bitfun-product-component="pending-queue-panel" data-bitfun-product-part="list">
+      {recoveryItems.map(renderItem)}{recoveryPending.map(renderPending)}
+    </ChatComposerQueueList>}
   </ChatComposerQueue>;
 }

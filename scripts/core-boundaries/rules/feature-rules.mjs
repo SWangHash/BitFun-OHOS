@@ -192,6 +192,7 @@ export const optionalDependencyFeatureOwnerRules = [
       },
       { depName: 'bitfun-agent-runtime', ownerFeatures: ['agent-runtime', 'ai-adapter-runtime'] },
       { depName: 'bitfun-agent-workflows', ownerFeatures: ['deep-research'] },
+      { depName: 'openbitfun-office-documents', ownerFeatures: ['tools-office-documents'] },
       { depName: 'bitfun-agent-stream', ownerFeatures: ['agent-runtime'] },
       { depName: 'bitfun-agent-tools', ownerFeatures: ['agent-runtime', 'local-storage', 'mcp-runtime'] },
       { depName: 'bitfun-claude-code-adapter', ownerFeatures: ['external-sources'] },
@@ -221,8 +222,8 @@ export const optionalDependencyFeatureOwnerRules = [
       {
         depName: 'bitfun-services-integrations',
         ownerFeatures: [
-          'canvas-runtime',
           'browser-control',
+          'canvas-runtime',
           'deep-research',
           'external-sources',
           'file-watch',
@@ -257,6 +258,7 @@ export const optionalDependencyFeatureOwnerRules = [
           'tools-git',
           'tools-image-analysis',
           'tools-image-generation',
+          'tools-office-documents',
           'tools-mcp',
           'tools-miniapp',
           'tools-pages',
@@ -792,6 +794,7 @@ export const coreProductFullFeatureAssemblyRule = {
     'tools-git',
     'tools-image-analysis',
     'tools-image-generation',
+    'tools-office-documents',
     'tools-mcp',
     'tools-miniapp',
     'tools-pages',
@@ -837,6 +840,7 @@ export const acpServerCoreFeatures = [
   'tools-computer-use',
   'tools-image-analysis',
   'tools-image-generation',
+  'tools-office-documents',
   'tools-agent-control',
 ];
 
@@ -1472,6 +1476,16 @@ export const coreClosedFeatureProfileRules = [
   },
   {
     manifestPath: 'src/crates/assembly/core/Cargo.toml',
+    featureName: 'tools-office-documents',
+    requiredFeatureRefs: [
+      'bitfun-tool-packs/office-documents',
+      'dep:openbitfun-office-documents',
+    ],
+    exact: true,
+    reason: 'tools-office-documents owns Office file generation with only its portable OOXML engine',
+  },
+  {
+    manifestPath: 'src/crates/assembly/core/Cargo.toml',
     featureName: 'tools-pages',
     requiredFeatureRefs: ['bitfun-tool-packs/pages'],
     exact: true,
@@ -1930,6 +1944,7 @@ export const ownerCrateFeatureAssemblyRules = [
       'computer-use',
       'image-analysis',
       'image-generation',
+      'office-documents',
       'miniapp',
       'pages',
       'creation',

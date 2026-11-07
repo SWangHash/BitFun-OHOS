@@ -20,9 +20,7 @@ impl AgentControlAction {
             .and_then(Value::as_str)
             .map(str::trim)
             .filter(|action| !action.is_empty())
-            .ok_or_else(|| {
-                BitFunError::tool("action is required for AgentControl".to_string())
-            })?;
+            .ok_or_else(|| BitFunError::tool("action is required for AgentControl".to_string()))?;
         match action {
             "interrupt" => Ok(Self::Interrupt),
             "delete" => Ok(Self::Delete),
@@ -54,9 +52,9 @@ impl AgentControlTool {
     }
 
     fn parse_agent_ids(input: &Value) -> BitFunResult<Vec<String>> {
-        let object = input.as_object().ok_or_else(|| {
-            BitFunError::tool("AgentControl input must be an object".to_string())
-        })?;
+        let object = input
+            .as_object()
+            .ok_or_else(|| BitFunError::tool("AgentControl input must be an object".to_string()))?;
         if let Some(field) = object
             .keys()
             .find(|field| !matches!(field.as_str(), "action" | "agent_ids"))
@@ -89,9 +87,7 @@ impl AgentControlTool {
                 .map(str::trim)
                 .filter(|agent_id| !agent_id.is_empty())
                 .ok_or_else(|| {
-                    BitFunError::tool(
-                        "agent_ids must contain only non-empty strings".to_string(),
-                    )
+                    BitFunError::tool("agent_ids must contain only non-empty strings".to_string())
                 })?;
             if seen.insert(agent_id.to_string()) {
                 agent_ids.push(agent_id.to_string());
@@ -112,9 +108,10 @@ impl AgentControlTool {
     }
 
     fn ensure_context_allowed(context: &ToolUseContext) -> BitFunResult<()> {
-        context.agent_type.as_deref().ok_or_else(|| {
-            BitFunError::tool("agent_type is required in context".to_string())
-        })?;
+        context
+            .agent_type
+            .as_deref()
+            .ok_or_else(|| BitFunError::tool("agent_type is required in context".to_string()))?;
         Ok(())
     }
 
@@ -233,9 +230,10 @@ impl Tool for AgentControlTool {
     ) -> BitFunResult<Vec<ToolResult>> {
         Self::ensure_context_allowed(context)?;
         let (action, agent_ids) = Self::parse_input(input)?;
-        let session_id = context.session_id.as_deref().ok_or_else(|| {
-            BitFunError::tool("session_id is required in context".to_string())
-        })?;
+        let session_id = context
+            .session_id
+            .as_deref()
+            .ok_or_else(|| BitFunError::tool("session_id is required in context".to_string()))?;
         let coordinator = get_global_coordinator()
             .ok_or_else(|| BitFunError::tool("coordinator not initialized".to_string()))?;
 
@@ -306,6 +304,7 @@ mod tests {
             dialog_turn_id: Some("turn".to_string()),
             workspace: None,
             loaded_deferred_tool_specs: Vec::new(),
+            model_client: None,
             primary_model_facts: tool_runtime::context::PrimaryModelFacts::default(),
             custom_data: HashMap::new(),
             computer_use_host: None,

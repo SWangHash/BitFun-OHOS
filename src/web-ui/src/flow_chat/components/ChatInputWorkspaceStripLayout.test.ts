@@ -424,11 +424,12 @@ describe('composer context track layout', () => {
   it('keeps a new session expanded until its first submission starts the session', () => {
     const component = readLocalFile('ChatInput.tsx');
 
-    expect(component).toContain(
-      'const effectiveTargetSessionStarted = effectiveTargetSession ? hasSessionStarted(effectiveTargetSession) : false;',
+    // A loading persisted session, or one being opened, is not a new session.
+    expect(component).toMatch(
+      /const effectiveTargetSessionStarted = effectiveTargetSession\s*\?\s*hasSessionStarted\(effectiveTargetSession\) \|\| effectiveTargetSession\.isHistorical === true/,
     );
     expect(component).toContain(
-      'const isNewSessionComposer = !effectiveTargetSessionStarted;',
+      'const isNewSessionComposer = !effectiveTargetSessionStarted && historySessionOpenTransition === null;',
     );
     expect(component).toContain(
       'const [isMultiLine, setIsMultiLine] = useState(isNewSessionComposer);',

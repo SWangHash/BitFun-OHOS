@@ -25,9 +25,11 @@
 
 Peer Device Mode（同账号远程完整客户端）的边界见 `docs/architecture/peer-device-mode.md`。
 前端不变量见 `src/infrastructure/peer-device/README.md`。不要重新引入内嵌会话/聊天壳；
-应从设备列表（Remote Connect 的「我的 BitFun」组）进入 peer mode。
+从侧边栏对应设备的分区打开工作区或会话。Remote Connect 的账号设备列表只管理
+显示状态、别名和移除设备，点击设备行不切换当前设备。拖动顺序只保存在控制端本机，
+由账号列表、侧边栏分区和设备预览轮播共用；重命名、在线状态变化和远控切换不改变设备 ID。
 
-Remote Connect 使用全局 GitHub 账户和官方版本化 Relay。账户控件复用 account-identity
+Remote Connect 使用共享 BitFun 账号（GitHub 或邮箱验证码登录）和官方版本化 Relay。账户控件复用 account-identity
 服务，不再提供独立 Relay 账户、自定义服务器或自建部署入口。SSH 与 Docker 远程工作区
 继续独立使用，不受 Relay 登录限制。
 
@@ -80,6 +82,19 @@ pnpm run check:web
 `check:web` 会执行类型检查，以及 CI 使用的 Appearance contract、主题颜色和主题视觉治理门禁，确保渲染 DOM
 或样式回归能在本地发现。完整 lint、build 与大范围测试由 CI 兜底，除非本地改动确实需要复现。
 
+能力目录条目及其全局搜索多语言标签使用以下聚焦检查：
+
+```bash
+pnpm run capabilities:generate && pnpm run capabilities:check && pnpm run capabilities:test
+pnpm run website:test
+pnpm --dir src/web-ui run test:run src/app/global-search/providers/interactiveCapabilitySearchProvider.test.ts
+pnpm run i18n:audit
+```
+
+新增目录条目还需在各语言的 `scenes/capabilities.json` 中补齐 `search.capabilities`
+标签；目录生成器不会写入这些资源。共享搜索验收用例同时覆盖说明书网站和 Web UI，
+并检查是否匹配到正确的子能力。
+
 导航分割线拖拽、弹性反馈、取消操作与键盘调宽使用以下聚焦检查：
 
 ```bash
@@ -87,3 +102,23 @@ pnpm --dir src/web-ui run test:run src/app/layout/useNavResize.test.tsx src/app/
 ```
 
 这些本地 DOM 测试覆盖手势状态和弹簧收敛，不代表原生 WebView 渲染或真实远程场景验证。
+
+远端工作区状态核对与 ACP 能力缓存失效使用以下聚焦检查：
+
+```bash
+pnpm --dir src/web-ui run test:run src/features/ssh-remote/SSHRemoteProvider.test.tsx src/infrastructure/api/service-api/ACPClientAPI.test.ts src/app/components/NavPanel/sections/workspaces/workspaceAcpMenuClients.test.ts src/app/components/NavPanel/sections/workspaces/workspaceAcpMenuClients.integration.test.ts
+```
+
+这些测试覆盖空闲元数据更新、连接恢复、显式激活、并发改绑与关闭、部分工作区恢复失败、
+配置失效、菜单探测反馈循环和模拟 Peer
+设备切换，不代表真实 SSH、远程控制或离线派发验证。编辑器轮询检查见
+`src/tools/editor/AGENTS.md`。
+
+编辑/回滚结果、旧版本被控端响应与延迟记录重放使用以下聚焦检查：
+
+```bash
+pnpm --dir src/web-ui run test:run src/flow_chat/services/SessionRollbackService.test.ts src/flow_chat/services/UserMessageEditService.test.ts src/flow_chat/store/FlowChatStore.test.ts src/flow_chat/session-stream/SessionRecordReplica.test.ts src/flow_chat/services/RelaySessionHistory.test.ts
+```
+
+这些测试通过模拟 Peer 记录验证共享操作服务和实际展示状态，包括设备切换与 redo；
+不代表真实 Desktop-to-Desktop 或 Desktop-to-CLI 连接验证。

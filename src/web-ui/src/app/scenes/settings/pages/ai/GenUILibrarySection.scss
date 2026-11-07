@@ -1,0 +1,12 @@
+.gen-ui-library-settings-surface {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--bitfun-color-border-default);
+  border-radius: var(--bitfun-radius-lg);
+  background: var(--bitfun-color-surface-panel);
+}
+
+.gen-ui-library-selector {
+  padding-block: var(--bitfun-space-5);
+  background: var(--bitfun-color-surface-panel);
+}

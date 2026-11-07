@@ -37,6 +37,7 @@ server = [
     "bitfun-core/tools-computer-use",
     "bitfun-core/tools-image-analysis",
     "bitfun-core/tools-image-generation",
+    "bitfun-core/tools-office-documents",
     "bitfun-core/tools-agent-control",
 ]
 

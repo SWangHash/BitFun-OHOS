@@ -359,9 +359,9 @@ impl Tool for GlobTool {
             }
 
             // Existing rg is an accelerator. Without it, consume the typed workspace filesystem.
-            let ws_shell = context.ws_shell().ok_or_else(|| {
-                BitFunError::tool("Workspace shell not available".to_string())
-            })?;
+            let ws_shell = context
+                .ws_shell()
+                .ok_or_else(|| BitFunError::tool("Workspace shell not available".to_string()))?;
 
             let search_dir = effective_glob.search_path.clone();
             let (remote_walk_root, _remote_pattern) =
@@ -373,9 +373,7 @@ impl Tool for GlobTool {
             let (_stdout, _stderr, exit_code) = ws_shell
                 .exec("command -v rg >/dev/null 2>&1", Some(5_000))
                 .await
-                .map_err(|e| {
-                    BitFunError::tool(format!("Failed to detect rg on remote: {}", e))
-                })?;
+                .map_err(|e| BitFunError::tool(format!("Failed to detect rg on remote: {}", e)))?;
 
             let uses_ripgrep = exit_code == 0;
             let glob_result = if uses_ripgrep {
@@ -618,6 +616,7 @@ mod tests {
                 session_identity,
             )),
             loaded_deferred_tool_specs: Vec::new(),
+            model_client: None,
             primary_model_facts: tool_runtime::context::PrimaryModelFacts::default(),
             custom_data: HashMap::new(),
             computer_use_host: None,

@@ -565,10 +565,7 @@ pub(crate) async fn metadata(root: &Path, id: &str) -> BitFunResult<Option<Sessi
         .map(|entry| entry.metadata.clone()))
 }
 
-pub(crate) async fn save_metadata(
-    root: &Path,
-    metadata: &SessionMetadata,
-) -> BitFunResult<bool> {
+pub(crate) async fn save_metadata(root: &Path, metadata: &SessionMetadata) -> BitFunResult<bool> {
     if (!is_deferred(metadata) && !tracking::is_followed(metadata))
         || (!legacy::follows_native(metadata)
             && tokio::fs::try_exists(root.join(&metadata.session_id).join("metadata.json"))
@@ -1561,9 +1558,7 @@ mod tests {
 
     #[tokio::test]
     async fn catalog_query_pages_native_and_external_metadata_without_materializing_history() {
-        use bitfun_services_core::session::page::{
-            SessionCatalogOrdering, SessionCatalogQuery,
-        };
+        use bitfun_services_core::session::page::{SessionCatalogOrdering, SessionCatalogQuery};
         let (_temp, workspace, root, manager) = fixture();
         let candidates = (0..60)
             .map(|index| {
@@ -1607,6 +1602,7 @@ mod tests {
             workspace_id: workspace.id.clone(),
             ordering: SessionCatalogOrdering::Updated,
             source: "codex".into(),
+            sources: Vec::new(),
             sort_timestamps: HashMap::new(),
         };
         let first = manager
@@ -2056,6 +2052,7 @@ mod tests {
             workspace_id: workspace.id.clone(),
             ordering: bitfun_services_core::session::page::SessionCatalogOrdering::Updated,
             source: "all".into(),
+            sources: Vec::new(),
             sort_timestamps: HashMap::new(),
         };
         let fallback = manager

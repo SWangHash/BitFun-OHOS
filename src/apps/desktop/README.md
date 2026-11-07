@@ -3,6 +3,20 @@
 For development commands, see [AGENTS.md](AGENTS.md) and the repository
 [contribution guide](../../../CONTRIBUTING.md).
 
+## Window resizing
+
+The main window keeps its content visible while resizing or maximizing. Continuous
+resizing briefly batches expensive transcript and terminal measurements, with
+regular updates during the drag. Single adjustments use normal live layout;
+macOS releases the batch as soon as the native drag ends. Conversations, draft
+text and editor views remain mounted, with no resize cover, logo or reveal animation.
+On macOS the main WebView follows its native container immediately, including
+when embedded browsers are open. Browser children retain their own bounds.
+The opaque scene background is also painted underneath the WebView by AppKit,
+so newly exposed edges retain the page color while WebKit catches up. The sidebar
+keeps its native material. Theme changes and sidebar geometry update this paint;
+translucent or image-backed scene surfaces retain their original composition.
+
 ## Model selection and smart routing
 
 **Release availability:** smart mode is not available in this release. The GUI
@@ -95,12 +109,13 @@ completion quality, total latency, model/cache usage and auxiliary request cost.
 
 ## Remote Connect
 
-Sign in once with the shared GitHub account. The official Relay and **Same
-network** (the embedded LAN Relay) can run at the same time. Each tab shows its
-own connection and connected browsers; **Disconnect** affects that tab only.
+Sign in with the same BitFun account on each device, using the same GitHub
+or email-code login method. The official Relay needs no user deployment. The
+official Relay and **Same network** (the embedded LAN Relay) can run at the same
+time. Each tab shows its own connection and connected browsers; **Disconnect** affects that tab only.
 Closing a connection code keeps an established connection running.
 
-**My devices**, Peer Device Mode, account synchronization and detached dispatch
+**My devices**, Peer Device Mode, account synchronization and account-device detached dispatch
 use the official Relay. Starting or stopping the LAN Relay does not switch their
 account or endpoint. LAN invitations advertise the selected network interface;
 select it again and create a new invitation after changing networks.
@@ -110,6 +125,10 @@ is temporary and starts when requested. Builds that previously saved a temporary
 LAN session in the account slot attempt to restore the official Relay from the
 shared identity; failed sign-in leaves the previous credential on disk. Signing
 out closes both connections.
+
+Both modes require the online identity service for sign-in. Same-network mode
+does not provide offline login. See the [Relay FAQ](../relay-server/FAQ.md) for
+privacy, service availability, and private-deployment requirements.
 
 ## Global agent instructions
 

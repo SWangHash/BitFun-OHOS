@@ -30,8 +30,8 @@ use crate::config::CliConfig;
 /// - Model/Agent/Session/Skill/Subagent selector popups
 /// - Random tips
 use anyhow::{anyhow, Result};
-use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use bitfun_product_domains::agent_catalog::{SkillSummary, SubagentSummary};
+use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use ratatui::{
     backend::Backend,
     layout::{Alignment, Constraint, Direction, Layout, Rect},
@@ -1114,6 +1114,7 @@ impl StartupPage {
             | ActionHandler::PromptStash
             | ActionHandler::PromptStashPop
             | ActionHandler::PromptStashList
+            | ActionHandler::MessageQueue
             | ActionHandler::ToggleTimestamps
             | ActionHandler::ToggleThinking
             | ActionHandler::ToggleToolDetails
@@ -1781,9 +1782,9 @@ impl StartupPage {
                                     .iter_mut()
                                     .find(|model| model.id == model_id)
                                     .ok_or_else(|| {
-                                        bitfun_core::util::errors::BitFunError::config(
-                                            format!("AI model '{model_id}' was not found"),
-                                        )
+                                        bitfun_core::util::errors::BitFunError::config(format!(
+                                            "AI model '{model_id}' was not found"
+                                        ))
                                     })?;
                                 let model = model_from_mutation(mutation, Some(existing.clone()))
                                     .map_err(|error| {
@@ -2174,16 +2175,13 @@ impl StartupPage {
                     .workspace_id()
                     .ok_or_else(|| anyhow::anyhow!("Workspace ID is unavailable"))?;
                 let values = bitfun_core::agentic::agents::get_agent_registry()
-                    .get_subagents_for_query(
-                        &bitfun_core::agentic::agents::SubagentQueryContext {
-                            parent_agent_type: Some(&self.agent_type),
-                            workspace_id: Some(&workspace_id),
-                            list_scope:
-                                bitfun_core::agentic::agents::SubagentListScope::TaskVisible,
-                            include_disabled: false,
-                            external_sources_supported: true,
-                        },
-                    )
+                    .get_subagents_for_query(&bitfun_core::agentic::agents::SubagentQueryContext {
+                        parent_agent_type: Some(&self.agent_type),
+                        workspace_id: Some(&workspace_id),
+                        list_scope: bitfun_core::agentic::agents::SubagentListScope::TaskVisible,
+                        include_disabled: false,
+                        external_sources_supported: true,
+                    })
                     .await;
                 Ok::<_, anyhow::Error>(
                     values
@@ -2228,7 +2226,10 @@ impl StartupPage {
                 if self.agent.is_remote_workspace() {
                     anyhow::bail!("Subagent management is unavailable for a Remote workspace")
                 }
-                let workspace_id = self.agent.workspace_id().ok_or_else(|| anyhow::anyhow!("Workspace ID is unavailable"))?;
+                let workspace_id = self
+                    .agent
+                    .workspace_id()
+                    .ok_or_else(|| anyhow::anyhow!("Workspace ID is unavailable"))?;
                 let values = bitfun_core::agentic::agents::get_agent_registry()
                     .get_subagents_for_query(&bitfun_core::agentic::agents::SubagentQueryContext {
                         parent_agent_type: Some(&self.agent_type),

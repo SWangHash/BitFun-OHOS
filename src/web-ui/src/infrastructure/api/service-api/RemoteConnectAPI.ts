@@ -509,7 +509,7 @@ class RemoteConnectAPIService {
     return api.listen('session-interaction-changed', callback);
   }
 
-  onSessionReady(callback: (event: { sessionId: string; hasMore: boolean; oldestSeq: number; cursor: number }) => void): () => void {
+  onSessionReady(callback: (event: { sessionId: string; hasMore: boolean; oldestSeq: number; cursor: number; historyBatches?: boolean }) => void): () => void {
     return api.listen('relay://session-ready', callback);
   }
 
@@ -522,6 +522,9 @@ class RemoteConnectAPIService {
   }
 
   async subscribeSession(targetDeviceId: string, sessionId: string): Promise<string> {
+    // Native listener registration is asynchronous; cached history may replay
+    // during the subscribe command, before its response reaches this window.
+    await api.waitForListenerRegistrations();
     return this.adapter.request<string>('account_subscribe_session', { request: { target_device_id: targetDeviceId, session_id: sessionId } });
   }
   async unsubscribeSession(subscriptionId: string): Promise<void> {

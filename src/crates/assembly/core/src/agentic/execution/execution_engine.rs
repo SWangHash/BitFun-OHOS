@@ -18,7 +18,6 @@ use crate::agentic::agents::{
     render_direct_tool_listing_body, PrependedPromptReminders, PromptBuilder, PromptBuilderContext,
     RuntimeContextNeeds, ToolListingSections, UserContextPolicy, UserContextSection,
 };
-use crate::agentic::context_profile::{ContextProfilePolicy, ModelCapabilityProfile};
 use crate::agentic::coordination::scheduler::agent_dialog_turn_image_contexts;
 use crate::agentic::core::{
     render_system_reminder, InternalReminderKind, Message, MessageContent, MessageHelper,
@@ -39,7 +38,8 @@ use crate::agentic::image_analysis::{
 use crate::agentic::round_preempt::RoundInjectionKind;
 use crate::agentic::session::{
     ContextCompressor, SessionManager, SystemPromptCacheIdentity, TokenAnchor, TokenAnchorInput,
-    UserContextCacheIdentity, INTERRUPTED_TURN_MODEL_BINDING_FINGERPRINT_METADATA_KEY,
+    UserContextCacheIdentity, DEFAULT_COMPRESSION_CONTRACT_LIMIT,
+    INTERRUPTED_TURN_MODEL_BINDING_FINGERPRINT_METADATA_KEY,
     INTERRUPTED_TURN_PERMISSION_MODE_METADATA_KEY,
     INTERRUPTED_TURN_REASONING_FINGERPRINT_METADATA_KEY,
     INTERRUPTED_TURN_REASONING_PRESET_METADATA_KEY,
@@ -400,7 +400,6 @@ struct CompressionRuntimeScaffold {
     system_prompt_message: Message,
     prepended_prompt_reminders: PrependedPromptReminders,
     primary_supports_image_understanding: bool,
-    compression_contract_limit: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -457,38 +456,6 @@ impl ContextHealthSnapshot {
             self.repeated_tool_signature_count,
             self.consecutive_failed_commands
         );
-    }
-
-    fn log_policy_thresholds(
-        &self,
-        session_id: &str,
-        turn_id: &str,
-        round_index: usize,
-        policy: &ContextProfilePolicy,
-    ) {
-        if policy.has_repeated_tool_loop(self.repeated_tool_signature_count) {
-            debug!(
-                "Context profile repeated-tool threshold reached: session_id={}, turn_id={}, round_index={}, profile={:?}, repeated_tool_signature_count={}, threshold={}",
-                session_id,
-                turn_id,
-                round_index,
-                policy.profile,
-                self.repeated_tool_signature_count,
-                policy.repeated_tool_signature_threshold
-            );
-        }
-
-        if policy.has_consecutive_command_failure_loop(self.consecutive_failed_commands) {
-            warn!(
-                "Context profile command-failure threshold reached: session_id={}, turn_id={}, round_index={}, profile={:?}, consecutive_failed_commands={}, threshold={}",
-                session_id,
-                turn_id,
-                round_index,
-                policy.profile,
-                self.consecutive_failed_commands,
-                policy.consecutive_failed_command_threshold
-            );
-        }
     }
 
     fn repeated_tool_signature_count(recent_tool_signatures: &[String]) -> usize {
@@ -1852,13 +1819,29 @@ impl ExecutionEngine {
         prompt_context: Option<&PromptBuilderContext>,
         prompt_policy_id: Option<&str>,
     ) -> BitFunResult<String> {
+        // The GenUI profile is a fixed product route, just like the upstream
+        // Open Intelligent UI pages. Keep its official lang-core prompt in the
+        // system message, but scope it to the GenerativeUI tool because BitFun
+        // still runs a general agent whose outer response is a JSON tool call.
+        // Include the profile in the cache key so changing the setting cannot
+        // reuse a prompt generated for the previous component library.
+        let genui_scope = "|genui-profile:disabled";
         let identity = match prompt_policy_id {
-            Some(policy_id) => SystemPromptCacheIdentity::new(format!("harness:{policy_id}")),
+            Some(policy_id) => {
+                SystemPromptCacheIdentity::new(format!("harness:{policy_id}{genui_scope}"))
+            }
             None => prompt_context
                 .map(|context| {
-                    current_agent.system_prompt_cache_identity(context.model_name.as_deref())
+                    let mut identity =
+                        current_agent.system_prompt_cache_identity(context.model_name.as_deref());
+                    identity.scope_key.push_str(&genui_scope);
+                    identity
                 })
-                .unwrap_or_else(|| current_agent.system_prompt_cache_identity(None)),
+                .unwrap_or_else(|| {
+                    let mut identity = current_agent.system_prompt_cache_identity(None);
+                    identity.scope_key.push_str(&genui_scope);
+                    identity
+                }),
         };
 
         if let Some(cached_system_prompt) = self
@@ -2862,19 +2845,6 @@ impl ExecutionEngine {
         let resolved_primary_model_id = primary_model_facts.model_id.clone();
         let primary_supports_image_understanding = primary_model_facts.supports_image_inputs;
 
-        let model_capability_profile = ModelCapabilityProfile::from_resolved_model(
-            &resolved_primary_model_id,
-            &ai_client.config.model,
-        );
-        let is_review_subagent = agent_registry
-            .get_subagent_is_review(&context.agent_type)
-            .unwrap_or(false);
-        let context_profile_policy = ContextProfilePolicy::for_agent_context(
-            &context.agent_type,
-            is_review_subagent,
-            model_capability_profile,
-        );
-
         let tool_policy = agent_registry
             .get_agent_tool_policy(
                 &context.agent_type,
@@ -2951,7 +2921,6 @@ impl ExecutionEngine {
             system_prompt_message: turn_prompt_scaffold.system_prompt_message,
             prepended_prompt_reminders: turn_prompt_scaffold.prepended_prompt_reminders,
             primary_supports_image_understanding,
-            compression_contract_limit: context_profile_policy.compression_contract_limit,
         })
     }
 
@@ -2971,6 +2940,7 @@ impl ExecutionEngine {
         session_id: &'a str,
         dialog_turn_id: &'a str,
         workspace: Option<&'a WorkspaceBinding>,
+        workspace_services: Option<&'a crate::agentic::workspace::WorkspaceServices>,
         model: &'a str,
     ) -> NativeHookSessionFacts<'a> {
         NativeHookSessionFacts {
@@ -2981,6 +2951,7 @@ impl ExecutionEngine {
             is_remote_workspace: workspace.is_some_and(|workspace| workspace.is_remote()),
             model,
             bypass_permissions: false,
+            workspace_services,
         }
     }
 
@@ -3102,6 +3073,7 @@ impl ExecutionEngine {
                     &session_id,
                     &dialog_turn_id,
                     context.workspace.as_ref(),
+                    context.workspace_services.as_ref(),
                     &scaffold.ai_client.config.model,
                 ),
                 trigger,
@@ -3154,7 +3126,7 @@ impl ExecutionEngine {
 
             let compression_contract = self
                 .session_manager
-                .compression_contract_for_session(&session_id, scaffold.compression_contract_limit);
+                .compression_contract_for_session(&session_id, DEFAULT_COMPRESSION_CONTRACT_LIMIT);
             let model_exchange_trace_dir = self
                 .session_manager
                 .persistent_model_exchange_trace_dir(&session_id)
@@ -3355,6 +3327,7 @@ impl ExecutionEngine {
                         &session_id,
                         &dialog_turn_id,
                         context.workspace.as_ref(),
+                        context.workspace_services.as_ref(),
                         &scaffold.ai_client.config.model,
                     ),
                     trigger,
@@ -4188,30 +4161,6 @@ impl ExecutionEngine {
             );
         }
 
-        let model_capability_profile = ModelCapabilityProfile::from_resolved_model(
-            &resolved_primary_model_id,
-            &ai_client.config.model,
-        );
-        let is_review_subagent = agent_registry
-            .get_subagent_is_review(&agent_type)
-            .unwrap_or(false);
-        let mut context_profile_policy = ContextProfilePolicy::for_agent_context(
-            &agent_type,
-            is_review_subagent,
-            model_capability_profile,
-        );
-        debug!(
-            "Context profile policy selected: session_id={}, agent_type={}, profile={:?}, model_capability={:?}, compression_contract_limit={}, subagent_concurrency_cap={}, repeated_tool_signature_threshold={}, consecutive_failed_command_threshold={}",
-            context.session_id,
-            agent_type,
-            context_profile_policy.profile,
-            model_capability_profile,
-            context_profile_policy.compression_contract_limit,
-            context_profile_policy.subagent_concurrency_cap,
-            context_profile_policy.repeated_tool_signature_threshold,
-            context_profile_policy.consecutive_failed_command_threshold
-        );
-
         // 3. Get available tools list (read tool configuration for current mode from global config)
         let tool_policy = agent_registry
             .get_agent_tool_policy(
@@ -4549,7 +4498,6 @@ impl ExecutionEngine {
         };
         let baseline_primary_model_facts = primary_model_facts.clone();
         let baseline_supports_image_understanding = primary_supports_image_understanding;
-        let baseline_context_profile_policy = context_profile_policy.clone();
         let mut scaffold_model_key = (
             baseline_model_id.clone(),
             baseline_ai_client.config.model.clone(),
@@ -4799,15 +4747,6 @@ impl ExecutionEngine {
                 context_window = (ai_client.config.context_window as usize).min(session_max_tokens);
                 compression_trigger_budget =
                     Self::compression_trigger_budget(context_window, ai_client.config.max_tokens);
-                let model_capability_profile = ModelCapabilityProfile::from_resolved_model(
-                    &primary_model_facts.model_id,
-                    &ai_client.config.model,
-                );
-                context_profile_policy = ContextProfilePolicy::for_agent_context(
-                    &agent_type,
-                    is_review_subagent,
-                    model_capability_profile,
-                );
 
                 let next_scaffold_model_key = (
                     model_id.clone(),
@@ -4922,14 +4861,6 @@ impl ExecutionEngine {
                     .runtime;
                     primary_supports_image_understanding =
                         primary_model_facts.supports_image_inputs;
-                    context_profile_policy = ContextProfilePolicy::for_agent_context(
-                        &agent_type,
-                        is_review_subagent,
-                        ModelCapabilityProfile::from_resolved_model(
-                            &model_id,
-                            &ai_client.config.model,
-                        ),
-                    );
                     let description_context = tool_context_runtime::build_tool_description_context(
                         &agent_type,
                         context.workspace.as_ref(),
@@ -5185,7 +5116,6 @@ impl ExecutionEngine {
                         turn_prompt_scaffold.system_prompt_message.clone(),
                         &turn_prompt_scaffold.prepended_prompt_reminders,
                         baseline_supports_image_understanding,
-                        baseline_context_profile_policy.compression_contract_limit,
                         context.workspace.as_ref(),
                         context.workspace_services.as_ref(),
                         compression_prefetch.take(),
@@ -5525,7 +5455,6 @@ impl ExecutionEngine {
                             turn_prompt_scaffold.system_prompt_message.clone(),
                             &turn_prompt_scaffold.prepended_prompt_reminders,
                             baseline_supports_image_understanding,
-                            baseline_context_profile_policy.compression_contract_limit,
                             context.workspace.as_ref(),
                             context.workspace_services.as_ref(),
                             compression_prefetch.take(),
@@ -5771,15 +5700,7 @@ impl ExecutionEngine {
                 round_index,
                 "after_round",
             );
-            after_round_health.log_policy_thresholds(
-                &context.session_id,
-                &context.dialog_turn_id,
-                round_index,
-                &context_profile_policy,
-            );
-
-            let max_consec = context_profile_policy
-                .effective_loop_threshold(self.config.max_consecutive_same_tool);
+            let max_consec = self.config.max_consecutive_same_tool.max(1);
             if recent_failed_tool_signatures.len() >= max_consec {
                 let tail = &recent_failed_tool_signatures
                     [recent_failed_tool_signatures.len() - max_consec..];
@@ -6134,6 +6055,7 @@ impl ExecutionEngine {
                                     &context.session_id,
                                     &context.dialog_turn_id,
                                     context.workspace.as_ref(),
+                                    context.workspace_services.as_ref(),
                                     &ai_client.config.model,
                                 ),
                                 stop_hook_continuations > 0,

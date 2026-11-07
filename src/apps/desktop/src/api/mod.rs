@@ -33,6 +33,7 @@ pub mod external_session_import_api;
 pub mod external_sources_api;
 pub mod feedback_api;
 pub mod file_drop_preview_api;
+pub mod generative_ui_api;
 pub mod git_agent_api;
 pub mod git_api;
 pub mod html_preview_api;

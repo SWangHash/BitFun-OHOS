@@ -1,6 +1,6 @@
 import type React from 'react';
 import { forwardRef, useCallback, useEffect, useId, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Button, Stack, StatusPill, Tooltip } from '@bitfun/ui';
+import { Button, Spinner, Stack, StatusPill, Tooltip } from '@bitfun/ui';
 import { useI18n } from '@/infrastructure/i18n';
 import type { Session } from '../types/flow-chat';
 import { useTrajectory } from './useTrajectory';
@@ -199,8 +199,9 @@ export const TrajectoryExplorer = forwardRef<TrajectoryExplorerRef, TrajectoryEx
   const mounted = nodes.slice(start, end);
   const kindLabel = (node: TrajectoryNode) => node.kind === 'tool' ? t('trajectory.tool')
     : node.kind === 'model' ? t('trajectory.model') : t('trajectory.user');
+  const showLoading = loading && nodes.length === 0 && !failed && !error;
   const status = failed ? t('trajectory.locateFailed') : error ? t('trajectory.loadFailed')
-    : loading ? t('trajectory.loading') : !supported || !complete ? t('trajectory.partial') : null;
+    : !loading && (!supported || !complete) ? t('trajectory.partial') : null;
   return <section className="trajectory" aria-label={t('trajectory.title')}
     data-bitfun-product-component="session-trajectory" data-bitfun-product-part="root"
     onKeyDown={event => {
@@ -210,7 +211,7 @@ export const TrajectoryExplorer = forwardRef<TrajectoryExplorerRef, TrajectoryEx
     <div className="trajectory__body" data-bitfun-product-component="session-trajectory" data-bitfun-product-part="body">
       <div className="trajectory__labels"><span>{t('trajectory.user')}</span><span>{t('trajectory.model')}</span><span>{t('trajectory.tool')}</span></div>
       <div ref={rail} className="trajectory__rail" role="listbox" aria-label={t('trajectory.title')}
-        aria-busy={busy} tabIndex={0} data-keyboard-preview={railFocused && keyboardPreview}
+        aria-busy={busy || showLoading} tabIndex={0} data-keyboard-preview={railFocused && keyboardPreview}
         aria-activedescendant={railFocused && nodes.length ? `${railId}-${focusedIndex}` : undefined}
         onFocus={event => { if (event.target === event.currentTarget) setRailFocused(true); }}
         onBlur={() => setRailFocused(false)} data-bitfun-product-component="session-trajectory" data-bitfun-product-part="rail"
@@ -310,6 +311,7 @@ export const TrajectoryExplorer = forwardRef<TrajectoryExplorerRef, TrajectoryEx
           })}
         </div>
       </div>
+      {showLoading && <Spinner className="trajectory__loading" aria-label={t('trajectory.loading')} />}
     </div>
     {status && <div className="trajectory__status" role="status" data-bitfun-product-component="session-trajectory" data-bitfun-product-part="status">
       {status}{error && <Button size="xs" variant="text" onClick={retry}>{t('trajectory.retry')}</Button>}

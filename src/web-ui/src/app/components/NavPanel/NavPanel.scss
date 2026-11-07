@@ -1478,10 +1478,11 @@ $_section-header-height: 22px;
   }
 
   &:hover,
+  &:active,
   &:focus-visible,
   &.is-open {
     color: var(--bitfun-color-content-primary);
-    background: var(--bitfun-color-action-quiet-hover);
+    @include shell-surfaces.navigation-hover-feedback;
   }
 
   &:focus-visible {
@@ -1593,14 +1594,19 @@ $_section-header-height: 22px;
     block-size: var(--bitfun-control-icon-size-md);
   }
 
-  &:hover {
-    color: var(--bitfun-color-content-primary);
-    background: var(--bitfun-color-action-quiet-hover);
+  // The footer owns navigation feedback on the button itself. Keep IconButton's
+  // hover overlay from covering that shared surface with a second background.
+  &::before {
+    background: transparent;
   }
 
-  &.is-active {
+  &:hover,
+  &:active,
+  &:focus-visible,
+  &.is-active,
+  &.is-hover-open {
     color: var(--bitfun-color-content-primary);
-    background: var(--bitfun-color-action-quiet-hover);
+    @include shell-surfaces.navigation-hover-feedback;
   }
 
   &:focus-visible {
@@ -1688,12 +1694,6 @@ $_section-header-height: 22px;
   z-index: 2;
 }
 
-// Hover-open subtle glow on the main button
-.bitfun-nav-panel__footer-btn--icon.is-hover-open {
-  color: var(--bitfun-color-content-primary);
-  background: var(--bitfun-color-action-quiet-hover);
-}
-
 .bitfun-nav-panel__footer-backdrop {
   position: fixed;
   inset: 0;
@@ -1718,14 +1718,6 @@ $_section-header-height: 22px;
 // Device overview — one compact model, local and connected states
 // ──────────────────────────────────────────────
 
-// The light that fills the card is the displayed device's state; registering it
-// lets the whole surface cross-fade between devices instead of snapping.
-@property --_device-overview-light {
-  syntax: '<color>';
-  inherits: true;
-  initial-value: transparent;
-}
-
 .bitfun-device-overview {
   // The card sizes to its content, so the artwork, name, action and device list
   // always render whole. Only the device list scrolls, and only when the window
@@ -1734,8 +1726,8 @@ $_section-header-height: 22px;
   --_device-overview-inline-size: min(312px, calc(100vw - 16px));
   --_device-overview-stage-size: 120px;
   --_device-overview-inset: var(--bitfun-space-4);
-  --_device-overview-light: var(--bitfun-color-accent-default);
-  --_device-overview-light-strength: 16%;
+  // Local and disconnected devices use neutral controls; a live connection is green.
+  --_device-overview-light: var(--bitfun-color-content-secondary);
   position: fixed;
   z-index: var(--bitfun-layer-popover);
   width: var(--_device-overview-inline-size);
@@ -1744,28 +1736,10 @@ $_section-header-height: 22px;
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
-  background:
-    radial-gradient(
-      120% 78% at 50% 0%,
-      color-mix(in srgb, var(--_device-overview-light) var(--_device-overview-light-strength), transparent),
-      transparent 74%
-    ),
-    radial-gradient(
-      90% 55% at 100% 100%,
-      color-mix(in srgb, var(--_device-overview-light) calc(var(--_device-overview-light-strength) / 3), transparent),
-      transparent 70%
-    ),
-    var(--bitfun-color-surface-raised);
-  transition: --_device-overview-light var(--bitfun-motion-duration-slow) var(--bitfun-motion-easing-standard);
+  background: var(--bitfun-color-surface-raised);
+  // Switch state color once. Interpolating an inherited custom property forces
+  // style recalculation throughout the card on every animation frame.
   animation: bitfun-nav-popover-in 150ms cubic-bezier(0.23, 1, 0.32, 1) both;
-
-  :where([data-color-scheme='dark']) & {
-    --_device-overview-light-strength: 26%;
-  }
-
-  &[data-control-state='local'] {
-    --_device-overview-light: var(--bitfun-color-accent-secondary);
-  }
 
   &[data-control-state='active'] {
     --_device-overview-light: var(--bitfun-color-status-success-content);
@@ -1997,17 +1971,40 @@ $_section-header-height: 22px;
 }
 
 .bitfun-device-overview__page-dot {
-  inline-size: 5px;
+  position: relative;
+  inline-size: 14px;
   block-size: 5px;
-  border-radius: var(--bitfun-radius-pill);
-  background: color-mix(in srgb, var(--bitfun-color-content-primary) 22%, transparent);
-  transition:
-    inline-size var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
-    background-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
+  // Fixed slots keep the flex row out of layout during every page change.
+  // The small dot remains circular; a separate pill fades and scales over it.
+  &::before,
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    margin-inline: auto;
+    border-radius: var(--bitfun-radius-pill);
+  }
 
-  &[data-active='true'] {
-    inline-size: 14px;
+  &::before {
+    inline-size: 5px;
+    background: color-mix(in srgb, var(--bitfun-color-content-primary) 22%, transparent);
+  }
+
+  &::after {
     background: var(--bitfun-color-content-secondary);
+    opacity: 0;
+    transform: scaleX(0.357143);
+  }
+
+  [data-preview-motion='true'] &::after {
+    transition:
+      transform var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+      opacity var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
+  }
+
+  &[data-active='true']::after {
+    opacity: 1;
+    transform: scaleX(1);
   }
 }
 
@@ -2037,8 +2034,9 @@ $_section-header-height: 22px;
   flex: 0 0 var(--bitfun-control-height-sm);
   pointer-events: auto;
   color: var(--bitfun-color-content-secondary);
-  background: color-mix(in srgb, var(--bitfun-color-surface-raised) 58%, transparent);
-  box-shadow: inset 0 0 0 var(--bitfun-border-width-default) var(--bitfun-color-border-subtle);
+  // The stage has an opaque background; sampling it with backdrop-filter adds
+  // compositing work during the artwork transition without changing the tint.
+  background: color-mix(in srgb, var(--bitfun-color-content-primary) 7%, transparent);
   transition:
     color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
     background-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
@@ -2050,7 +2048,7 @@ $_section-header-height: 22px;
 
   &:is(:hover, :focus-visible):not(:disabled) {
     color: var(--bitfun-color-content-primary);
-    background: var(--bitfun-color-surface-raised);
+    background: color-mix(in srgb, var(--bitfun-color-content-primary) 13%, transparent);
   }
 
   &:disabled {
@@ -2095,7 +2093,7 @@ $_section-header-height: 22px;
   }
 }
 
-// A soft top-lit fill reads as a material rather than a flat cut-out.
+// A single neutral fill keeps the device silhouette legible on the solid card.
 .bitfun-device-overview__artwork-glyph {
   position: relative;
   justify-self: center;
@@ -2103,11 +2101,7 @@ $_section-header-height: 22px;
   height: 56%;
   margin-block-end: var(--bitfun-space-2);
   aspect-ratio: 140 / 78;
-  background: linear-gradient(
-    to bottom,
-    color-mix(in srgb, var(--bitfun-color-content-primary) 72%, transparent),
-    color-mix(in srgb, var(--bitfun-color-content-primary) 42%, transparent)
-  );
+  background: var(--bitfun-color-content-secondary);
   mask: url('./assets/device.svg') center / contain no-repeat;
 }
 
@@ -2190,10 +2184,67 @@ $_section-header-height: 22px;
   }
 }
 
-.bitfun-device-overview__local-mark {
-  display: inline-flex;
+// Renaming sits right after the name: a small quiet pencil that brightens
+// with the heading it edits.
+.bitfun-device-overview__alias-edit {
+  --_icon-button-size: 20px;
+  --_icon-button-icon-size: 12px;
+  --_icon-button-content: var(--bitfun-color-content-muted);
+  --_icon-button-background-hover: color-mix(in srgb, var(--_device-overview-light) 16%, transparent);
   flex: 0 0 auto;
-  color: var(--bitfun-color-content-muted);
+  opacity: 0.7;
+  transition: opacity var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
+
+  .bitfun-device-overview__device-heading:hover &,
+  &:focus-visible { opacity: 1; }
+}
+
+.bitfun-device-overview__alias-editor {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  min-width: 0;
+}
+
+// Editing keeps the heading's type and place: no box, only an underline lit
+// by the card's state light.
+.bitfun-device-overview__alias-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  gap: var(--bitfun-space-1);
+  padding-inline: 0;
+  border: 0;
+  border-block-end: var(--bitfun-border-width-default) solid
+    color-mix(in srgb, var(--_device-overview-light) 35%, transparent);
+  border-radius: 0;
+
+  &,
+  &:hover,
+  &:focus-within { background: transparent; }
+
+  &:focus-within {
+    border-block-end-color: color-mix(in srgb, var(--_device-overview-light) 80%, transparent);
+  }
+
+  input {
+    font-family: var(--bitfun-type-heading-card-font-family);
+    font-size: var(--bitfun-type-heading-card-font-size);
+    font-weight: var(--bitfun-type-heading-card-font-weight);
+    letter-spacing: var(--bitfun-type-heading-card-letter-spacing);
+    caret-color: var(--_device-overview-light);
+  }
+
+  input::placeholder { color: var(--bitfun-color-content-muted); }
+}
+
+.bitfun-device-overview__alias-action {
+  --_icon-button-size: 20px;
+  --_icon-button-icon-size: 12px;
+  --_icon-button-content: var(--bitfun-color-content-secondary);
+  --_icon-button-background-hover: color-mix(in srgb, var(--_device-overview-light) 18%, transparent);
+  border-radius: var(--bitfun-radius-pill);
+
+  &:first-child { --_icon-button-content: color-mix(in srgb, var(--_device-overview-light) 72%, var(--bitfun-color-content-primary)); }
 }
 
 .bitfun-device-overview__device-name {
@@ -2220,18 +2271,8 @@ $_section-header-height: 22px;
   box-sizing: border-box;
 }
 
-.bitfun-device-overview__device-status {
-  display: flex;
-  flex: 0 1 auto;
-  align-items: center;
-  min-width: 0;
-  max-width: 100%;
-}
-
-// The action is one round button lit by the same state light as the card: a
-// tinted glass disc with a ring. Disconnecting is neutral rather than wearing
-// the green of the link it ends.
-.bitfun-device-overview__connection-status {
+// One eye control reflects the device's sidebar visibility.
+.bitfun-device-overview__visibility-control {
   --_device-overview-action-tone: var(--_device-overview-light);
   --_icon-button-size: var(--bitfun-control-height-md);
   --_icon-button-icon-size: 16px;
@@ -2240,18 +2281,13 @@ $_section-header-height: 22px;
   // The primary and fill variants paint an opaque base under their tint; the
   // glass tint must sit on the lit card instead.
   background: transparent;
-  transition: box-shadow var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
+  transition: background-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
 
   &:not(:disabled, [aria-disabled='true']) {
     --_icon-button-content: color-mix(in srgb, var(--_device-overview-action-tone) 72%, var(--bitfun-color-content-primary));
-    --_icon-button-background: color-mix(in srgb, var(--_device-overview-action-tone) 16%, transparent);
-    --_icon-button-background-hover: color-mix(in srgb, var(--_device-overview-action-tone) 26%, transparent);
-    --_icon-button-background-active: color-mix(in srgb, var(--_device-overview-action-tone) 32%, transparent);
-    box-shadow: inset 0 0 0 var(--bitfun-border-width-default) color-mix(in srgb, var(--_device-overview-action-tone) 30%, transparent);
-  }
-
-  &:not(:disabled, [aria-disabled='true']):is(:hover, :focus-visible) {
-    box-shadow: inset 0 0 0 var(--bitfun-border-width-default) color-mix(in srgb, var(--_device-overview-action-tone) 48%, transparent);
+    --_icon-button-background: color-mix(in srgb, var(--_device-overview-action-tone) 20%, transparent);
+    --_icon-button-background-hover: color-mix(in srgb, var(--_device-overview-action-tone) 30%, transparent);
+    --_icon-button-background-active: color-mix(in srgb, var(--_device-overview-action-tone) 36%, transparent);
   }
 
   // Unavailable reads as unavailable: a quiet neutral disc, no state light.
@@ -2260,17 +2296,7 @@ $_section-header-height: 22px;
     --_icon-button-background: color-mix(in srgb, var(--bitfun-color-content-primary) 5%, transparent);
     --_icon-button-background-hover: var(--_icon-button-background);
     --_icon-button-background-active: var(--_icon-button-background);
-    box-shadow: inset 0 0 0 var(--bitfun-border-width-default) var(--bitfun-color-border-subtle);
     cursor: not-allowed;
-  }
-
-  // An incompatible device keeps its warning mark legible.
-  [data-control-state='incompatible'] > &[aria-disabled='true'] {
-    --_icon-button-content: var(--bitfun-color-status-warning-content);
-  }
-
-  [data-control-state='active'] > & {
-    --_device-overview-action-tone: var(--bitfun-color-content-secondary);
   }
 }
 
@@ -3141,8 +3167,7 @@ $_section-header-height: 22px;
 
 @media (hover: hover) and (pointer: fine) {
   .bitfun-nav-panel__top-action-btn:hover,
-  .bitfun-nav-panel__item:hover,
-  .bitfun-nav-panel__footer-btn--icon:hover {
+  .bitfun-nav-panel__item:hover {
     @include shell-surfaces.navigation-hover-feedback;
   }
 
@@ -3168,7 +3193,7 @@ $_section-header-height: 22px;
   }
 
   .bitfun-nav-panel__top-action-sublist,
-  .bitfun-device-overview__page-dot {
+  .bitfun-device-overview .bitfun-device-overview__page-dot::after {
     transition: none;
   }
 }

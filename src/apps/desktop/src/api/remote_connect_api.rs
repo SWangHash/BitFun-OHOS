@@ -493,8 +493,9 @@ async fn fanout_peer_device_event_current(item: PeerEventFanoutItem) {
         }
     };
     for target in targets {
-        let (encrypted_data, nonce) = match session
-            .encrypt_for_peer(&relay_url, &target, &envelope)
+        let before_send = session.peer_message_guard();
+        let (encrypted_data, nonce, uses_zstd) = match session
+            .encrypt_for_peer_with_encoding(&relay_url, &target, &envelope)
             .await
         {
             Ok(value) => value,
@@ -510,6 +511,7 @@ async fn fanout_peer_device_event_current(item: PeerEventFanoutItem) {
             &correlation_id,
             &encrypted_data,
             &nonce,
+            || before_send(uses_zstd),
         )
         .await
         {
@@ -599,6 +601,7 @@ async fn send_device_message_with_routing_lease(
     correlation_id: &str,
     encrypted_data: &str,
     nonce: &str,
+    before_send: impl Fn() -> anyhow::Result<()>,
 ) -> Result<(), String> {
     if !device_routing_owner_is_current(owner).await {
         return Err("device routing changed".to_string());
@@ -611,12 +614,13 @@ async fn send_device_message_with_routing_lease(
         .as_ref()
         .ok_or_else(|| "remote connect service not initialized".to_string())?;
     let sent = service
-        .send_device_message_if_connection(
+        .send_device_message_if_connection_guarded(
             owner.service_connection_id,
             target_device_id,
             correlation_id,
             encrypted_data,
             nonce,
+            before_send,
         )
         .await
         .map_err(|error| error.to_string())?;
@@ -632,6 +636,7 @@ async fn send_rpc_envelope(
     session: &AccountSession,
     source_device_id: &str,
     correlation_id: &str,
+    accepts_zstd: bool,
     resp_value: serde_json::Value,
 ) -> bool {
     if !device_routing_owner_is_current(owner).await {
@@ -652,7 +657,7 @@ async fn send_rpc_envelope(
         return false;
     };
     match session
-        .encrypt_for_peer(&relay_url, source_device_id, &resp_json)
+        .encrypt_reply(&relay_url, source_device_id, &resp_json, accepts_zstd)
         .await
     {
         Ok((enc_resp, resp_nonce)) => {
@@ -662,6 +667,7 @@ async fn send_rpc_envelope(
                 correlation_id,
                 &enc_resp,
                 &resp_nonce,
+                || Ok(()),
             )
             .await
             {
@@ -684,6 +690,7 @@ async fn send_rpc_error(
     session: &AccountSession,
     source_device_id: &str,
     correlation_id: &str,
+    accepts_zstd: bool,
     message: impl Into<String>,
 ) {
     send_rpc_envelope(
@@ -691,6 +698,7 @@ async fn send_rpc_error(
         session,
         source_device_id,
         correlation_id,
+        accepts_zstd,
         serde_json::json!({
             "resp": "error",
             "message": message.into(),
@@ -2685,7 +2693,7 @@ async fn connect_route_devices(route: RelayRoute) -> Result<Vec<OnlineDeviceInfo
     let (mut event_rx, auth_device_id, service_connection_id) = match service
         .start_device_connection(
             &relay_url,
-            &session.token,
+            &session,
             &device_name,
             // Desktop serves the device ahead of a CLI/daemon on this machine.
             bitfun_core::service::remote_connect::relay_client::DeviceRoutingPriority::Primary,
@@ -2777,7 +2785,6 @@ async fn connect_route_devices(route: RelayRoute) -> Result<Vec<OnlineDeviceInfo
                     break;
                 }
                 RelayEvent::DevicePresence { devices } => {
-                    event_session.clear_peer_keys().await;
                     let Some(_routing_effect) = lock_current_device_routing(&event_owner).await
                     else {
                         break 'routing_events;
@@ -2812,15 +2819,17 @@ async fn connect_route_devices(route: RelayRoute) -> Result<Vec<OnlineDeviceInfo
                 RelayEvent::DeviceMessageReceived {
                     source_device_id,
                     correlation_id,
+                    encoding_offer,
                     encrypted_data,
                     nonce,
                 } => {
                     match event_session
-                        .decrypt_from_peer(
+                        .decrypt_peer_message(
                             &event_relay_url,
                             &source_device_id,
                             &encrypted_data,
                             &nonce,
+                            encoding_offer,
                         )
                         .await
                     {
@@ -2992,6 +3001,7 @@ async fn connect_route_devices(route: RelayRoute) -> Result<Vec<OnlineDeviceInfo
                                                         &rpc_session,
                                                         &source_device_id,
                                                         &correlation_id,
+                                                        encoding_offer.accepts_zstd(),
                                                         resp_value,
                                                     )
                                                     .await;
@@ -3018,6 +3028,7 @@ async fn connect_route_devices(route: RelayRoute) -> Result<Vec<OnlineDeviceInfo
                                                         &rpc_session,
                                                         &source_device_id,
                                                         &correlation_id,
+                                                        encoding_offer.accepts_zstd(),
                                                         format!("RPC execute failed: {e}"),
                                                     )
                                                     .await;
@@ -3040,6 +3051,7 @@ async fn connect_route_devices(route: RelayRoute) -> Result<Vec<OnlineDeviceInfo
                                             &event_session,
                                             &source_device_id,
                                             &correlation_id,
+                                            encoding_offer.accepts_zstd(),
                                             format!("invalid RPC command: {e}"),
                                         )
                                         .await;
@@ -3063,6 +3075,7 @@ async fn connect_route_devices(route: RelayRoute) -> Result<Vec<OnlineDeviceInfo
                                     &event_session,
                                     &source_device_id,
                                     &correlation_id,
+                                    false, // The request could not be authenticated.
                                     format!("failed to decrypt RPC request: {e}"),
                                 )
                                 .await;
@@ -3171,8 +3184,9 @@ pub async fn account_execute_on_device(
     if !device_routing_owner_is_current(&routing_owner).await {
         return Err("device routing changed".to_string());
     }
-    let (encrypted_data, nonce) = session
-        .encrypt_for_peer(&relay_url, &target_device_id, &envelope)
+    let before_send = session.peer_message_guard();
+    let (encrypted_data, nonce, uses_zstd) = session
+        .encrypt_for_peer_with_encoding(&relay_url, &target_device_id, &envelope)
         .await
         .map_err(|e| format!("{e}"))?;
 
@@ -3183,6 +3197,7 @@ pub async fn account_execute_on_device(
         &correlation_id,
         &encrypted_data,
         &nonce,
+        || before_send(uses_zstd),
     )
     .await
 }

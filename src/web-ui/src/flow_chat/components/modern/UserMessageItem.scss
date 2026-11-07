@@ -6,6 +6,13 @@
 .user-message-item-shell {
   @include transcriptLayout.content-column;
 
+  // Keep the right-aligned bubble a flex item so native selection does not
+  // paint its surrounding layout gaps. Auto inline margins still own alignment;
+  // the gallery and action row retain their full reading-column layout.
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+
   --_user-message-radius: var(--bitfun-control-flow-chat-user-message-radius);
   --_user-message-padding-inline: var(--_user-message-radius);
 
@@ -134,6 +141,13 @@
   display: flex;
   align-items: flex-start;
   gap: var(--bitfun-control-flow-chat-inline-gap);
+}
+
+.user-message-item__host-evidence {
+  margin: 0;
+  color: var(--bitfun-color-content-secondary);
+  font-size: var(--bitfun-type-flow-meta-font-size);
+  line-height: var(--bitfun-type-flow-meta-line-height);
 }
 
 // Bridges children to `.user-message-item__main` flex without an extra layout box.
@@ -467,7 +481,7 @@
   // min/max/close over the top-right corner of the webview). On hosts
   // without native window controls the inset variable resolves to 0 and
   // the button keeps its original 16px offset.
-  top: calc(16px + var(--bitfun-viewport-host-chrome-inset-block-start, 0px));
+  top: calc(16px + var(--bitfun-viewport-host-chrome-inset-block-start));
   right: 16px;
   background: color-mix(in srgb, var(--bitfun-color-content-on-dark) 15%, transparent);
   border: none;
@@ -537,4 +551,9 @@
 .user-message-item__lightbox-close[data-bitfun-component='icon-button'] {
   &::before { content: none; }
   > [data-bitfun-part='icon'] { display: contents; }
+}
+
+.user-message-item__large-paste-text {
+  min-height: 280px;
+  font-family: var(--bitfun-type-code-md-font-family);
 }

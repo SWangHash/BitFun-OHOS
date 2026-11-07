@@ -22,6 +22,24 @@ function select(start: Node, end = start, startOffset = 0, endOffset = end.textC
 afterEach(() => { window.getSelection()?.removeAllRanges(); document.body.replaceChildren(); });
 
 describe('FlowChat selection snapshots', () => {
+  it('round trips section hints and distinguishes repeated text in different sections', () => {
+    const root = transcript('<div data-turn-id="turn-1"><div data-flow-item-id="reply" data-source-markdown-start="0"><p>Repeated</p></div><div data-flow-item-id="reply" data-source-markdown-start="3200"><p>Repeated</p></div></div>');
+    const paragraph = root.querySelectorAll('p')[1];
+    const snapshot = captureFlowChatSelection(root, select(paragraph.firstChild!), source)!;
+    const fragment = JSON.parse(JSON.stringify(snapshot.excerpt.fragments[0]));
+    expect(fragment.markdownStart).toBe(3200);
+    expect(resolveExcerptRange(findExcerptSource(root, fragment)!, fragment)?.startContainer).toBe(paragraph.firstChild);
+    // Existing snapshots have no hint and retain the full-source coordinate space.
+    const old = { ...fragment }; delete old.markdownStart;
+    expect(findExcerptSource(root, old)).toBeNull();
+    root.innerHTML = '<div data-turn-id="turn-1"><div data-flow-item-id="reply"><p>Repeated</p></div></div>';
+    expect(resolveExcerptRange(findExcerptSource(root, JSON.parse(JSON.stringify(old)))!, old)?.toString()).toBe('Repeated');
+    // A whole-source renderer can still resolve a new unambiguous excerpt.
+    expect(resolveExcerptRange(findExcerptSource(root, fragment)!, fragment)?.toString()).toBe('Repeated');
+    root.innerHTML = '<div data-turn-id="turn-1"><div data-flow-item-id="reply"><p>Repeated</p><p>Repeated</p></div></div>';
+    // Local offset zero in a later section must not select the first copy.
+    expect(resolveExcerptRange(findExcerptSource(root, fragment)!, fragment)).toBeNull();
+  });
   it('captures Markdown inline nodes and paragraph boundaries without controls', () => {
     const root = transcript('<div data-turn-id="turn-1"><div data-flow-item-id="text-1"><p>Hello <strong>world</strong></p><p>Next line</p><button>Copy</button></div></div>');
     const paragraphs = root.querySelectorAll('p');
@@ -40,6 +58,33 @@ describe('FlowChat selection snapshots', () => {
     const blocks = root.firstElementChild!.children;
     const snapshot = captureFlowChatSelection(root, select(blocks[0].firstChild!, blocks[1].firstChild!), source)!;
     expect(snapshot.excerpt.fragments.map(part => [part.flowItemId, part.text])).toEqual([[undefined, 'Question'], ['reply', 'Answer']]);
+  });
+
+  it('preserves legacy cross-cell excerpts when table presentation wrappers are added', () => {
+    const root = transcript('<div data-turn-id="turn-1"><div data-flow-item-id="table"><table><tbody><tr><td>First <strong>value</strong></td><td>Second</td></tr><tr><td>Third</td><td>Last</td></tr></tbody></table></div></div>');
+    const cells = root.querySelectorAll('td');
+    const start = cells[0].firstChild!;
+    const end = cells[3].firstChild!;
+    const legacy = captureFlowChatSelection(root, select(start, end), source)!.excerpt.fragments[0];
+    for (const cell of cells) {
+      const boundary = document.createElement('div');
+      boundary.className = 'markdown-table-cell-content';
+      const body = document.createElement('div');
+      body.className = 'markdown-table-cell-body';
+      body.append(...cell.childNodes);
+      boundary.append(body);
+      cell.append(boundary);
+    }
+    const current = captureFlowChatSelection(root, select(start, end), source)!.excerpt.fragments[0];
+    expect(current).toEqual(legacy);
+    const restored = resolveExcerptRange(findExcerptSource(root, legacy)!, legacy)!;
+    expect(restored.startContainer).toBe(start);
+    expect(restored.endContainer).toBe(end);
+    const restoredText = restored.toString();
+    // A rehydrated excerpt from either DOM shape still resolves after reverting
+    // to old markup; layout wrappers must not create persisted text separators.
+    for (const cell of cells) cell.replaceChildren(...cell.querySelector('.markdown-table-cell-body')!.childNodes);
+    expect(resolveExcerptRange(findExcerptSource(root, current)!, current)?.toString()).toBe(restoredText);
   });
 
   it('rejects a selection across session surfaces or inside an editor', () => {

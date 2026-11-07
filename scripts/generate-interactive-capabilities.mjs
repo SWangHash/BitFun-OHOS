@@ -155,10 +155,17 @@ function collectTauriFunctions() {
       const functionStart = tailStart + fnMatch.index + fnMatch[0].indexOf('fn ');
       const functionEnd = findBalancedFunctionEnd(source, functionStart);
       if (functionEnd < 0) throw new Error(`Could not parse command signature in ${file}`);
+      // A `#[cfg(target_env = "ohos")]` stub only exists in the OpenHarmony
+      // build. Like cfg-gated registrations, it is outside the shared command
+      // surface, so it must not force the shared implementation's signature.
+      const leadingAttribute = source.slice(0, attribute.index).match(/(#\[[^\]]+\]\s*)$/u)?.[1] ?? '';
+      const isOhosCfg = (text) => /target_env\s*=\s*"ohos"/u.test(text) && !/\bnot\s*\(/u.test(text);
+      const ohosOnly = isOhosCfg(leadingAttribute) || isOhosCfg(fnMatch[0]);
       const value = {
         name: fnMatch[1],
         sourceFile: toPosix(path.relative(REPO_ROOT, file)),
         signature: source.slice(functionStart, functionEnd).replace(/\s+/gu, ' ').trim(),
+        ohosOnly,
       };
       const existing = byName.get(value.name) ?? [];
       existing.push(value);
@@ -182,9 +189,11 @@ function resolveRegisteredFunction(id, rustPath, allCandidates) {
     : [];
   const candidates = moduleCandidates.length ? moduleCandidates : allCandidates;
   if (!candidates.length) throw new Error(`Registered command ${id} has no matching #[tauri::command] function`);
-  const shapes = new Set(candidates.map(({ signature }) => normalizeConditionalSignature(signature)));
+  const sharedCandidates = candidates.filter(({ ohosOnly }) => !ohosOnly);
+  const pool = sharedCandidates.length ? sharedCandidates : candidates;
+  const shapes = new Set(pool.map(({ signature }) => normalizeConditionalSignature(signature)));
   if (shapes.size !== 1) throw new Error(`Registered command ${id} has incompatible conditional implementations`);
-  return candidates.find(({ signature }) => !/\b_[a-z][a-z0-9_]*\s*:/u.test(signature)) ?? candidates[0];
+  return pool.find(({ signature }) => !/\b_[a-z][a-z0-9_]*\s*:/u.test(signature)) ?? pool[0];
 }
 
 function commandModule(sourceFile) {

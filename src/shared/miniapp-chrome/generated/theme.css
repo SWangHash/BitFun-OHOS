@@ -126,6 +126,7 @@
   --bitfun-type-modifier-tracking-wide-letter-spacing: 0.02em;
   --bitfun-type-modifier-tracking-wider-letter-spacing: 0.04em;
   --bitfun-type-support-line-height: 1.55;
+  --bitfun-viewport-host-chrome-inset-block-start: 0px;
   --bitfun-color-accent-default: #60a5fa;
   --bitfun-color-accent-hover: #3b82f6;
   --bitfun-color-action-neutral-content-disabled: #555555;

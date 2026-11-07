@@ -852,6 +852,7 @@ fn local_recursive_delete_fallback_finds_protected_descendant() {
         dialog_turn_id: Some("turn-1".to_string()),
         workspace: Some(WorkspaceBinding::new(None, root.clone())),
         loaded_deferred_tool_specs: Vec::new(),
+        model_client: None,
         primary_model_facts: tool_runtime::context::PrimaryModelFacts::default(),
         custom_data: HashMap::new(),
         computer_use_host: None,
@@ -936,8 +937,7 @@ fn complete_shell_archive_replay() {
 #[test]
 #[ignore = "requires explicit non-failure sample paths; pure analysis only"]
 fn complete_shell_normal_sample_replay() {
-    let source =
-        fs::read_to_string(std::env::var("BITFUN_SHELL_NORMAL_INPUT").unwrap()).unwrap();
+    let source = fs::read_to_string(std::env::var("BITFUN_SHELL_NORMAL_INPUT").unwrap()).unwrap();
     let output = std::env::var("BITFUN_SHELL_NORMAL_OUTPUT").unwrap();
     let mut rows = vec![];
     for line in source.lines() {

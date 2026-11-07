@@ -4,9 +4,7 @@ use crate::runtime::DesktopRuntimeContext;
 use bitfun_core::agentic::coordination::ConversationCoordinator;
 use bitfun_core::service::config::get_global_config_service;
 use bitfun_core::service::config::model_pool_store::{ModelPoolDefinition, ModelPoolDocument};
-use bitfun_core_types::model_pool::{
-    ModelPoolMemberStatus, ModelSelection, SessionModelTarget,
-};
+use bitfun_core_types::model_pool::{ModelPoolMemberStatus, ModelSelection, SessionModelTarget};
 use serde::Deserialize;
 use std::sync::Arc;
 use tauri::State;
@@ -113,12 +111,17 @@ pub async fn get_session_model_target(
     runtime: State<'_, DesktopRuntimeContext>,
     request: SessionModelTargetRequest,
 ) -> Result<SessionModelTarget, String> {
-    ensure_session(runtime.inner(), &request).await?;
-    runtime
-        .agent_runtime()
-        .get_session_model_target(&request.session_id)
-        .await
-        .map_err(|error| error.into_message())
+    let session = super::agentic_api::read_session_header_for_selector(
+        runtime.inner(),
+        &request.session_id,
+        request.workspace_id,
+        request.workspace_path,
+        request.remote_connection_id,
+        request.remote_ssh_host,
+        request.include_internal,
+    )
+    .await?;
+    Ok(bitfun_core::agentic::session::session_model_target(session))
 }
 
 #[tauri::command]

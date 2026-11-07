@@ -94,7 +94,12 @@ impl ExecCommandTool {
             .map(str::trim)
             .filter(|workdir| !workdir.is_empty())
             .map(str::to_string)
-            .or_else(|| context.workspace.as_ref().map(|workspace| workspace.root_path_string()))?;
+            .or_else(|| {
+                context
+                    .workspace
+                    .as_ref()
+                    .map(|workspace| workspace.root_path_string())
+            })?;
         context.resolve_workspace_tool_path(&raw).ok()
     }
 
@@ -1238,6 +1243,7 @@ mod tests {
             dialog_turn_id: None,
             workspace: Some(WorkspaceBinding::new(None, workspace.to_path_buf())),
             loaded_deferred_tool_specs: Vec::new(),
+            model_client: None,
             primary_model_facts: tool_runtime::context::PrimaryModelFacts::default(),
             custom_data: HashMap::new(),
             computer_use_host: None,
@@ -1263,6 +1269,7 @@ mod tests {
                 session_identity,
             )),
             loaded_deferred_tool_specs: Vec::new(),
+            model_client: None,
             primary_model_facts: tool_runtime::context::PrimaryModelFacts::default(),
             custom_data: HashMap::new(),
             computer_use_host: None,
@@ -1544,6 +1551,7 @@ mod tests {
             dialog_turn_id: None,
             workspace: None,
             loaded_deferred_tool_specs: Vec::new(),
+            model_client: None,
             primary_model_facts: tool_runtime::context::PrimaryModelFacts::default(),
             custom_data: HashMap::new(),
             computer_use_host: None,
@@ -1595,9 +1603,7 @@ mod tests {
 
         // The non-interactive contract is additive, not replaced.
         assert_eq!(
-            environment
-                .get("BITFUN_NONINTERACTIVE")
-                .map(String::as_str),
+            environment.get("BITFUN_NONINTERACTIVE").map(String::as_str),
             Some("1")
         );
         assert_eq!(environment.get("NO_COLOR").map(String::as_str), Some("1"));

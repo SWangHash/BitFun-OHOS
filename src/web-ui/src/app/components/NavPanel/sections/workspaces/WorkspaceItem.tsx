@@ -16,6 +16,7 @@ import {
   DialogHeading,
   DialogTitle,
   OverflowText,
+  Spinner,
   StatusPill,
 } from '@bitfun/ui';
 import React, { Suspense, useCallback, useContext, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from 'react';
@@ -26,6 +27,7 @@ import { InputDialog } from '@/app/components/InputDialog';
 import { WorkspaceIcon } from '@/app/components/WorkspaceIcon/WorkspaceIcon';
 import { AssistantAvatar } from '@/app/components/AssistantAvatar';
 import { openLatestAssistantSession } from './openLatestAssistantSession';
+import { takeWorkspaceAction, usePendingWorkspaceAction } from './pendingWorkspaceAction';
 
 import { useI18n } from '@/infrastructure/i18n';
 import { getActiveSurfaceId, isSurfaceChangedError } from '@/infrastructure/peer-device/deviceSurface';
@@ -45,6 +47,7 @@ import { flowChatManager } from '@/flow_chat/services/FlowChatManager';
 import { openMainSession } from '@/flow_chat/services/sessionActivation';
 import {
   getHistorySessionOpenTransitionSnapshot,
+  SESSION_LOADING_DELAY_MS,
   subscribeHistorySessionOpenTransition,
 } from '@/flow_chat/services/sessionOpenIntent';
 import {
@@ -82,6 +85,19 @@ const PortForwardDialog = lazyWithRecovery(() =>
 const AssistantSessionHistory = lazyWithRecovery(() => import('./AssistantSessionHistory'));
 const WorkspaceSessionBatchModal = lazyWithRecovery(() => import('./WorkspaceSessionBatchModal'));
 const ScheduledJobsModal = lazyWithRecovery(() => import('@/app/components/scheduled-jobs/ScheduledJobsModal'));
+
+function useDelayedPendingIndicator(pending: boolean): boolean {
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    if (!pending) {
+      setVisible(false);
+      return;
+    }
+    const timer = window.setTimeout(() => setVisible(true), SESSION_LOADING_DELAY_MS);
+    return () => window.clearTimeout(timer);
+  }, [pending]);
+  return pending && visible;
+}
 
 const MAX_WORKSPACE_NAME_CHARS = 80;
 
@@ -153,9 +169,17 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
   const [localSessionsCollapsed, setSessionsCollapsed] = useState(false);
   const sessionsCollapsed = controlledSessionsCollapsed ?? localSessionsCollapsed;
   const [assistantHistoryOpen, setAssistantHistoryOpen] = useState(false);
+  // An action started on this workspace's row of another device, before the
+  // device was rendered, runs here once.
+  const pendingAction = usePendingWorkspaceAction(state => state.action);
+  useEffect(() => {
+    if (!pendingAction) return;
+    const kind = takeWorkspaceAction(getActiveSurfaceId(), workspace.id);
+    if (kind === 'menu') { setMenuContextPoint(null); setMenuOpen(true); }
+    if (kind === 'assistant-history') setAssistantHistoryOpen(true);
+  }, [pendingAction, workspace.id]);
   const assistantHistoryId = useId();
   const openingAssistantRef = useRef(false);
-  const sessionDisclosureIcon = sessionsCollapsed ? 'chevron-right' : 'chevron-down';
   const collapseAllRequestId = useWorkspaceSessionViewStore(state => state.collapseAllRequestId);
   const [searchIndexModalOpen, setSearchIndexModalOpen] = useState(false);
   const [scheduledJobsModalOpen, setScheduledJobsModalOpen] = useState(false);
@@ -504,37 +528,42 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
     }
 
     let cancelled = false;
+    let requestId = 0;
     const remoteWorkspace = isRemoteWorkspace(workspace);
 
-    const loadAcpClients = async () => {
+    const loadAcpClients = async (refreshIfMissing = true) => {
+      const request = ++requestId;
       setAcpClients([]);
       setAcpClientsLoading(true);
       try {
         const clients = await loadWorkspaceAcpMenuClients({
           remoteWorkspace,
           remoteConnectionId: remoteWorkspace ? workspace.connectionId : undefined,
+          refreshIfMissing,
         });
-        if (!cancelled) {
+        if (!cancelled && request === requestId) {
           setAcpClients(clients);
         }
       } catch (_error) {
-        if (!cancelled) {
+        if (!cancelled && request === requestId) {
           setAcpClients([]);
         }
       } finally {
-        if (!cancelled) {
+        if (!cancelled && request === requestId) {
           setAcpClientsLoading(false);
         }
       }
     };
 
+    const onClientsChanged = () => { void loadAcpClients(); };
+    const onRequirementsChanged = () => { void loadAcpClients(false); };
     void loadAcpClients();
-    window.addEventListener('bitfun:acp-clients-changed', loadAcpClients);
-    window.addEventListener('bitfun:acp-requirements-changed', loadAcpClients);
+    window.addEventListener('bitfun:acp-clients-changed', onClientsChanged);
+    window.addEventListener('bitfun:acp-requirements-changed', onRequirementsChanged);
     return () => {
       cancelled = true;
-      window.removeEventListener('bitfun:acp-clients-changed', loadAcpClients);
-      window.removeEventListener('bitfun:acp-requirements-changed', loadAcpClients);
+      window.removeEventListener('bitfun:acp-clients-changed', onClientsChanged);
+      window.removeEventListener('bitfun:acp-requirements-changed', onRequirementsChanged);
     };
   }, [menuOpen, workspace]);
 
@@ -712,8 +741,16 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
     }
   }, [t, workspace.rootPath]);
 
+  // One new session per gesture: a second click while the first is being
+  // created would open a second draft. The pending state is rendered on the
+  // button (busy + disabled) so a slow create, e.g. over a peer relay, is
+  // visibly in progress instead of silently swallowing clicks.
+  const [creatingSession, setCreatingSession] = useState(false);
+  const showCreatingSessionIndicator = useDelayedPendingIndicator(creatingSession);
   const handleCreateSession = useCallback(async (mode?: 'Standard' | 'Cowork' | 'Claw') => {
     setMenuOpen(false);
+    if (creatingSession) return;
+    setCreatingSession(true);
     const resolvedMode = mode ?? (workspace.workspaceKind === WorkspaceKind.Assistant ? 'Claw' : undefined);
     try {
       const reusableId = findReusableEmptySessionId(workspace, resolvedMode);
@@ -737,8 +774,11 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
         error instanceof Error ? error.message : t('nav.workspaces.createSessionFailed'),
         { duration: 4000 }
       );
+    } finally {
+      setCreatingSession(false);
     }
   }, [
+    creatingSession,
     setActiveWorkspace,
     t,
     workspace,
@@ -818,7 +858,7 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
         'bitfun-nav-panel__assistant-item',
         isSelected && 'is-active',
         isDragging && 'is-dragging',
-        menuOpen && 'is-menu-open',
+        (menuOpen || creatingSession) && 'is-menu-open',
         isSingle && 'is-single',
       ].filter(Boolean).join(' ')}
       data-bitfun-product-component="workspace-item"
@@ -914,13 +954,17 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
                 data-bitfun-product-component="workspace-item"
                 data-bitfun-product-part="action"
                 type="button"
-                className="bitfun-nav-panel__assistant-item-menu-trigger"
+                className={`bitfun-nav-panel__assistant-item-menu-trigger${showCreatingSessionIndicator ? ' is-pending' : ''}`}
                 onClick={() => { void handleCreateSession(); }}
+                disabled={creatingSession}
+                aria-busy={creatingSession || undefined}
                 aria-label={t('nav.workspaces.actions.newSession')}
                 data-testid="nav-workspace-new-session-btn"
                 data-workspace-id={workspace.id}
               >
-                <Icon glyph={MessageCirclePlus} size="xs" />
+                {showCreatingSessionIndicator
+                  ? <Spinner size="xs" />
+                  : <Icon glyph={MessageCirclePlus} size="xs" />}
               </button>
             </Tooltip>
 
@@ -938,7 +982,7 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
                 data-workspace-id={workspace.id}
               >
                 <MenuItem
-                  leading={<Icon name="folder" size="sm" />}
+                  leading={<Icon name="folder-open" size="sm" />}
                   onClick={handleOpenFiles}
                   data-testid="nav-workspace-menu-open-directory"
                 >
@@ -1081,7 +1125,7 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
       'bitfun-nav-panel__workspace-item',
       isSelected && 'is-active',
       isDragging && 'is-dragging',
-      menuOpen && 'is-menu-open',
+      (menuOpen || creatingSession) && 'is-menu-open',
       sessionsCollapsed && 'is-sessions-collapsed',
       isSingle && 'is-single',
     ].filter(Boolean).join(' ')}
@@ -1126,12 +1170,7 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
           data-workspace-id={workspace.id}
         >
           <span className="bitfun-nav-panel__workspace-item-icon" data-bitfun-product-component="workspace-item" data-bitfun-product-part="icon" aria-hidden="true">
-            <span className="bitfun-nav-panel__workspace-item-icon-default">
-              <WorkspaceIcon workspace={workspace} />
-            </span>
-            <span className="bitfun-nav-panel__workspace-item-icon-toggle">
-              <Icon name={sessionDisclosureIcon} size="sm" />
-            </span>
+            <WorkspaceIcon workspace={workspace} expanded={!sessionsCollapsed} />
           </span>
         </button>
         <div className="bitfun-nav-panel__workspace-item-name-cluster">
@@ -1367,13 +1406,17 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
                 data-bitfun-product-component="workspace-item"
                 data-bitfun-product-part="action"
                 type="button"
-                className="bitfun-nav-panel__workspace-item-menu-trigger"
+                className={`bitfun-nav-panel__workspace-item-menu-trigger${showCreatingSessionIndicator ? ' is-pending' : ''}`}
                 onClick={handleCreateProjectSession}
+                disabled={creatingSession}
+                aria-busy={creatingSession || undefined}
                 aria-label={t('nav.sessions.newSession')}
                 data-testid="nav-workspace-new-session-btn"
                 data-workspace-id={workspace.id}
               >
-                <Icon glyph={MessageCirclePlus} size="xs" />
+                {showCreatingSessionIndicator
+                  ? <Spinner size="xs" />
+                  : <Icon glyph={MessageCirclePlus} size="xs" />}
               </button>
             </Tooltip>
 
@@ -1391,7 +1434,7 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
                 data-workspace-id={workspace.id}
               >
                 <MenuItem
-                  leading={<Icon name="folder" size="sm" />}
+                  leading={<Icon name="folder-open" size="sm" />}
                   onClick={handleOpenFiles}
                   data-testid="nav-workspace-menu-open-directory"
                 >
@@ -1482,17 +1525,21 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
       <div
         data-bitfun-product-component="workspace-item"
         data-bitfun-product-part="sessions"
-        className={`bitfun-nav-panel__workspace-item-sessions${sessionsCollapsed ? ' is-collapsed' : ''}`}
+        className={`bitfun-nav-panel__workspace-item-sessions bitfun-nav-panel__workspace-item-sessions--project${sessionsCollapsed ? ' is-collapsed' : ''}`}
+        {...{ inert: sessionsCollapsed ? '' : undefined }}
+        aria-hidden={sessionsCollapsed || undefined}
         data-testid="nav-workspace-session-region"
         data-workspace-id={workspace.id}
       >
-        <SessionsSection
-          workspaceId={workspace.id}
-          workspacePath={workspace.rootPath}
-          isActiveWorkspace={isActive}
-          isVisible={!sessionsCollapsed}
-          useWorkspaceViewPreferences
-        />
+        <div className="bitfun-nav-panel__workspace-item-sessions-inner">
+          <SessionsSection
+            workspaceId={workspace.id}
+            workspacePath={workspace.rootPath}
+            isActiveWorkspace={isActive}
+            isVisible={!sessionsCollapsed}
+            useWorkspaceViewPreferences
+          />
+        </div>
       </div>
 
       <InputDialog

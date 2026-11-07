@@ -219,6 +219,25 @@
       "diverged": "已取消切换：{{branch}} 与本地分支已分叉，请先合并或变基。",
       "indexConflict": "请先解决当前索引冲突",
       "unexpected": "切换分支时发生意外错误"
+    },
+    "conflict": {
+      "title": "提交更改后切换分支",
+      "description": "检出目标分支会覆盖以下文件中的更改：",
+      "instruction": "请先提交更改以继续。",
+      "filesUnavailable": "Git 未返回阻止检出的具体文件。",
+      "cancel": "取消",
+      "commitAndSwitch": "提交并切换分支…",
+      "commitTitle": "提交更改并切换到 {{branch}}",
+      "commitDescription": "将暂存并提交此工作区中的所有更改，然后切换到 {{branch}}。",
+      "retryDescription": "更改已提交，请重试切换到 {{branch}}。",
+      "commitMessageLabel": "提交信息",
+      "commitMessagePlaceholder": "输入提交信息...",
+      "commitMessageRequired": "请输入提交信息后继续。",
+      "commitAction": "提交并切换",
+      "retrySwitchAction": "重试切换",
+      "stageFailed": "无法暂存更改：{{error}}",
+      "commitFailed": "无法提交更改：{{error}}",
+      "retryFailed": "更改已提交，但仍无法切换分支：{{error}}"
     }
   },
   "selection": {

@@ -26,10 +26,14 @@ Most changes start in:
 Peer Device Mode (same-account remote full client) is documented in
 `docs/architecture/peer-device-mode.md`. Frontend invariants:
 `src/infrastructure/peer-device/README.md`. Do not reintroduce nested
-sessions/chat shells; enter peer mode from the device list (Remote Connect →
-My BitFun) instead.
+sessions/chat shells; open a device’s workspace or session from its sidebar section.
+Remote Connect’s account device list manages visibility, aliases, and removal;
+its rows do not switch the rendered device. Device order is a controller-local
+preference shared by this list, sidebar sections, and the device preview carousel;
+keep device IDs stable through renames, presence changes, and Peer switches.
 
-Remote Connect uses the global GitHub account and the official versioned Relay.
+Remote Connect uses the shared BitFun account (GitHub or email-code sign-in)
+and the official versioned Relay.
 Account controls use the shared account-identity service; do not expose a separate
 Relay account, custom server field, or self-hosted deployment entry. SSH and Docker
 workspace connections remain independent of Relay sign-in.
@@ -109,6 +113,20 @@ deliberate layout transitions or animate virtualized content. Rely on CI for
 full lint, build, and broad test coverage unless the local change specifically
 needs it.
 
+For capability catalog entries and their localized global-search labels:
+
+```bash
+pnpm run capabilities:generate && pnpm run capabilities:check && pnpm run capabilities:test
+pnpm run website:test
+pnpm --dir src/web-ui run test:run src/app/global-search/providers/interactiveCapabilitySearchProvider.test.ts
+pnpm run i18n:audit
+```
+
+Every new catalog item also needs a label under `search.capabilities` in each
+locale's `scenes/capabilities.json`; the catalog generator does not write these
+resources. The shared search acceptance corpus exercises both the Playbook and
+Web UI, including the matched sub-capability.
+
 For Agent creation, hidden internal IDs, editing, and surface-switch draft fences:
 
 ```bash
@@ -118,6 +136,16 @@ pnpm --dir src/web-ui run test:run src/app/scenes/agents/components/CreateAgentD
 These DOM fixtures cover local forms and simulated Peer surface switches;
 they do not establish native rendering or live remote behavior.
 
+For startup logo handoff, welcome typing, reduced motion, and interrupted startup exits:
+
+```bash
+pnpm --dir src/web-ui run test:run src/app/startup/startupOverlay.test.ts src/app/startup/startupPreload.test.ts src/app/startup/startupPerformanceContract.test.ts src/app/scenes/welcome/WelcomeScene.test.tsx
+pnpm run motion:audit
+```
+
+These DOM fixtures use measured rectangles and animation stubs. They do not
+establish native WebView animation fidelity or live remote behavior.
+
 For navigation-divider dragging, elastic feedback, cancellation, and keyboard resizing:
 
 ```bash
@@ -126,6 +154,28 @@ pnpm --dir src/web-ui run test:run src/app/layout/useNavResize.test.tsx src/app/
 
 These local DOM fixtures cover gesture state and spring settling, not native
 WebView rendering or live remote scenarios.
+
+For transcript focus/selection residency, disclosure takeover, crossing ranges,
+and clearing or moving a selection outside the transcript:
+
+```bash
+pnpm --dir src/web-ui run test:run src/flow_chat/timeline/useTimelineInteraction.test.tsx
+```
+
+These DOM fixtures cover interaction leases. Native row recycling checks live
+in `tests/e2e/AGENTS.md`; neither establishes system clipboard or remote behavior.
+
+For scene-tab reveal coordinates, resize delivery, pointer/keyboard motion,
+edge-control width changes and manual-scroll ownership:
+
+```bash
+pnpm --dir src/web-ui run test:run src/app/components/SceneBar/useSceneTabNavigation.test.tsx src/app/components/SceneBar/SceneBar.test.tsx
+```
+
+TabGroup items sit inside positioned drag wrappers; their `offsetLeft` is not a
+scroll-strip coordinate. Preserve reveal across edge-control layout changes, and
+release automatic reveal when the user wheels or pages the strip. These fixtures
+use supplied geometry; native overflow coverage is in `tests/e2e/AGENTS.md`.
 
 For project creation entry points, work-location/environment selection, and local / SSH / WSL / Docker routing:
 
@@ -149,6 +199,18 @@ drift and cover conditional settings, saved/new views, separate endpoint drafts,
 credential-only retries, custom container values, search clearing, independent actions,
 numeric bounds, and focus ownership; DOM assertions do not establish native
 rendering or live connections.
+
+For remote workspace reconciliation and ACP requirement cache invalidation:
+
+```bash
+pnpm --dir src/web-ui run test:run src/features/ssh-remote/SSHRemoteProvider.test.tsx src/infrastructure/api/service-api/ACPClientAPI.test.ts src/app/components/NavPanel/sections/workspaces/workspaceAcpMenuClients.test.ts src/app/components/NavPanel/sections/workspaces/workspaceAcpMenuClients.integration.test.ts
+```
+
+These fixtures cover idle metadata updates, live-status recovery, explicit
+activation, concurrent binding changes/closure, partial restore failures,
+config invalidation, menu probe feedback, and simulated Peer surface changes.
+They do not establish live SSH, Remote Control or Detached
+Dispatch behavior. Editor polling checks belong in `src/tools/editor/AGENTS.md`.
 
 For conversation selection and the floating annotation editor (placement,
 dragging, resizing, draft retention, and nonmodal interaction):
@@ -182,14 +244,35 @@ also run the focused state contracts:
 pnpm --dir src/web-ui run test:run src/app/services/sessionSceneLifecycle.test.ts src/flow_chat/services/sessionActivation.test.ts src/flow_chat/services/storeSync.test.ts src/app/stores/sceneStore.test.ts
 ```
 
-For top workspace tab recent-session disclosure, selection and reconciliation:
+For ACP creation feedback, retries, metadata loading and cross-version fallback:
+
+```bash
+pnpm --dir src/web-ui run test:run src/app/layout/AcpSessionNotifications.test.tsx src/flow_chat/services/FlowChatManager.test.ts src/infrastructure/api/service-api/ACPClientAPI.test.ts src/flow_chat/components/ModelSelectorAcpMode.test.tsx src/flow_chat/hooks/useAcpSlashCommands.test.ts
+```
+
+These DOM/API fixtures cover delayed startup, duplicate creation, visible errors,
+retry, old-host metadata and simulated SSH/Peer identities. They do not establish
+native rendering, real provider latency or live remote behavior.
+
+For top session tabs (one per session, kept per device), selection and reconciliation:
 
 ```bash
 pnpm --dir src/web-ui run test:run src/app/components/SceneBar/SceneBar.test.tsx src/app/stores/sceneStore.test.ts src/app/services/sessionSceneLifecycle.test.ts src/app/hooks/useSessionTabLabels.test.tsx src/shared/ui/MenuPopover.test.tsx src/shared/ui/MenuComposition.contract.test.ts
 ```
 
-These local DOM/store fixtures cover bounded history, legacy tabs and simulated
+These local DOM/store fixtures cover the session tab limit, other-device tabs and simulated
 SSH/Peer identities; they do not establish native rendering or live remote behavior.
+
+For close/reopen, numbered tab selection and layout shortcuts across conversation,
+content, split groups and terminals:
+
+```bash
+pnpm --dir src/web-ui run test:run src/app/hooks/useTabCloseShortcut.test.tsx src/infrastructure/services/ShortcutManager.test.ts src/app/components/panels/content-canvas/hooks/useTabLifecycle.btw.test.tsx
+```
+
+These DOM/store fixtures simulate Windows/Linux/macOS modifiers, concurrent
+canvas owners, close guards and Peer switches. They do not establish native
+keyboard delivery or live SSH, Remote Control, Peer Device or Detached Dispatch behavior.
 
 For composer mode restoration, passive synchronization, or explicit mode selection:
 
@@ -204,6 +287,16 @@ For cross-device undo/redo/rollback history invalidation and settled-Turn fences
 run `pnpm --dir src/web-ui run test:run src/flow_chat/services/flow-chat-manager/EventHandlerModule.test.ts`.
 Missing fence identities (including legacy payloads) must reload authoritative
 history; an explicit settled-Turn identity must preserve newer live Turns.
+
+For edit/rollback receipts, legacy peer outcomes, and delayed record replay:
+
+```bash
+pnpm --dir src/web-ui run test:run src/flow_chat/services/SessionRollbackService.test.ts src/flow_chat/services/UserMessageEditService.test.ts src/flow_chat/store/FlowChatStore.test.ts src/flow_chat/session-stream/SessionRecordReplica.test.ts src/flow_chat/services/RelaySessionHistory.test.ts
+```
+
+These tests exercise the shared mutation services and real presentation store
+with simulated Peer records, including device switches and redo. They do not
+establish live Desktop-to-Desktop or Desktop-to-CLI behavior.
 
 For text-entry guards, composer sanitization, or keyboard focus routing, run
 `pnpm --dir src/web-ui run test:run src/shared/utils/textInputGuard.test.tsx src/flow_chat/components/RichTextInput.test.tsx src/flow_chat/hooks/useComposerDefaultFocus.test.tsx src/flow_chat/utils/chatInputKeyOwnership.test.ts`.
@@ -317,6 +410,16 @@ These DOM and transport fixtures cover local and simulated Peer surfaces,
 including old-host gating and stale-device completions. They do not establish
 live SSH, relay remote control or detached-dispatch behavior.
 
+For composer queue disclosure, recovery rows, keyboard previews, sending states,
+draft restoration and transcript ownership:
+
+```bash
+pnpm --dir src/web-ui run test:run src/flow_chat/components/HostPendingQueuePanel.test.tsx src/flow_chat/components/PendingQueuePanel.test.tsx src/flow_chat/utils/pendingQueueDraft.test.ts src/flow_chat/utils/pendingQueuePresentation.test.ts src/flow_chat/timeline/useHostQueueTimeline.test.tsx src/flow_chat/timeline/hostQueueProjection.test.ts
+```
+
+These DOM/store fixtures include simulated host recovery and Peer surface changes;
+they do not establish native visual fidelity or live remote behavior.
+
 For Markdown Mermaid rendering states and supported syntax:
 
 ```bash
@@ -345,6 +448,12 @@ pnpm --dir src/web-ui run test:run src/flow_chat/components/ChatInputWorkspaceSt
 These local DOM/store fixtures include simulated SSH report data, Peer surface switches,
 and the dispatch report source; they do not establish live remote behavior or visual fidelity.
 
+For compact composer width measurement and pane-resize suspension, run
+`pnpm --dir src/web-ui run test:run src/flow_chat/components/compactComposerInputWidth.test.ts src/app/scenes/session/ChatPane.composer-layout.test.tsx`.
+Compact measurement may read the live compact track; expanded or unusable geometry
+must retain the compact-layout probe. The native two-width geometry comparison is
+documented in `tests/e2e/AGENTS.md`; DOM fixtures do not establish wrapping fidelity.
+
 For canvas split tab placement, layout transitions, and lower-pane tab actions:
 
 ```bash
@@ -353,6 +462,27 @@ pnpm --dir src/web-ui run test:run src/app/components/panels/content-canvas/edit
 
 These local DOM/store fixtures do not establish native rendering or live remote behavior.
 
+For device preview motion, linked sidebar visibility and ordering, and controller-owned theme selection:
+
+```bash
+pnpm --dir src/web-ui run test:run src/app/components/NavPanel/components/DeviceStatusControl.test.tsx src/app/components/NavPanel/sections/devices/DeviceWorkspaceSections.test.tsx src/app/components/RemoteConnectDialog/AccountPanel.test.tsx src/app/navigation/deviceVisibilityPreferences.test.ts src/app/navigation/deviceOrderPreferences.test.ts src/app/components/NavPanel/sections/devices/useSidebarDevices.test.tsx src/infrastructure/appearance/runtime/AppearanceService.test.ts
+```
+
+These DOM/store and transport fixtures cover interrupted motion, reduced motion,
+legacy preference loading, drag ordering, visibility across device activation, and local theme
+reads/writes during simulated Peer switches. They do not establish native
+WebView frame rate or live SSH, Remote Control, Peer Device or Detached Dispatch behavior.
+
+For cross-device session prewarm, native event routing and subscription handover:
+
+```bash
+pnpm --dir src/web-ui run test:run src/flow_chat/services/RelaySessionHistory.test.ts src/flow_chat/services/RelaySessionHistory.routing.test.ts src/infrastructure/api/service-api/RemoteConnectAPI.test.ts src/infrastructure/api/adapters/tauri-adapter.test.ts src/infrastructure/peer-device/deviceSurfaceRouting.test.ts
+```
+
+These fixtures route tagged native events before and after a simulated Peer
+activation, including same-ID sessions on other devices and cached replay.
+They do not establish live Relay reconnect or remote-host performance.
+
 For workspace icon editing, host capability gates, persistence requests and device-switch fences:
 
 ```bash
@@ -360,3 +490,30 @@ pnpm --dir src/web-ui run test:run src/infrastructure/workspace-icons/workspaceI
 ```
 
 These fixtures exercise DOM behavior and simulated device switching, not live remote hosts.
+
+For retained scene visibility, Todos display-clock suspension and immediate return
+catch-up (including midnight and document visibility), run:
+
+```bash
+pnpm --dir src/web-ui run test:run src/app/scenes/SceneViewport.test.tsx src/app/scenes/todos/useTodoClock.test.tsx src/app/scenes/personal-overview/usePersonalOverview.test.tsx
+```
+
+These local DOM fixtures do not establish native rendering or live remote behavior.
+The Todos display clock must not gate job subscriptions or scheduler execution.
+For scene-readiness-only changes, run the SceneViewport test file alone. Readiness
+must follow the committed tree: a closed or Suspense-hidden tree cannot leave a
+ready id that reveals a newly suspended reopening. Native non-editor close/reopen
+coverage is in `run-scene-tabs.mjs`; its normal loading path does not replace the
+deliberately suspended DOM regression.
+
+For companion sprite look/action restoration, SVG timer ownership, reduced
+motion, hidden-window suspension and immediate hover polling recovery:
+
+```bash
+pnpm --dir src/web-ui run test:run src/flow_chat/components/AgentCompanionPet.test.tsx src/app/components/AgentCompanionDesktopPet/AgentCompanionDesktopPet.test.tsx
+```
+
+These DOM fixtures do not establish native CSS shorthand/longhand behavior or
+live remote delivery. The native resource/cadence runner and its attribution
+limits are documented in `tests/e2e/AGENTS.md`. Resource-loading compatibility
+tests belong to `src/infrastructure/config/AGENTS.md`.

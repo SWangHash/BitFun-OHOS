@@ -230,9 +230,7 @@ pub async fn resolve_review_capability(
             .await
             .into_iter()
             .find(|agent| agent.key == agent_key)
-            .ok_or_else(|| {
-                BitFunError::tool("Review agent is no longer available".to_string())
-            })?;
+            .ok_or_else(|| BitFunError::tool("Review agent is no longer available".to_string()))?;
         let workspace_root = (!context.is_remote())
             .then(|| context.workspace_id())
             .flatten();
@@ -280,10 +278,7 @@ fn agent_fingerprint_material(guidance: &str, preferred_model: Option<&str>) -> 
     )
 }
 
-async fn load_review_skill(
-    context: &ToolUseContext,
-    skill_key: &str,
-) -> BitFunResult<SkillData> {
+async fn load_review_skill(context: &ToolUseContext, skill_key: &str) -> BitFunResult<SkillData> {
     let still_implicitly_invocable = implicitly_invocable_skills(context)
         .await
         .into_iter()
@@ -334,15 +329,11 @@ async fn load_discovered_review_skill(
             })?
             .read_file_text(&skill_file)
             .await
-            .map_err(|error| {
-                BitFunError::tool(format!("Failed to read review skill: {error}"))
-            })?
+            .map_err(|error| BitFunError::tool(format!("Failed to read review skill: {error}")))?
     } else {
         tokio::fs::read_to_string(&skill_file)
             .await
-            .map_err(|error| {
-                BitFunError::tool(format!("Failed to read review skill: {error}"))
-            })?
+            .map_err(|error| BitFunError::tool(format!("Failed to read review skill: {error}")))?
     };
     let mut data = SkillData::from_markdown_for_source_slot(
         info.path.clone(),
@@ -453,6 +444,7 @@ mod tests {
             dialog_turn_id: None,
             workspace: Some(WorkspaceBinding::new(None, root)),
             loaded_deferred_tool_specs: Vec::new(),
+            model_client: None,
             primary_model_facts: tool_runtime::context::PrimaryModelFacts::default(),
             custom_data: HashMap::new(),
             computer_use_host: None,

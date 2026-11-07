@@ -11,8 +11,12 @@ import {
 import { useDeviceDirectory } from '@/infrastructure/account/deviceDirectory';
 import { getDeviceArtworkKind } from './deviceArtworkKind';
 import DeviceStatusControl from './DeviceStatusControl';
+import { useDeviceOrderPreferences } from '@/app/navigation/deviceOrderPreferences';
+import { useDeviceVisibilityPreferences } from '@/app/navigation/deviceVisibilityPreferences';
 
 const state = vi.hoisted(() => ({
+  relayCapabilities: vi.fn(async () => ['device_alias_v1']),
+  updateDevice: vi.fn(async () => undefined),
   overview: null as DeviceInterconnectionOverview | null,
   refresh: vi.fn().mockResolvedValue(undefined),
   switchToLocal: vi.fn().mockResolvedValue('activated'),
@@ -68,12 +72,14 @@ vi.mock('@/infrastructure/api/service-api/RemoteConnectAPI', async importOrigina
   remoteConnectAPI: {
     getDeviceInfo: state.getDeviceInfo,
     accountListDevices: state.accountListDevices,
+    accountRelayCapabilities: state.relayCapabilities,
+    accountUpdateDevice: state.updateDevice,
   },
 }));
 vi.mock('@/infrastructure/api/service-api/ApiClient', () => ({
   api: { listen: () => () => {} },
 }));
-const notifications = vi.hoisted(() => ({ success: vi.fn(), warning: vi.fn() }));
+const notifications = vi.hoisted(() => ({ success: vi.fn(), warning: vi.fn(), error: vi.fn() }));
 vi.mock('@/shared/notification-system', () => ({
   useNotification: () => notifications,
 }));
@@ -127,7 +133,7 @@ function installPreviewAnimations() {
     finish: () => void;
     cancel: ReturnType<typeof vi.fn>;
   }[] = [];
-  for (const selector of ['device-scene', 'device-heading', 'device-actions', 'pagination-index']) {
+  for (const selector of ['device-scene', 'device-heading', 'device-actions']) {
     const node = card.querySelector<HTMLElement>(`.bitfun-device-overview__${selector}`)!;
     if (!node) continue;
     node.animate = vi.fn((frames, options) => {
@@ -145,7 +151,7 @@ function installPreviewAnimations() {
   return {
     records,
     finishPhase: async () => {
-      const phase = records.slice(-4);
+      const phase = records.slice(-3);
       await act(async () => { phase.forEach(animation => animation.finish()); });
     },
   };
@@ -168,6 +174,7 @@ function installMotionPreference(initial = false) {
 }
 
 async function renderBrowseableDevices() {
+  useDeviceOrderPreferences.setState({ order: ['local', 'peer-1', 'peer-2', 'peer-3'] });
   state.overview = overview({ peer: { deviceId: 'peer-1', deviceName: 'Current host' } });
   state.identity = { status: 'signed-in', me: { user: { accountId: 'acct' } } };
   state.getDeviceInfo.mockResolvedValue({ device_id: 'local', device_name: 'This computer' });
@@ -186,6 +193,9 @@ async function renderBrowseableDevices() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  useDeviceVisibilityPreferences.setState({ hidden: {} });
+  useDeviceOrderPreferences.setState({ order: [] });
+  state.disconnectDevice.mockReset().mockResolvedValue(undefined);
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   useDeviceDirectory.setState({ devices: [], localId: null });
   state.identity = { status: 'signed-out', me: null };
@@ -206,6 +216,44 @@ afterEach(() => {
 });
 
 describe('device status card', () => {
+  it.each(['signed-out', 'loading', 'authorizing'])(
+    'opens device management directly when account identity is %s', status => {
+      state.identity = { status, me: null };
+      render(false);
+
+      act(() => element('nav-footer-device-status').click());
+
+      expect(onManageDevices).toHaveBeenCalledOnce();
+      expect(onOpenChange).toHaveBeenCalledExactlyOnceWith(false);
+      expect(element('nav-footer-device-status').getAttribute('aria-expanded')).toBe('false');
+      expect(document.querySelector('[data-testid="nav-device-status-popover"]')).toBeNull();
+      expect(state.refresh).not.toHaveBeenCalled();
+      expect(state.accountListDevices).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([false, true])('toggles the overview when signed in (peer active: %s)', async peerActive => {
+    state.identity = { status: 'signed-in', me: { user: { accountId: 'acct' } } };
+    state.overview = overview({ peer: peerActive ? { deviceId: 'peer-1', deviceName: 'Remote Mac' } : null });
+    state.getDeviceInfo.mockResolvedValue({ device_id: 'local', device_name: 'Workstation' });
+    state.accountListDevices.mockResolvedValue([]);
+    function Footer() {
+      const [open, setOpen] = React.useState(false);
+      return <DeviceStatusControl open={open} onOpenChange={setOpen} onManageDevices={onManageDevices} />;
+    }
+    act(() => root.render(<Footer />));
+
+    await act(async () => { element('nav-footer-device-status').click(); });
+    expect(element('nav-footer-device-status').getAttribute('aria-expanded')).toBe('true');
+    expect(element('nav-device-status-popover')).not.toBeNull();
+    expect(onManageDevices).not.toHaveBeenCalled();
+
+    act(() => element('nav-footer-device-status').click());
+    expect(element('nav-footer-device-status').getAttribute('aria-expanded')).toBe('false');
+    expect(document.querySelector('[data-testid="nav-device-status-popover"]')).toBeNull();
+    expect(onManageDevices).not.toHaveBeenCalled();
+  });
+
   it('pins an upward card by its bottom edge so height changes never reposition it', () => {
     render(false);
     const rect = (top: number, height: number, width: number) => ({
@@ -252,16 +300,15 @@ describe('device status card', () => {
     expect(element('nav-device-status-manage').getAttribute('aria-label')).toBe('deviceOverview.devicesAndConnections');
     expect(element('nav-device-status-manage').querySelector('.lucide-monitor-smartphone')).not.toBeNull();
     expect(card.querySelector('[data-testid="nav-device-status-pagination"]')).toBeNull();
-    // Titles and status words are drawn, not written: no header title, and this
-    // machine is a quiet mark after its name rather than a text pill.
+    // Device identity stays in the heading; the eye controls sidebar visibility.
     expect(header?.querySelector('[data-bitfun-part="title"]')).toBeNull();
     expect(card.textContent).not.toContain('deviceOverview.title');
     expect(card.dataset.controlState).toBe('local');
-    expect(element('nav-device-status-local').textContent).toBe('');
-    expect(element('nav-device-status-local').getAttribute('role')).toBe('img');
-    expect(element('nav-device-status-local').getAttribute('aria-label')).toBe('deviceOverview.localDevice');
-    expect(element('nav-device-status-local').querySelector('.lucide-house')).not.toBeNull();
-    expect(element('nav-device-status-local').closest('.bitfun-device-overview__device-heading')).not.toBeNull();
+    const visibility = element('device-sidebar-visibility');
+    expect(visibility.getAttribute('aria-label')).toBe('nav.devices.hideInSidebar');
+    expect(visibility.getAttribute('aria-pressed')).toBe('true');
+    expect(visibility.querySelector('.lucide-eye')).not.toBeNull();
+    expect(visibility.closest('.bitfun-device-overview__device-actions')).not.toBeNull();
     expect(card.querySelector('[data-bitfun-component="status-pill"]')).toBeNull();
     expect(card.querySelector('.bitfun-device-overview__carousel-controls')).toBeNull();
     expect(card.querySelector('[data-bitfun-part="footer"]')).toBeNull();
@@ -355,6 +402,7 @@ describe('device status card', () => {
   });
 
   it('opens on the current peer without sliding when the directory arrives, including after browsing and reopening', async () => {
+    useDeviceOrderPreferences.setState({ order: ['local', 'peer-1', 'peer-2'] });
     state.overview = overview({ peer: { deviceId: 'peer-1', deviceName: 'Current host' } });
     state.identity = { status: 'signed-in', me: { user: { accountId: 'acct' } } };
     state.getDeviceInfo.mockResolvedValue({ device_id: 'local', device_name: 'This computer' });
@@ -399,6 +447,31 @@ describe('device status card', () => {
     expect(state.switchToDevice).not.toHaveBeenCalled();
   });
 
+  it('renames the shown device in place through the Relay', async () => {
+    state.identity = { status: 'signed-in', me: { user: { accountId: 'acct' } } };
+    state.getDeviceInfo.mockResolvedValue({ device_id: 'local', device_name: 'This computer' });
+    state.accountListDevices.mockResolvedValue([{ device_id: 'local', device_name: 'This computer', online: true }]);
+    await act(async () => { render(); });
+    await act(async () => { element('nav-device-alias-edit').click(); });
+    const input = element('nav-device-alias-input') as HTMLInputElement;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, 'Studio');
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await act(async () => { element('nav-device-alias-save').click(); });
+    expect(state.updateDevice).toHaveBeenCalledWith('local', 'Studio');
+    expect(document.querySelector('[data-testid="nav-device-alias-input"]')).toBeNull();
+  });
+
+  it('offers no rename through a Relay without device aliases', async () => {
+    state.identity = { status: 'signed-in', me: { user: { accountId: 'acct' } } };
+    state.relayCapabilities.mockResolvedValueOnce([]);
+    state.getDeviceInfo.mockResolvedValue({ device_id: 'local', device_name: 'This computer' });
+    state.accountListDevices.mockResolvedValue([{ device_id: 'local', device_name: 'This computer', online: true }]);
+    await act(async () => { render(); });
+    expect(document.querySelector('[data-testid="nav-device-alias-edit"]')).toBeNull();
+  });
+
   it('hides pagination and navigation after loading a single local device', async () => {
     state.identity = { status: 'signed-in', me: { user: { accountId: 'acct' } } };
     state.getDeviceInfo.mockResolvedValue({ device_id: 'local', device_name: 'This computer' });
@@ -406,20 +479,20 @@ describe('device status card', () => {
     await act(async () => { render(); });
     expect(document.querySelector('[data-testid="nav-device-status-pagination"]')).toBeNull();
     expect(document.querySelector('.bitfun-device-overview__carousel-controls')).toBeNull();
-    expect(element('nav-device-status-local')).toBeDefined();
+    expect(element('device-sidebar-visibility').dataset.deviceSurface).toBe('local');
   });
 
   it('hands off artwork, name, pagination and actions together without invoking the old device', async () => {
     const { next } = await renderBrowseableDevices();
     const motion = installPreviewAnimations();
     const total = element('nav-device-status-total');
-    act(() => next.click());
+    act(() => next.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 })));
     expect(element('nav-device-status-name').textContent).toBe('Current host');
     expect(element('nav-device-status-pagination').textContent).toBe('2 / 4');
-    expect((element('nav-device-status-disconnect') as HTMLButtonElement).disabled).toBe(true);
-    act(() => { element('nav-device-status-disconnect').click(); element('nav-device-usage-status').click(); });
+    expect((element('device-sidebar-visibility') as HTMLButtonElement).disabled).toBe(true);
+    act(() => { element('device-sidebar-visibility').click(); element('nav-device-usage-status').click(); });
     expect(state.disconnectDevice).not.toHaveBeenCalled();
-    expect(motion.records).toHaveLength(4);
+    expect(motion.records).toHaveLength(3);
     expect(motion.records.every(animation => !animation.element.contains(total))).toBe(true);
     expect(motion.records[0].options.duration).toBe(80);
     expect(motion.records[0].keyframes[1].transform).toBe('translateX(calc(4px * -1))');
@@ -431,35 +504,41 @@ describe('device status card', () => {
     expect(total.textContent).toBe('4');
     expect(document.querySelector('[data-artwork="linux"]')).not.toBeNull();
     expect(document.querySelector('[data-testid="nav-device-usage-status"]')).toBeNull();
-    expect(motion.records).toHaveLength(8);
-    expect(motion.records[4].options.duration).toBe(140);
-    expect(motion.records[4].keyframes[0].transform).toBe('translateX(calc(4px * 2))');
-    expect((element('nav-device-status-connect') as HTMLButtonElement).disabled).toBe(true);
-    act(() => element('nav-device-status-connect').click());
+    expect(motion.records).toHaveLength(6);
+    expect(motion.records[3].options.duration).toBe(140);
+    expect(motion.records[3].keyframes[0].transform).toBe('translateX(calc(4px * 2))');
+    expect((element('device-sidebar-visibility') as HTMLButtonElement).disabled).toBe(true);
+    act(() => element('device-sidebar-visibility').click());
     expect(state.switchToDevice).not.toHaveBeenCalled();
     await motion.finishPhase();
-    expect((element('nav-device-status-connect') as HTMLButtonElement).disabled).toBe(false);
-    await act(async () => element('nav-device-status-connect').click());
-    expect(state.switchToDevice).toHaveBeenCalledWith('peer-2', 'Another host');
+    expect((element('device-sidebar-visibility') as HTMLButtonElement).disabled).toBe(false);
+    await act(async () => element('device-sidebar-visibility').click());
+    expect(useDeviceVisibilityPreferences.getState().hidden['peer-2']).toBe(true);
+    expect(state.switchToDevice).not.toHaveBeenCalled();
+    expect(state.disconnectDevice).not.toHaveBeenCalled();
   });
 
   it('coalesces rapid clicks and interrupts an entrance from its current frame', async () => {
     const { next, previous } = await renderBrowseableDevices();
     const motion = installPreviewAnimations();
-    act(() => { next.click(); next.click(); });
-    expect(motion.records).toHaveLength(4);
+    const styles = vi.spyOn(globalThis, 'getComputedStyle');
+    act(() => { next.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 })); next.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 })); });
+    expect(motion.records).toHaveLength(3);
+    expect(styles).toHaveBeenCalledTimes(1);
     await motion.finishPhase();
+    expect(styles).toHaveBeenCalledTimes(1);
+    styles.mockRestore();
     expect(element('nav-device-status-name').textContent).toBe('Third host');
     expect(element('nav-device-status-pagination').textContent).toBe('4 / 4');
     expect(document.querySelector('[data-artwork="server"]')).not.toBeNull();
 
-    const interrupted = motion.records.slice(-4);
+    const interrupted = motion.records.slice(-3);
     const scene = motion.records[0].element;
     scene.style.opacity = '0.35';
     scene.style.transform = 'translateX(2px)';
-    act(() => previous.click());
+    act(() => previous.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 })));
     expect(interrupted.every(animation => animation.cancel.mock.calls.length === 1)).toBe(true);
-    expect(motion.records[8].keyframes[0]).toEqual({ opacity: '0.35', transform: 'translateX(2px)' });
+    expect(motion.records[6].keyframes[0]).toEqual({ opacity: '0.35', transform: 'translateX(2px)' });
     scene.style.removeProperty('opacity');
     scene.style.removeProperty('transform');
     await act(async () => { interrupted.forEach(animation => animation.finish()); });
@@ -467,7 +546,7 @@ describe('device status card', () => {
     await motion.finishPhase();
     expect(element('nav-device-status-name').textContent).toBe('Another host');
     await motion.finishPhase();
-    expect((element('nav-device-status-connect') as HTMLButtonElement).disabled).toBe(false);
+    expect((element('device-sidebar-visibility') as HTMLButtonElement).disabled).toBe(false);
     expect(state.switchToDevice).not.toHaveBeenCalled();
   });
 
@@ -475,15 +554,15 @@ describe('device status card', () => {
     const setReduced = installMotionPreference(true);
     const { next } = await renderBrowseableDevices();
     const motion = installPreviewAnimations();
-    act(() => next.click());
+    act(() => next.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 })));
     expect(motion.records).toHaveLength(0);
     expect(element('nav-device-status-name').textContent).toBe('Another host');
     setReduced(false);
-    act(() => next.click());
-    expect(motion.records).toHaveLength(4);
+    act(() => next.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 })));
+    expect(motion.records).toHaveLength(3);
     setReduced(true);
     expect(element('nav-device-status-name').textContent).toBe('Third host');
-    expect((element('nav-device-status-connect') as HTMLButtonElement).disabled).toBe(false);
+    expect((element('device-sidebar-visibility') as HTMLButtonElement).disabled).toBe(false);
     expect(motion.records.every(animation => animation.cancel.mock.calls.length === 1)).toBe(true);
     await motion.finishPhase();
     expect(element('nav-device-status-name').textContent).toBe('Third host');
@@ -492,15 +571,47 @@ describe('device status card', () => {
   it('cancels pending navigation when the card closes so it reopens on the current device', async () => {
     const { next } = await renderBrowseableDevices();
     const motion = installPreviewAnimations();
-    act(() => next.click());
+    act(() => next.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 })));
     render(false);
     expect(motion.records.every(animation => animation.cancel.mock.calls.length === 1)).toBe(true);
     await motion.finishPhase();
     await act(async () => { render(); });
     expect(element('nav-device-status-name').textContent).toBe('Current host');
     expect(element('nav-device-status-pagination').textContent).toBe('2 / 4');
-    expect((element('nav-device-status-disconnect') as HTMLButtonElement).disabled).toBe(false);
+    expect((element('device-sidebar-visibility') as HTMLButtonElement).disabled).toBe(false);
     expect(state.switchToDevice).not.toHaveBeenCalled();
+  });
+
+  it('keeps keyboard browsing immediate and reflects visibility changes from device management', async () => {
+    const { next, previous } = await renderBrowseableDevices();
+    const motion = installPreviewAnimations();
+    act(() => next.click()); // Keyboard/programmatic activation has detail=0.
+    expect(element('nav-device-status-name').textContent).toBe('Another host');
+    expect(motion.records).toHaveLength(0);
+    act(() => useDeviceVisibilityPreferences.getState().setVisible('peer-2', false));
+    expect(element('device-sidebar-visibility').getAttribute('aria-pressed')).toBe('false');
+    expect(element('device-sidebar-visibility').getAttribute('aria-label')).toBe('nav.devices.showInSidebar');
+    act(() => previous.click());
+    expect(element('device-sidebar-visibility').getAttribute('aria-pressed')).toBe('true');
+    act(() => next.click());
+    expect(element('device-sidebar-visibility').getAttribute('aria-pressed')).toBe('false');
+    act(() => element('device-sidebar-visibility').click());
+    expect(useDeviceVisibilityPreferences.getState().hidden['peer-2']).toBe(false);
+    expect(state.switchToDevice).not.toHaveBeenCalled();
+    expect(state.disconnectDevice).not.toHaveBeenCalled();
+  });
+
+  it('does not offer a sidebar visibility toggle for a controller-only mobile device', async () => {
+    state.identity = { status: 'signed-in', me: { user: { accountId: 'acct' } } };
+    state.getDeviceInfo.mockResolvedValue({ device_id: 'local', device_name: 'This computer' });
+    state.accountListDevices.mockResolvedValue([
+      { device_id: 'local', device_name: 'This computer', online: true },
+      { device_id: 'phone', device_name: 'Phone', device_kind: 'mobile', online: true },
+    ]);
+    await act(async () => render());
+    await act(async () => document.querySelector<HTMLButtonElement>('[aria-label="deviceOverview.nextDevice"]')!.click());
+    expect(element('nav-device-status-name').textContent).toBe('Phone');
+    expect(document.querySelector('[data-testid="device-sidebar-visibility"]')).toBeNull();
   });
 
   it('draws an attached CLI peer as a server while browsing the device list', async () => {
@@ -537,33 +648,27 @@ describe('device status card', () => {
     expect(element('nav-device-status-pagination').textContent).toBe('3 / 3');
     expect(document.querySelector('.bitfun-device-overview__usage-badge')).toBeNull();
     expect(state.switchToDevice).not.toHaveBeenCalled();
-    expect(element('nav-device-status-connect').closest('.bitfun-device-overview__device-status')).not.toBeNull();
-    expect(element('nav-device-status-connect').closest('.bitfun-device-overview__device-actions')).not.toBeNull();
-    expect(element('nav-device-status-connect').dataset.bitfunComponent).toBe('icon-button');
-    expect(element('nav-device-status-connect').dataset.bitfunShape).toBe('circle');
-    expect(element('nav-device-status-connect').dataset.bitfunVariant).toBe('primary');
-    expect(element('nav-device-status-connect').getAttribute('aria-label')).toMatch(/ · deviceOverview\.connectAndUse$/);
-    // Connecting and switching to an attached device are told apart by glyph.
-    expect(element('nav-device-status-connect').querySelector('.lucide-link')).not.toBeNull();
-    expect(element('nav-device-status-connect').textContent).toBe('');
+    const visibility = element('device-sidebar-visibility');
+    expect(visibility.dataset.deviceSurface).toBe('peer-2');
+    expect(visibility.dataset.bitfunShape).toBe('circle');
+    expect(visibility.querySelector('.lucide-eye')).not.toBeNull();
+    await act(async () => visibility.click());
+    expect(useDeviceVisibilityPreferences.getState().hidden['peer-2']).toBe(true);
+    expect(visibility.getAttribute('aria-pressed')).toBe('false');
+    expect(visibility.querySelector('.lucide-eye-off')).not.toBeNull();
     state.attachedHostKinds = { 'peer-2': 'cli' };
     render();
-    expect(element('nav-device-status-connect').getAttribute('aria-label')).toMatch(/ · deviceOverview\.switchUse$/);
-    expect(element('nav-device-status-connect').querySelector('.lucide-arrow-right-left')).not.toBeNull();
-    expect(element('nav-device-status-connect').textContent).toBe('');
-    expect(element('nav-device-status-popover').querySelector('[data-bitfun-part="footer"]')).toBeNull();
-    expect(document.querySelector('[data-testid="nav-device-status-disconnect"]')).toBeNull();
-    await act(async () => { element('nav-device-status-connect').click(); });
-    expect(state.switchToDevice).toHaveBeenCalledWith('peer-2', 'Headless host');
-
+    expect(element('device-sidebar-visibility').getAttribute('aria-pressed')).toBe('false');
     const previous = document.querySelector<HTMLButtonElement>('[aria-label="deviceOverview.previousDevice"]')!;
-    await act(async () => { previous.click(); });
-    expect(element('nav-device-status-disconnect').closest('[data-control-state="active"]')).not.toBeNull();
-    await act(async () => { previous.click(); });
-    expect(element('nav-device-status-return-local').getAttribute('aria-label')).toMatch(/ · deviceOverview\.returnLocalAction$/);
-    expect(element('nav-device-status-return-local').textContent).toBe('');
-    await act(async () => { element('nav-device-status-return-local').click(); });
-    expect(state.switchToLocal).toHaveBeenCalledWith('manual');
+    await act(async () => previous.click());
+    expect(element('device-sidebar-visibility').dataset.deviceSurface).toBe('peer-1');
+    expect(element('device-sidebar-visibility').getAttribute('aria-pressed')).toBe('true');
+    await act(async () => previous.click());
+    expect(element('device-sidebar-visibility').dataset.deviceSurface).toBe('local');
+    await act(async () => element('device-sidebar-visibility').click());
+    expect(useDeviceVisibilityPreferences.getState().hidden.local).toBe(true);
+    expect(state.switchToDevice).not.toHaveBeenCalled();
+    expect(state.switchToLocal).not.toHaveBeenCalled();
     expect(state.disconnectDevice).not.toHaveBeenCalled();
   });
 
@@ -575,10 +680,10 @@ describe('device status card', () => {
     expect(summary.querySelector('[data-control-state="local"]')?.getAttribute('aria-label')).toContain('deviceOverview.currentLocalDevice');
     expect(header?.querySelector('.bitfun-device-overview__device-status')).toBeNull();
     expect(summary.querySelector('.bitfun-device-overview__usage-badge')).toBeNull();
-    expect(summary.querySelector('[role="img"][aria-label="deviceOverview.localDevice"]')).toBe(element('nav-device-status-local'));
+    expect(element('device-sidebar-visibility').dataset.deviceSurface).toBe('local');
     expect(summary.querySelector('.bitfun-device-overview__connection-control')).toBeNull();
 
-    // The active peer carries its status after the name, and keeps its bottom disconnect action.
+    // The active peer keeps its status and footer disconnect; the card only changes visibility.
     state.overview = overview({
       localDeviceName: 'This computer',
       peer: { deviceId: 'peer-1', deviceName: 'Remote workstation' },
@@ -600,19 +705,15 @@ describe('device status card', () => {
     expect(usageControl.querySelector('.lucide-unplug')).toBeNull();
     expect(usageControl.closest('[aria-hidden="true"]')).toBeNull();
     expect(summary.querySelector('.bitfun-device-overview__device-heading .bitfun-device-overview__usage-badge')).toBe(usageControl);
-    expect(header?.contains(element('nav-device-status-disconnect'))).toBe(false);
-    expect(summary.contains(element('nav-device-status-disconnect'))).toBe(true);
-    expect(element('nav-device-status-disconnect').closest('.bitfun-device-overview__device-actions')).not.toBeNull();
-    expect(element('nav-device-status-disconnect').closest('.bitfun-device-overview__device-status')).not.toBeNull();
-    expect(element('nav-device-status-disconnect').getAttribute('aria-label')).toMatch(/ · deviceOverview\.disconnectAction$/);
-    expect(element('nav-device-status-disconnect').textContent).toBe('');
-    expect(element('nav-device-status-disconnect').dataset.bitfunComponent).toBe('icon-button');
-    expect(element('nav-device-status-disconnect').dataset.bitfunShape).toBe('circle');
-    expect(element('nav-device-status-disconnect').dataset.bitfunVariant).toBe('primary');
+    expect(header?.contains(element('device-sidebar-visibility'))).toBe(false);
+    expect(summary.contains(element('device-sidebar-visibility'))).toBe(true);
+    expect(element('device-sidebar-visibility').closest('.bitfun-device-overview__device-actions')).not.toBeNull();
+    expect(element('device-sidebar-visibility').dataset.deviceSurface).toBe('peer-1');
+    expect(element('device-sidebar-visibility').dataset.bitfunShape).toBe('circle');
     expect(summary.querySelector('.bitfun-device-overview__connection-control')).toBeNull();
     expect(summary.querySelector('[data-bitfun-component="status-pill"]')).toBeNull();
     expect(document.querySelector('[data-testid="nav-device-status-connected-devices"]')).toBeNull();
-    expect(element('nav-device-status-disconnect').closest('[data-control-state="active"]')).not.toBeNull();
+    expect(element('device-sidebar-visibility').closest('[data-control-state="active"]')).not.toBeNull();
     expect(element('nav-device-status-popover').querySelector('[data-bitfun-part="footer"]')).toBeNull();
   });
 
@@ -654,22 +755,22 @@ describe('device status card', () => {
     expect(element('nav-device-status-name').textContent).toBe('Remote workstation');
     let finishDisconnect!: () => void;
     state.disconnectDevice.mockImplementationOnce(() => new Promise<void>(resolve => { finishDisconnect = resolve; }));
-    act(() => element('nav-device-status-disconnect').click());
-    expect(element('nav-device-status-disconnect').getAttribute('aria-label')).toMatch(/ · deviceOverview\.disconnectingAction$/);
-    expect(element('nav-device-status-disconnect').textContent).toBe('');
-    expect((element('nav-device-status-disconnect') as HTMLButtonElement).disabled).toBe(true);
-    act(() => element('nav-device-status-disconnect').click());
+    act(() => element('nav-footer-cancel-remote').click());
+    expect(element('nav-footer-cancel-remote').getAttribute('aria-label')).toMatch(/ · deviceOverview\.cancelRemoteControl$/);
+    expect(element('nav-footer-cancel-remote').textContent).toContain('deviceOverview.');
+    expect((element('nav-footer-cancel-remote') as HTMLButtonElement).disabled).toBe(true);
+    act(() => element('nav-footer-cancel-remote').click());
     expect(state.disconnectDevice).toHaveBeenCalledTimes(1);
     await act(async () => { finishDisconnect(); });
-    expect(element('nav-device-status-disconnect').getAttribute('aria-label')).toMatch(/ · deviceOverview\.disconnectAction$/);
-    expect(element('nav-device-status-disconnect').textContent).toBe('');
+    expect(element('nav-footer-cancel-remote').getAttribute('aria-label')).toMatch(/ · deviceOverview\.cancelRemoteControl$/);
+    expect(element('nav-footer-cancel-remote').textContent).toContain('deviceOverview.');
     expect(state.disconnectDevice).toHaveBeenCalledWith('peer-1', 'manual');
     expect(state.switchToLocal).not.toHaveBeenCalled();
     expect(onOpenChange).not.toHaveBeenCalled();
     expect(document.activeElement).toBe(element('nav-device-status-popover'));
   });
 
-  it('keeps the in-use badge informational while the bottom button disconnects', async () => {
+  it('keeps the in-use badge informational while the footer button disconnects', async () => {
     state.overview = overview({ peer: { deviceId: 'peer-1', deviceName: 'Remote workstation' } });
     render();
     let finishDisconnect!: () => void;
@@ -678,10 +779,10 @@ describe('device status card', () => {
     act(() => usageControl.click());
     expect(state.disconnectDevice).not.toHaveBeenCalled();
     expect(usageControl.getAttribute('aria-label')).toBe('deviceOverview.inUse');
-    act(() => element('nav-device-status-disconnect').click());
+    act(() => element('nav-footer-cancel-remote').click());
     expect(state.disconnectDevice).toHaveBeenCalledWith('peer-1', 'manual');
     expect(usageControl.getAttribute('aria-label')).toBe('deviceOverview.inUse');
-    expect((element('nav-device-status-disconnect') as HTMLButtonElement).disabled).toBe(true);
+    expect((element('nav-footer-cancel-remote') as HTMLButtonElement).disabled).toBe(true);
     expect((element('nav-footer-cancel-remote') as HTMLButtonElement).disabled).toBe(true);
     act(() => { usageControl.click(); element('nav-footer-cancel-remote').click(); });
     expect(state.disconnectDevice).toHaveBeenCalledTimes(1);
@@ -751,8 +852,10 @@ describe('device status card', () => {
     expect(visibleName()).toBe('Original peer name');
 
     // No compatibility field means an older Relay, not a confirmed mismatch.
-    await act(async () => element('nav-device-status-connect').click());
-    expect(state.switchToDevice).toHaveBeenCalledWith('peer', 'Original peer name');
+    // The card no longer switches hosts; the sidebar target carries the surface.
+    expect(document.querySelector('[data-testid="nav-device-status-incompatible"]')).toBeNull();
+    expect(element('device-sidebar-visibility').dataset.deviceSurface).toBe('peer');
+    expect(state.switchToDevice).not.toHaveBeenCalled();
   });
 
   it.each([false, true])('uses fresh control compatibility %s instead of a stale display directory', async compatible => {
@@ -769,14 +872,17 @@ describe('device status card', () => {
     await act(async () => {
       document.querySelector<HTMLButtonElement>('[aria-label="deviceOverview.nextDevice"]')!.click();
     });
-    const action = element(compatible ? 'nav-device-status-connect' : 'nav-device-status-incompatible');
-    // An incompatible peer keeps its action reachable so the version notice can
-    // be read, but the action is inert rather than connectable.
-    if (compatible) expect((action as HTMLButtonElement).disabled).toBe(false);
-    else expect(action.getAttribute('aria-disabled')).toBe('true');
-    await act(async () => action.click());
-    if (compatible) expect(state.switchToDevice).toHaveBeenCalledWith('peer', 'Saved alias');
-    else expect(state.switchToDevice).not.toHaveBeenCalled();
+    // The directory's stale metadata must not decide control eligibility; the
+    // live account query does. The directory still supplies the display alias.
+    expect(element('nav-device-status-name').textContent).toBe('Saved alias');
+    const notice = document.querySelector<HTMLElement>('[data-testid="nav-device-status-incompatible"]');
+    if (compatible) expect(notice).toBeNull();
+    else {
+      expect(notice?.getAttribute('role')).toBe('img');
+      expect(notice?.getAttribute('title')).toContain('deviceOverview.deviceClientIncompatible');
+    }
+    expect((element('device-sidebar-visibility') as HTMLButtonElement).disabled).toBe(false);
+    expect(state.switchToDevice).not.toHaveBeenCalled();
   });
 
   it('shows one remote-control action after the device name without repeating the local device mark', () => {
@@ -930,22 +1036,46 @@ describe('device status card', () => {
     expect(next).not.toBeNull();
     await act(async () => { next!.click(); });
 
-    // The unavailable connection has no action and explains the version in its tooltip.
-    const notice = document.querySelector('[data-testid="nav-device-status-incompatible"]');
-    expect(notice).not.toBeNull();
-    expect(notice?.tagName).toBe('BUTTON');
-    // Not natively disabled: it stays focusable so its version tooltip is reachable.
-    expect((notice as HTMLButtonElement).disabled).toBe(false);
-    expect(notice?.getAttribute('aria-disabled')).toBe('true');
-    await act(async () => { (notice as HTMLButtonElement).click(); });
-    expect(notice?.closest('[data-control-state="incompatible"]')).not.toBeNull();
-    expect(notice?.getAttribute('title')).toContain('deviceOverview.deviceClientIncompatibleWithVersion');
-    expect(notice?.getAttribute('aria-label')).toMatch(/ · deviceOverview\.unavailableAction$/);
-    expect(notice?.textContent).toBe('');
+    const notice = element('nav-device-status-incompatible');
+    expect(notice.getAttribute('role')).toBe('img');
+    expect(notice.getAttribute('title')).toContain('deviceOverview.deviceClientIncompatibleWithVersion');
+    const visibility = element('device-sidebar-visibility');
+    expect((visibility as HTMLButtonElement).disabled).toBe(false);
+    await act(async () => visibility.click());
+    expect(useDeviceVisibilityPreferences.getState().hidden.peer).toBe(true);
     expect(document.querySelector('.bitfun-device-overview__device-name')?.textContent).toBeDefined();
     expect(Array.from(document.querySelectorAll('button')).some(
       button => button.textContent === 'deviceOverview.connectDevice',
     )).toBe(false);
     expect(state.switchToDevice).not.toHaveBeenCalled();
   });
+});
+
+
+it('updates preview ordering immediately from the controller preference without switching the displayed host', async () => {
+  const { next } = await renderBrowseableDevices();
+  expect(element('nav-device-status-name').textContent).toBe('Current host');
+  act(() => useDeviceOrderPreferences.getState().move('peer-3', 'peer-1', 'after', ['local', 'peer-1', 'peer-2', 'peer-3']));
+  expect(element('nav-device-status-name').textContent).toBe('Current host');
+  await act(async () => next.click());
+  expect(element('nav-device-status-name').textContent).toBe('Third host');
+  expect(element('nav-device-status-pagination').textContent).toBe('3 / 4');
+  expect(state.switchToDevice).not.toHaveBeenCalled();
+  expect(state.switchToLocal).not.toHaveBeenCalled();
+});
+
+
+it('preserves a missing live peer in its saved position and removes it when the window leaves that peer', async () => {
+  useDeviceOrderPreferences.setState({ order: ['local', 'peer-1'] });
+  state.overview = overview({ peer: { deviceId: 'peer-1', deviceName: 'Current host' } });
+  state.identity = { status: 'signed-in', me: { user: { accountId: 'acct' } } };
+  state.getDeviceInfo.mockResolvedValue({ device_id: 'local', device_name: 'This computer' });
+  state.accountListDevices.mockResolvedValue([{ device_id: 'local', device_name: 'This computer', online: true }]);
+  await act(async () => { render(); });
+  expect(element('nav-device-status-name').textContent).toBe('Current host');
+  expect(element('nav-device-status-pagination').textContent).toBe('2 / 2');
+  state.overview = overview();
+  await act(async () => { render(); });
+  expect(document.querySelector('[data-testid="nav-device-status-pagination"]')).toBeNull();
+  expect(state.switchToDevice).not.toHaveBeenCalled();
 });

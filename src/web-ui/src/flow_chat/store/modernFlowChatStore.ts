@@ -188,7 +188,9 @@ export function sessionToVirtualItems(session: Session | null): VirtualItem[] {
     }
     const turnItemStart = items.length;
 
-    if (turn.userMessage) {
+    // Host rendering evidence drives a repair turn but is not a user utterance.
+    // Keep its model output while omitting the input row (and its spacing).
+    if (turn.userMessage && !turn.userMessage.metadata?.genUIHostRepair) {
       items.push({
         type: 'user-message',
         data: turn.userMessage,
@@ -303,11 +305,19 @@ export function sessionToVirtualItems(session: Session | null): VirtualItem[] {
       ))
       ?.round.id;
 
-    const flushRoundEntries = (rounds: ModelRound[]) => {
+    /**
+     * False when a following row (a steering message, the provisioning row)
+     * cuts this slice before the turn's round tail. The turn-tail marks
+     * (`isLastRound`, the trailing thinking expansion) belong to the real tail
+     * only, or the slice's last round would render the completion footer in the
+     * middle of the turn.
+     */
+    const flushRoundEntries = (rounds: ModelRound[], marksTurnTail = true) => {
       rounds.forEach((round, roundIndex) => {
         // Keep the same owner row when a tool or model round completes.
         const trailingItem = round.items.at(-1);
-        const shouldExpandTrailingThinking = roundIndex === rounds.length - 1
+        const shouldExpandTrailingThinking = marksTurnTail
+          && roundIndex === rounds.length - 1
           && trailingItem?.type === 'thinking'
           && (trailingItem as FlowThinkingItem).reasoningKind !== 'summary'
           && ((trailingItem as FlowThinkingItem).isStreaming || trailingItem.status === 'streaming');
@@ -315,7 +325,7 @@ export function sessionToVirtualItems(session: Session | null): VirtualItem[] {
           type: 'model-round',
           data: round,
           turnId: turn.id,
-          isLastRound: roundIndex === rounds.length - 1,
+          isLastRound: marksTurnTail && roundIndex === rounds.length - 1,
           isTurnComplete,
           layoutHints: {
             expandedThinkingItemIds: shouldExpandTrailingThinking
@@ -369,6 +379,11 @@ export function sessionToVirtualItems(session: Session | null): VirtualItem[] {
     const provisioningRow = provisioning && provisioningEntryIndex >= 0
       ? { type: 'qt-toolchain-provision' as const, turnId: turn.id, data: provisioning }
       : null;
+    // The row is the turn tail only when no later render entry supersedes it.
+    const provisioningIsTurnTail = provisioningRow !== null
+      && !renderEntries.some(
+        (entry, index) => index > provisioningEntryIndex && entry.type === 'round',
+      );
 
     let pendingRounds: ModelRound[] = [];
 
@@ -378,7 +393,7 @@ export function sessionToVirtualItems(session: Session | null): VirtualItem[] {
         if (provisioningRow && entryIndex === provisioningEntryIndex) {
           // Later rounds must render below the install row so it is superseded by
           // the following output instead of being pinned to the turn tail.
-          flushRoundEntries(pendingRounds);
+          flushRoundEntries(pendingRounds, provisioningIsTurnTail);
           pendingRounds = [];
           items.push(provisioningRow);
         }

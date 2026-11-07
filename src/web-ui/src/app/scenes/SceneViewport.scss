@@ -37,6 +37,7 @@
     justify-content: center;
     pointer-events: none;
     z-index: 1;
+    animation: bitfun-scene-viewport-wait-reveal 180ms var(--bitfun-motion-easing-standard) 220ms both;
   }
 
   // ── Scene slot ────────────────────────────────────────
@@ -81,36 +82,52 @@
       transition: opacity 480ms cubic-bezier(0.23, 1, 0.32, 1);
     }
 
+    // The scene being left covers the incoming one and fades away above it,
+    // so the switch is one crossfade with no dip to the background.
     &--outgoing {
       z-index: 2;
       pointer-events: none;
+      background: var(--bitfun-color-surface-scene);
     }
 
     &:not(.bitfun-scene-viewport__scene--visible) {
       // Descendants can override inherited visibility. Hide the entire subtree
-      // immediately while keeping its mounted state and layout measurements.
+      // while retaining its DOM/state. Skip inactive layout work during pane
+      // resizing; revealing the scene restores rendering before its next paint.
+      // Visible incoming/outgoing scenes retain their existing crossfade.
       opacity: 0;
+      content-visibility: hidden;
       transition: none;
     }
   }
 
   &:not(.bitfun-scene-viewport--paned) &__clip[data-scene-motion-phase='preparing'] {
-    .bitfun-scene-viewport__scene--incoming.bitfun-scene-viewport__scene--visible {
-      opacity: 0.5;
+    .bitfun-scene-viewport__scene--outgoing.bitfun-scene-viewport__scene--visible {
+      opacity: 1;
       transition: none;
+    }
+  }
+
+  &:not(.bitfun-scene-viewport--paned) &__clip[data-scene-motion-phase='running'] {
+    .bitfun-scene-viewport__scene--outgoing.bitfun-scene-viewport__scene--visible {
+      opacity: 0;
+      transition: opacity 220ms cubic-bezier(0.4, 0, 0.2, 1);
     }
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .bitfun-scene-viewport__lazy-fallback {
+    animation-duration: 1ms;
+  }
+
   .bitfun-scene-viewport__scene--incoming {
     transition: none;
   }
 
-  .bitfun-scene-viewport:not(.bitfun-scene-viewport--paned) .bitfun-scene-viewport__clip[data-scene-motion-phase='preparing'] {
-    .bitfun-scene-viewport__scene--incoming.bitfun-scene-viewport__scene--visible {
-      opacity: 1;
-    }
+  .bitfun-scene-viewport__scene--outgoing.bitfun-scene-viewport__scene--visible {
+    opacity: 0 !important;
+    transition: none !important;
   }
 }
 
@@ -137,4 +154,11 @@
 .bitfun-scene-viewport:not(.bitfun-scene-viewport--paned) .bitfun-scene-viewport__scene {
   position: absolute;
   inset: 0;
+}
+
+// A wait that ends quickly shows nothing: the indicator fades in only once
+// the wait has lasted long enough to be noticed.
+@keyframes bitfun-scene-viewport-wait-reveal {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }

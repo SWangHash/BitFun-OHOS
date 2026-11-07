@@ -6,6 +6,7 @@ import DeviceControlSettingsPage from '../tools/DeviceControlSettingsPage';
 import ExecutionSettingsPage from '../ai/ExecutionSettingsPage';
 import WorkspaceSearchSection from '../development/WorkspaceSearchSection';
 import PetSettingsSection from '../application/PetSettingsSection';
+import { BROWSER_LINK_TARGET_STORAGE_KEY, browserLinkPreferenceStore } from '@/infrastructure/config/services/browserLinkPreference';
 
 const mocks = vi.hoisted(() => {
   Object.defineProperty(window, '__TAURI__', { configurable: true, value: {} });
@@ -43,6 +44,7 @@ vi.mock('../../../../../infrastructure/config/components/GlobalPermissionRulesDi
 vi.mock('../ai/SessionTitleSection', () => ({ default: () => null }));
 vi.mock('../ai/DefaultHarnessSection', () => ({ default: () => <div>default-harness-config</div> }));
 vi.mock('../ai/ReviewCapacitySection', () => ({ default: () => null }));
+vi.mock('../ai/GenUILibrarySection', () => ({ default: () => null }));
 vi.mock('../ai/ToolJsonRepairSection', () => ({ default: () => null }));
 vi.mock('@bitfun/ui', async (original) => ({
   ...await original<typeof import('@bitfun/ui')>(),
@@ -56,6 +58,9 @@ let status = { ...readyStatus };
 let container: HTMLDivElement;
 let root: Root;
 const button = (label: string) => Array.from(container.querySelectorAll('button')).find(el => el.textContent === label || el.getAttribute('aria-label') === label)!;
+const selectFor = (label: string) => Array.from(container.querySelectorAll('[data-bitfun-part="row"]'))
+  .find(row => row.querySelector('[data-bitfun-part="rowLabel"]')?.textContent === label)
+  ?.querySelector<HTMLSelectElement>('select') ?? null;
 const render = async () => { await act(async () => root.render(<DeviceControlSettingsPage />)); };
 
 beforeEach(() => {
@@ -63,6 +68,8 @@ beforeEach(() => {
   mocks.cachedSettings = null;
   mocks.listPets.mockReset().mockResolvedValue([]);
   mocks.workspace = null;
+  browserLinkPreferenceStore.setState({ target: 'builtin' });
+  localStorage.removeItem(BROWSER_LINK_TARGET_STORAGE_KEY);
   (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
   status = { ...readyStatus };
   mocks.getConfig.mockReset().mockResolvedValue(null);
@@ -126,7 +133,12 @@ describe('Tool execution concurrency settings', () => {
     expect(mocks.error).toHaveBeenCalledWith('messages.saveFailed: Host rejected the concurrency setting');
   });
 });
-afterEach(async () => { await act(async () => root.unmount()); container.remove(); });
+afterEach(async () => {
+  await act(async () => root.unmount());
+  container.remove();
+  browserLinkPreferenceStore.setState({ target: 'builtin' });
+  localStorage.removeItem(BROWSER_LINK_TARGET_STORAGE_KEY);
+});
 
 describe('Browser and desktop control settings', () => {
   it('keeps detailed host permissions in the standard compact settings rows', async () => {
@@ -175,7 +187,7 @@ describe('Browser and desktop control settings', () => {
   });
   it('localizes the browser choice and puts the single connect action next to connection status', async () => {
     await render();
-    expect(container.querySelector('option')?.textContent).toBe('browserControl.defaultBrowser');
+    expect(selectFor('browserControl.preferredBrowser')?.querySelector('option')?.textContent).toBe('browserControl.defaultBrowser');
     const connect = button('browserControl.connect');
     expect(connect.closest('[data-bitfun-part="row"]')?.textContent).toContain('browserControl.status');
     expect(container.textContent).toContain('browserControl.connectOnUse');
@@ -255,7 +267,7 @@ describe('Browser and desktop control settings', () => {
     });
     mocks.setConfig.mockImplementation(async () => { order.push('save'); });
     await render();
-    const select = container.querySelector('select')!;
+    const select = selectFor('browserControl.preferredBrowser')!;
     await act(async () => {
       select.value = 'edge';
       select.dispatchEvent(new Event('change', { bubbles: true }));
@@ -272,7 +284,7 @@ describe('Browser and desktop control settings', () => {
   it('keeps the selected browser visible while connected and disconnects through the existing command', async () => {
     status.cdpAvailable = true;
     await render();
-    expect(container.querySelector('select')?.disabled).toBe(true);
+    expect(selectFor('browserControl.preferredBrowser')?.disabled).toBe(true);
     expect(container.textContent).toContain('browserControl.connected');
     expect(container.textContent).toContain('Chrome · 3');
     await act(async () => button('browserControl.disconnect').click());
@@ -362,7 +374,27 @@ describe('Browser and desktop control settings', () => {
     await render();
     expect(container.textContent).toContain('computerUse.peerUnsupported');
     expect(container.textContent).toContain('browserControl.peerUnsupported');
-    expect(container.querySelector('select')).toBeNull();
+    expect(selectFor('browserControl.preferredBrowser')).toBeNull();
+    expect(selectFor('browserLinks.defaultTarget')?.disabled).toBe(false);
+  });
+
+  it('saves the controller link preference while host configuration is unavailable', async () => {
+    mocks.getConfig.mockRejectedValue(new Error('Host is offline'));
+    await render();
+    expect(container.textContent).toContain('loading.failed');
+    const select = selectFor('browserLinks.defaultTarget')!;
+    expect(select.disabled).toBe(false);
+    expect(select.value).toBe('builtin');
+    mocks.invoke.mockClear();
+
+    await act(async () => {
+      select.value = 'external';
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    expect(browserLinkPreferenceStore.getState().target).toBe('external');
+    expect(localStorage.getItem(BROWSER_LINK_TARGET_STORAGE_KEY)).toBe('external');
+    expect(mocks.setConfig).not.toHaveBeenCalled();
+    expect(mocks.invoke).not.toHaveBeenCalled();
   });
 });
 

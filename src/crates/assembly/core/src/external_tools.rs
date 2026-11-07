@@ -692,11 +692,7 @@ impl Tool for ExternalToolMux {
         selected.call(input, context).await
     }
 
-    async fn call(
-        &self,
-        input: &Value,
-        context: &ToolUseContext,
-    ) -> BitFunResult<Vec<ToolResult>> {
+    async fn call(&self, input: &Value, context: &ToolUseContext) -> BitFunResult<Vec<ToolResult>> {
         if context.is_remote() {
             return self
                 .original()
@@ -3342,6 +3338,7 @@ mod tests {
                 session_identity,
             )),
             loaded_deferred_tool_specs: Vec::new(),
+            model_client: None,
             primary_model_facts: tool_runtime::context::PrimaryModelFacts::default(),
             custom_data: HashMap::new(),
             computer_use_host: None,

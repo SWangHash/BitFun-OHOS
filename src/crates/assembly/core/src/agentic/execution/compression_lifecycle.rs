@@ -41,14 +41,12 @@ impl ExecutionEngine {
         );
         let candidate = job.run().await?;
         let model_usage = candidate.usage;
-        let mut result = self
-            .context_compressor
-            .compress_plan_with_contract(
-                session_id,
-                candidate.plan,
-                compression_contract,
-                candidate.summary,
-            )?;
+        let mut result = self.context_compressor.compress_plan_with_contract(
+            session_id,
+            candidate.plan,
+            compression_contract,
+            candidate.summary,
+        )?;
         result.model_usage = model_usage;
         Ok(Some(result))
     }
@@ -69,7 +67,6 @@ impl ExecutionEngine {
         system_prompt_message: Message,
         prepended_prompt_reminders: &PrependedPromptReminders,
         primary_supports_image_understanding: bool,
-        compression_contract_limit: usize,
         workspace: Option<&WorkspaceBinding>,
         workspace_services: Option<&crate::agentic::workspace::WorkspaceServices>,
         prefetch: Option<PrefetchedCompression>,
@@ -115,7 +112,6 @@ impl ExecutionEngine {
                 system_prompt_message,
                 prepended_prompt_reminders,
                 primary_supports_image_understanding,
-                compression_contract_limit,
                 workspace,
                 workspace_services,
                 prefetch,
@@ -192,7 +188,6 @@ impl ExecutionEngine {
         system_prompt_message: Message,
         prepended_prompt_reminders: &PrependedPromptReminders,
         primary_supports_image_understanding: bool,
-        compression_contract_limit: usize,
         workspace: Option<&WorkspaceBinding>,
         workspace_services: Option<&crate::agentic::workspace::WorkspaceServices>,
         prefetch: Option<PrefetchedCompression>,
@@ -248,7 +243,13 @@ impl ExecutionEngine {
         let expected_last_turn = session.dialog_turn_ids.last().cloned();
         let planned_result = prepare_compression_cancellable(&cancellation_token, async {
             native_hooks::dispatch_pre_compact(
-                Self::native_hook_facts(session_id, dialog_turn_id, workspace, &ai_client_model),
+                Self::native_hook_facts(
+                    session_id,
+                    dialog_turn_id,
+                    workspace,
+                    workspace_services,
+                    &ai_client_model,
+                ),
                 trigger,
             )
             .await;
@@ -270,7 +271,7 @@ impl ExecutionEngine {
             // Execute compression
             let compression_contract = self
                 .session_manager
-                .compression_contract_for_session(session_id, compression_contract_limit);
+                .compression_contract_for_session(session_id, DEFAULT_COMPRESSION_CONTRACT_LIMIT);
             let model_exchange_trace_dir = self
                 .session_manager
                 .persistent_model_exchange_trace_dir(session_id)
@@ -579,6 +580,7 @@ impl ExecutionEngine {
                             session_id,
                             dialog_turn_id,
                             workspace,
+                            workspace_services,
                             &ai_client_model,
                         ),
                         trigger,

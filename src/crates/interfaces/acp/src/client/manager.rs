@@ -30,6 +30,7 @@ use bitfun_core::infrastructure::events::{emit_global_event, BackendEvent};
 use bitfun_core::infrastructure::PathManager;
 use bitfun_core::service::config::ConfigService;
 use bitfun_core::service::remote_ssh::workspace_state::get_remote_workspace_manager;
+use bitfun_core::util::elapsed_ms_u64;
 use bitfun_core::util::errors::{BitFunError, BitFunResult};
 use dashmap::mapref::entry::Entry;
 use dashmap::DashMap;
@@ -274,7 +275,9 @@ impl AcpClientService {
         client_id: &str,
         session_name: Option<String>,
     ) -> BitFunResult<CreateAcpFlowSessionRecordResponse> {
-        self.session_persistence
+        let started_at = Instant::now();
+        let result = self
+            .session_persistence
             .create_flow_session_record(
                 session_storage_path,
                 workspace_id,
@@ -282,7 +285,12 @@ impl AcpClientService {
                 client_id,
                 session_name,
             )
-            .await
+            .await;
+        debug!(
+            "ACP startup phase completed: client_id={} phase=persist_session duration_ms={} succeeded={}",
+            client_id, elapsed_ms_u64(started_at), result.is_ok()
+        );
+        result
     }
 
     pub async fn initialize_all(self: &Arc<Self>) -> BitFunResult<()> {
@@ -961,6 +969,7 @@ impl AcpClientService {
         workspace_path: Option<&str>,
         remote_connection_id: Option<&str>,
     ) -> BitFunResult<()> {
+        let started_at = Instant::now();
         let (connection, remote_connection_id) = loop {
             if let Some(existing) = self.clients.get(connection_id).map(|entry| entry.clone()) {
                 let status = *existing.status.read().await;
@@ -1013,6 +1022,7 @@ impl AcpClientService {
             }
         };
 
+        let transport_started_at = Instant::now();
         let transport_result = match remote_connection_id {
             Some(ref remote_connection_id) => {
                 self.open_transport_for_connection(
@@ -1035,6 +1045,11 @@ impl AcpClientService {
                 .await
             }
         };
+        debug!(
+            "ACP startup phase completed: client_id={} connection_id={} phase=transport remote={} duration_ms={} succeeded={}",
+            client_id, connection_id, remote_connection_id.is_some(),
+            elapsed_ms_u64(transport_started_at), transport_result.is_ok()
+        );
         let (transport, child, stderr_tail) = match transport_result {
             Ok(result) => result,
             Err(error) => {
@@ -1140,9 +1155,13 @@ impl AcpClientService {
             connection_for_task.sessions.clear();
         });
 
-        let (cx, agent_capabilities) = match tokio::time::timeout(CLIENT_STARTUP_TIMEOUT, cx_rx)
-            .await
-        {
+        let initialize_started_at = Instant::now();
+        let initialized = tokio::time::timeout(CLIENT_STARTUP_TIMEOUT, cx_rx).await;
+        debug!(
+            "ACP startup phase completed: client_id={} connection_id={} phase=initialize duration_ms={} succeeded={}",
+            client_id, connection_id, elapsed_ms_u64(initialize_started_at), matches!(&initialized, Ok(Ok(_)))
+        );
+        let (cx, agent_capabilities) = match initialized {
             Ok(Ok(result)) => result,
             Ok(Err(_)) => {
                 connect_task.abort();
@@ -1171,9 +1190,10 @@ impl AcpClientService {
         *connection.agent_capabilities.write().await = Some(agent_capabilities);
         *connection.status.write().await = AcpClientStatus::Running;
         info!(
-            "ACP client started: id={} remote_connection_id={}",
+            "ACP client started: id={} remote_connection_id={} duration_ms={}",
             client_id,
-            remote_connection_id.as_deref().unwrap_or("")
+            remote_connection_id.as_deref().unwrap_or(""),
+            elapsed_ms_u64(started_at)
         );
         Ok(())
     }
@@ -1380,6 +1400,7 @@ impl AcpClientService {
         session_storage_path: Option<PathBuf>,
         bitfun_session_id: String,
     ) -> BitFunResult<AcpSessionOptions> {
+        let started_at = Instant::now();
         let resolved = self
             .resolve_or_create_client_session(
                 client_id,
@@ -1400,11 +1421,19 @@ impl AcpClientService {
         )
         .await?;
         drain_pending_session_metadata_updates(&mut session).await?;
-        Ok(session_options_from_state(
+        let mut options = session_options_from_state(
             session.models.as_ref(),
             &session.config_options,
             session.context_usage.as_ref(),
-        ))
+        );
+        options.available_commands = Some(session.available_commands.clone());
+        debug!(
+            "ACP session metadata loaded: client_id={} session_id={} duration_ms={}",
+            client_id,
+            bitfun_session_id,
+            elapsed_ms_u64(started_at)
+        );
+        Ok(options)
     }
 
     pub async fn get_session_commands(
@@ -2064,7 +2093,13 @@ impl AcpClientService {
     where
         F: Future<Output = Result<T, Error>>,
     {
-        match tokio::time::timeout(CLIENT_STARTUP_TIMEOUT, future).await {
+        let started_at = Instant::now();
+        let result = tokio::time::timeout(CLIENT_STARTUP_TIMEOUT, future).await;
+        debug!(
+            "ACP startup phase completed: client_id={} connection_id={} phase={} duration_ms={} succeeded={}",
+            client.client_id, client.id, phase, elapsed_ms_u64(started_at), matches!(&result, Ok(Ok(_)))
+        );
+        match result {
             Ok(result) => result,
             Err(_) => {
                 warn!(

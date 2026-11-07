@@ -5,20 +5,22 @@
 
 import { createLogger } from '@/shared/utils/logger';
 import { isMcpToolName } from '@/infrastructure/mcp/toolName';
-import type { CompatibilityToolNameForOwner, ToolNameForOwner } from '@bitfun/flow-chat-presentation/registry';
+import type { ToolNameForOwner } from '@bitfun/flow-chat-presentation/registry';
 import type { JSXElementConstructor } from 'react';
 import type { ToolCardProps } from '../types/flow-chat';
 
+type CompatibilityStandardToolName = 'AgentInterrupt' | 'AgentDelete';
+type CompatibilityProductToolName = 'Task';
 type StandardToolCardRegistry = Record<
   ToolNameForOwner<'standard'>,
   JSXElementConstructor<ToolCardProps>
 > &
-  Record<CompatibilityToolNameForOwner<'standard'>, JSXElementConstructor<ToolCardProps>>;
-type ProductToolCardRegistry = Record<
+  Partial<Record<CompatibilityStandardToolName, JSXElementConstructor<ToolCardProps>>>;
+type ProductToolCardRegistry = Partial<Record<
   ToolNameForOwner<'product'>,
   JSXElementConstructor<ToolCardProps>
-> &
-  Record<CompatibilityToolNameForOwner<'product'>, JSXElementConstructor<ToolCardProps>>;
+>> &
+  Partial<Record<CompatibilityProductToolName, JSXElementConstructor<ToolCardProps>>>;
 
 export {
   TOOL_CARD_CONFIGS,
@@ -66,11 +68,9 @@ import { ExecCommandToolCard } from './ExecCommandToolCard';
 import { WriteStdinToolCard } from './WriteStdinToolCard';
 import { ExecControlToolCard } from './ExecControlToolCard';
 import { InitMiniAppDisplay } from './MiniAppToolDisplay';
+import { PageManageDisplay } from './PageManageToolDisplay';
 import { PageDeployDisplay } from './PageDeployToolDisplay';
 import { PagePublishDisplay } from './PagePublishToolDisplay';
-import { PageManageDisplay } from './PageManageToolDisplay';
-import { GenerativeWidgetToolCard } from './GenerativeWidgetToolCard';
-import { CanvasToolCard } from './CanvasToolCard';
 import { ReviewSessionSummaryCard } from './ReviewSessionSummaryCard';
 import { SessionControlToolCard } from './SessionControlToolCard';
 import { SessionMessageToolCard } from './SessionMessageToolCard';
@@ -80,6 +80,7 @@ import { ViewImageToolCard } from './ViewImageToolCard';
 import { BitFunControlToolCard } from './BitFunControlToolCard';
 import { ListModelsToolCard } from './ListModelsToolCard';
 import { ControlHubToolCard } from './ControlHubToolCard';
+import { CanvasToolCard } from './CanvasToolCard';
 import { BuiltinToolCard } from './BuiltinToolCard';
 import { GenerateImageToolCard } from './GenerateImageToolCard';
 
@@ -187,7 +188,6 @@ export const PRODUCT_OWNED_TOOL_CARD_COMPONENTS = {
   // Legacy CreatePlan history remains displayable after runtime tool removal.
   'CreatePlan': CreatePlanDisplay,
   'InitMiniApp': InitMiniAppDisplay,
-  'GenerativeUI': GenerativeWidgetToolCard,
   'ComputerUse': ComputerUseToolCard,
   'BitFunControl': BitFunControlToolCard,
 

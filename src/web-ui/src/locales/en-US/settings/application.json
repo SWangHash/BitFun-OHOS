@@ -4,6 +4,11 @@
   "common": {
     "retry": "Retry"
   },
+  "btwCloseConfirmation": {
+    "title": "Side conversation closing",
+    "label": "Confirm before closing side conversations",
+    "description": "Closing a side conversation permanently discards its content. Turn this off to skip the confirmation."
+  },
   "applicationGroups": {
     "startupAndUpdates": {
       "title": "Startup & updates",

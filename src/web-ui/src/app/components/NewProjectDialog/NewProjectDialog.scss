@@ -38,11 +38,127 @@
     min-inline-size: 0;
   }
 
-  &__choice-card {
-    min-block-size: 160px;
+  &__choices--three {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  &__devices {
+    display: flex;
+    flex-direction: column;
+    gap: var(--bitfun-space-2);
+    min-inline-size: 0;
+    max-block-size: 360px;
+    overflow-y: auto;
+  }
+
+  // Devices read as one list of quiet rows: the icon in a soft disc, the
+  // name, its host tag, and a chevron that leans in on hover.
+  &__device-card {
+    min-block-size: 0;
+    border-radius: var(--bitfun-radius-lg);
 
     &:hover {
       outline-color: transparent;
+    }
+
+    [data-bitfun-part='leading'] {
+      flex-basis: 32px;
+      inline-size: 32px;
+      block-size: 32px;
+      background: color-mix(in srgb, var(--bitfun-color-content-primary) 8%, transparent);
+      color: var(--bitfun-color-content-primary);
+    }
+  }
+
+  &__device-trigger {
+    justify-content: flex-start;
+    padding: var(--bitfun-space-3) var(--bitfun-space-4) var(--bitfun-space-3) var(--bitfun-space-3);
+    gap: var(--bitfun-space-3);
+  }
+
+  &__device-content {
+    display: flex;
+    flex: 1 1 auto;
+    align-items: baseline;
+    gap: var(--bitfun-space-2);
+    min-inline-size: 0;
+  }
+
+  &__device-name {
+    min-inline-size: 0;
+    color: var(--bitfun-color-content-primary);
+    font-family: var(--bitfun-type-body-md-font-family);
+    font-size: var(--bitfun-type-body-md-font-size);
+    font-weight: var(--bitfun-type-label-selected-font-weight);
+    line-height: var(--bitfun-type-body-md-line-height);
+  }
+
+  &__device-meta {
+    flex: 0 0 auto;
+    color: var(--bitfun-color-content-muted);
+    font-size: var(--bitfun-type-body-sm-font-size);
+    line-height: var(--bitfun-type-body-sm-line-height);
+  }
+
+  &__device-chevron {
+    align-self: center;
+    flex: 0 0 auto;
+    margin-inline-start: auto;
+    color: var(--bitfun-color-content-muted);
+    transition:
+      color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+      transform var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
+  }
+
+  &__device-card:hover:not([data-disabled='true']) &__device-chevron {
+    color: var(--bitfun-color-content-secondary);
+    transform: translateX(2px);
+  }
+
+  &__device-spinner {
+    animation: new-project-dialog-spin 1s linear infinite;
+  }
+
+  // Each choice is a pane with its icon in a soft disc; hover brightens the
+  // pane and its disc together and lifts the card a hair, never an outline.
+  &__choice-card {
+    min-block-size: 148px;
+    border-radius: var(--bitfun-radius-xl);
+    transition:
+      background-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+      transform var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
+
+    &:hover {
+      outline-color: transparent;
+    }
+
+    &:hover:not([data-disabled='true']) {
+      transform: translateY(-1px);
+    }
+
+    &:active:not([data-disabled='true']) {
+      transform: none;
+    }
+
+    [data-bitfun-part='leading'] {
+      flex-basis: 40px;
+      inline-size: 40px;
+      block-size: 40px;
+      background: color-mix(in srgb, var(--bitfun-color-content-primary) 8%, transparent);
+      color: var(--bitfun-color-content-primary);
+      transition: background-color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
+    }
+
+    &:hover:not([data-disabled='true']) [data-bitfun-part='leading'] {
+      background: color-mix(in srgb, var(--bitfun-color-content-primary) 12%, transparent);
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      transition: none;
+
+      &:hover:not([data-disabled='true']) {
+        transform: none;
+      }
     }
   }
 
@@ -51,7 +167,7 @@
     align-items: flex-start;
     justify-content: flex-start;
     padding: var(--bitfun-space-5);
-    gap: var(--bitfun-space-3);
+    gap: var(--bitfun-space-4);
   }
 
   &__choice-content {
@@ -71,7 +187,7 @@
   }
 
   &__choice-description {
-    color: var(--bitfun-color-content-secondary);
+    color: var(--bitfun-color-content-muted);
     font-family: var(--bitfun-type-body-sm-font-family);
     font-size: var(--bitfun-type-body-sm-font-size);
     font-weight: var(--bitfun-type-body-sm-font-weight);
@@ -89,7 +205,7 @@
 
   &__folder {
     min-width: 0;
-    min-block-size: 160px;
+    min-block-size: 112px;
     justify-content: center;
     gap: var(--bitfun-space-3);
   }
@@ -189,5 +305,11 @@
 @media (max-width: 480px) {
   .new-project-dialog__choices {
     grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@keyframes new-project-dialog-spin {
+  to {
+    transform: rotate(360deg);
   }
 }

@@ -33,6 +33,40 @@ function fixture() {
     lose:()=>{loseResponse=true;},restart:()=>{epoch='owner-2';receipts.clear();},get executions(){return executions;}};
 }
 const message={content:'continue',agentType:'Standard',attachments:[],metadata:{}};
+test('a queue prepared alongside model selection sends without another list and keeps the durable outbox', async () => {
+  const f = fixture();
+  const queue = f.create();
+  const prepared = await queue.refresh();
+  await queue.submit(message, { text: 'continue' }, 'prepared-turn', prepared);
+  assert.deepEqual(f.calls.map(call => call.action), ['list', 'submit']);
+  assert.equal(f.calls[1].queueEpoch, prepared.queueEpoch);
+  assert.equal(f.calls[1].message.turnId, 'prepared-turn');
+  assert.equal(f.executions, 1);
+});
+
+test('a known host restart invalidates an already prepared submission', async () => {
+  const f = fixture();
+  const queue = f.create();
+  const prepared = await queue.refresh();
+  f.restart();
+  await queue.refresh();
+  await assert.rejects(queue.submit(message, {}, 'prepared-turn', prepared), /queue_scope_expired/);
+  assert.equal(f.executions, 0);
+  assert.equal(f.calls.some(call => call.action === 'submit'), false);
+});
+
+test('a prepared submission with an ambiguous receipt still recovers the original turn', async () => {
+  const f = fixture();
+  const queue = f.create();
+  const prepared = await queue.refresh();
+  f.lose();
+  await assert.rejects(queue.submit(message, {}, 'prepared-turn', prepared));
+  const reopened = f.create();
+  await reopened.refresh();
+  await reopened.retry(reopened.getSnapshot().pending[0]);
+  assert.equal(f.executions, 1);
+  assert.equal(f.calls.filter(call => call.action === 'submit').length, 1);
+});
 test('lost acceptance survives page recreation and queries original ID without a duplicate send',async()=>{
  const f=fixture();const first=f.create();f.lose();await assert.rejects(first.submit(message));
  const stored=[...f.records.values()][0];assert.equal(stored.accepted,undefined);
@@ -157,4 +191,49 @@ test('a page without Web Crypto randomUUID still queues a send and an operation'
  assert.match(f.calls.find(call=>call.action==='submit').message.turnId,uuid);
  assert.match(f.calls.find(call=>call.action==='promote').operationId,uuid);
  assert.equal(f.executions,1);
+});
+
+test('reorder is negotiated before any outbox or transport mutation', async () => {
+  const f = fixture(); const queue = f.create(); await queue.refresh();
+  await assert.rejects(queue.reorder('a', 'b'), /queue_reorder_unsupported/);
+  assert.equal(f.calls.some(c => c.action === 'reorder'), false);
+  assert.equal(f.records.size, 0);
+});
+
+test('an ambiguous move retries the identical operation rather than applying another move', async () => {
+  const f = fixture(); let revision = 4; let ids = ['a', 'b']; let lose = true; const receipts = new Set(); const mutations = [];
+  const snapshot = () => ({ sessionId: 'session-a', queueEpoch: 'owner', revision, supportsReorder: true,
+    activeTurnId: 'active', items: ids.map(turnId => ({ turnId, status: 'queued', displayContent: turnId })), capacity: 20, used: 2, receipt: null });
+  const queue = new HostDialogQueue('scope', 'session-a', async request => {
+    if (request.action === 'reorder') {
+      mutations.push(structuredClone(request));
+      assert.ok([...f.records.values()].some(r => r.request.operationId === request.operationId));
+      if (!receipts.has(request.operationId)) {
+        assert.equal(request.expectedRevision, revision);
+        receipts.add(request.operationId); ids = ['b', 'a']; revision++;
+      }
+      if (lose) { lose = false; throw new Error('Lost acknowledgement'); }
+    }
+    return snapshot();
+  }, f.storage);
+  await queue.refresh();
+  await assert.rejects(queue.reorder('b', 'a'));
+  assert.equal(queue.getSnapshot().pending.length, 1);
+  await queue.retry(queue.getSnapshot().pending[0]);
+  assert.deepEqual(mutations[1], mutations[0]);
+  assert.equal(revision, 5);
+  assert.deepEqual(queue.getSnapshot().snapshot.items.map(i => i.turnId), ['b', 'a']);
+  assert.equal(queue.getSnapshot().pending.length, 0);
+});
+
+test('a stale move is explicitly rejected and is not retained for replay', async () => {
+  const f = fixture(); const queue = new HostDialogQueue('scope', 'session-a', async request => {
+    if (request.action === 'reorder') throw new Error('queue_conflict: queue changed');
+    return { sessionId: 'session-a', queueEpoch: 'owner', revision: 1, supportsReorder: true,
+      activeTurnId: null, items: [], capacity: 20, used: 0, receipt: null };
+  }, f.storage);
+  await queue.refresh(); await assert.rejects(queue.reorder('b', 'a'), /queue_conflict/);
+  assert.equal(f.records.size, 0);
+  assert.equal(queue.getSnapshot().pending.length, 0);
+  assert.match(queue.getSnapshot().error, /queue_conflict/);
 });

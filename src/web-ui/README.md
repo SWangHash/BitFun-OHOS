@@ -9,6 +9,36 @@ This directory contains BitFun’s **Web UI** (React + TypeScript). The same fro
 - **Desktop**: loaded via **Tauri**
 - **Server/Web**: built into static assets and served by the backend
 
+## Closing tabs with the keyboard
+
+In Desktop, **Ctrl+W** on Windows/Linux or **Cmd+W** on macOS closes the current
+tab in the region you are using. From the conversation area it closes the
+conversation tab; from the file or terminal area it closes that area's current
+tab. Split views use the focused group. An empty content pane does not close a
+conversation in the other pane.
+
+The shortcut uses the same unsaved-change checks and terminal lifecycle as the
+tab's close button. Existing custom bindings for **Close tab** continue to apply
+to both regions. Dialogs and held-key repeats do not close additional tabs.
+Numbered tab selection, reopening a closed tab and layout shortcuts also stay
+with their owning canvas. Recording a new binding in Settings captures the key
+without executing the existing command.
+
+## Opening web links
+
+In **Settings → Tools → Browser & desktop control → Web links**, choose whether
+conversation links open in the **Built-in browser** or the **System default
+browser**. The choice applies immediately and is saved on this device, including
+while viewing remote workspaces or switching peers. Existing installs keep the
+built-in default until you change it.
+In a Web deployment, the external option opens a new tab in the current browser.
+Changes also synchronize to other open pages sharing this device's local storage.
+
+Right-click a link to choose either browser for that click. Modifier-clicks
+continue to open the external browser; supported PR/MR links keep their review
+panel behavior. This preference does not change the browser used by agent
+browser control, or the separate mobile/IM and headless dispatch surfaces.
+
 ## Creating a project
 
 The sidebar's add button opens two clickable cards without footer actions.

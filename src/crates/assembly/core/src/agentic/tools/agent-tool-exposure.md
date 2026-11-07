@@ -37,6 +37,7 @@ Notes:
 | `Write` | Direct | None | - |
 | `Edit` | Direct | None | - |
 | `Delete` | Direct | None | - |
+| `GenOfficeFile` | Direct | None | - |
 | `ExecCommand` | Direct | None | - |
 | `WriteStdin` | Direct | None | - |
 | `ExecControl` | Direct | None | - |
@@ -60,10 +61,6 @@ Notes:
 | `CallDeferredTool` | Direct | None | - |
 | `BitFunControl` | Direct | None | - |
 | `GetFileDiff` | Deferred | `CodeReview`, `DeepReview`, `ReviewFixer`, `ReviewWorker`, `ReviewJudge` | Direct |
-| `CreateCanvas` | Direct | None | - |
-| `ReadCanvas` | Direct | None | - |
-| `UpdateCanvas` | Direct | None | - |
-| `PatchCanvas` | Direct | None | - |
 | `ListWorkspaces` | Deferred | None | - |
 | `SessionControl` | Deferred | None | - |
 | `SessionMessage` | Deferred | None | - |
@@ -77,7 +74,7 @@ Notes:
 | `ReadMCPResource` | Deferred | None | - |
 | `ListMCPPrompts` | Deferred | None | - |
 | `GetMCPPrompt` | Deferred | None | - |
-| `GenerativeUI` | Deferred | None | - |
+| `GenerativeUI` | Direct | None | - |
 | `Worktree` | Deferred | None | - |
 | `ReviewPlatform` | Deferred | None | - |
 | `InitMiniApp` | Direct | None | - |

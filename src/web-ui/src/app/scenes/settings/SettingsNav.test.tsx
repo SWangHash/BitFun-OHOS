@@ -154,7 +154,7 @@ describe('SettingsNav shared component composition', () => {
     expect(container.querySelector('[role="status"]')).toBeNull();
   });
 
-  it('marks only pages that currently own an unsaved draft', () => {
+  it('keeps unsaved markers outside navigation and search-result text', async () => {
     act(() => {
       registerSettingsDraft({
         id: 'model-proxy',
@@ -168,8 +168,17 @@ describe('SettingsNav shared component composition', () => {
 
     const models = container.querySelector('[data-settings-page="ai.models"]');
     const general = container.querySelector('[data-settings-page="application.general"]');
-    expect(models?.querySelector('[data-bitfun-part="dirtyMarker"]')).not.toBeNull();
+    const marker = models?.querySelector('[data-bitfun-part="dirtyMarker"]');
+    expect(marker).not.toBeNull();
+    expect(marker?.closest('[data-bitfun-part="metadata"]')?.parentElement).toBe(models);
+    expect(models?.querySelector('[data-bitfun-part="label"]')?.contains(marker!)).toBe(false);
     expect(general?.querySelector('[data-bitfun-part="dirtyMarker"]')).toBeNull();
+
+    await search('models');
+    const result = container.querySelector('[role="option"]')!;
+    const resultMarker = result.querySelector('[data-bitfun-part="dirtyMarker"]')!;
+    expect(resultMarker.closest('[data-bitfun-part="metadata"]')?.parentElement).toBe(result);
+    expect(result.querySelector('[data-bitfun-part="label"]')?.contains(resultMarker)).toBe(false);
   });
 
   it('opens a matching inline section without matching its siblings through the page description', async () => {
@@ -190,12 +199,37 @@ describe('SettingsNav shared component composition', () => {
   it('marks a slow destination pending before showing its loading page', async () => {
     vi.mocked(preloadSettingsPage).mockReturnValue(new Promise(() => {}));
     const item = container.querySelector('[data-settings-page="application.appearance"]') as HTMLButtonElement;
+    const label = item.querySelector('[data-bitfun-part="label"]')!;
+    const originalLabel = label.innerHTML;
     await act(async () => item.click());
     expect(item.getAttribute('aria-busy')).toBe('true');
+    const spinner = item.querySelector('[data-bitfun-component="spinner"]')!;
+    expect(spinner).not.toBeNull();
+    expect(spinner.closest('[data-bitfun-part="metadata"]')?.parentElement).toBe(item);
+    expect(label.innerHTML).toBe(originalLabel);
     expect(useSettingsStore.getState().activePageId).toBe('application.general');
     await act(async () => vi.advanceTimersByTimeAsync(180));
     expect(useSettingsStore.getState().activePageId).toBe('application.appearance');
     expect(item.hasAttribute('aria-busy')).toBe(false);
+    expect(item.querySelector('[data-bitfun-component="spinner"]')).toBeNull();
+    expect(label.innerHTML).toBe(originalLabel);
+  });
+
+  it('keeps pending search-result indicators outside the two-line copy', async () => {
+    vi.mocked(preloadSettingsPage).mockReturnValue(new Promise(() => {}));
+    await search('appearance');
+    const item = container.querySelector<HTMLButtonElement>('[role="option"]')!;
+    const label = item.querySelector('[data-bitfun-part="label"]')!;
+    const originalLabel = label.innerHTML;
+
+    await act(async () => item.click());
+
+    const spinner = item.querySelector('[data-bitfun-component="spinner"]')!;
+    expect(item.getAttribute('aria-busy')).toBe('true');
+    expect(spinner).not.toBeNull();
+    expect(spinner.closest('[data-bitfun-part="metadata"]')?.parentElement).toBe(item);
+    expect(label.innerHTML).toBe(originalLabel);
+    expect(useSettingsStore.getState().activePageId).toBe('application.general');
   });
 
   it('ignores an earlier click when its preload completes after the latest selection', async () => {

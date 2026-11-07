@@ -18,6 +18,7 @@ pub mod host_stream;
 pub mod host_stream_subscriber;
 pub mod html_preview;
 mod lan;
+pub mod message_encoding;
 mod model_write_fence;
 mod page_upload;
 pub mod pairing;
@@ -570,7 +571,7 @@ pub const REMOTE_CAPABILITY_PLAN_BUILD_V1: &str = "plan_build_v1";
 /// must check this string before offering the write; a host without it can
 /// still answer `get_model_catalog` read-only.
 pub const REMOTE_CAPABILITY_DEVICE_MODEL_DEFAULTS_V1: &str = "device_model_defaults_v1";
-pub use host_stream::REMOTE_CAPABILITY_HOST_STREAM_V1;
+pub use host_stream::{REMOTE_CAPABILITY_HOST_STREAM_V1, REMOTE_CAPABILITY_TURN_HISTORY_V1};
 
 fn remote_host_capabilities() -> Vec<String> {
     vec![
@@ -584,6 +585,7 @@ fn remote_host_capabilities() -> Vec<String> {
         REMOTE_CAPABILITY_USER_QUESTION_INTERACTION_V1.to_string(),
         REMOTE_CAPABILITY_BACKGROUND_RESULT_DELIVERY_V1.to_string(),
         REMOTE_CAPABILITY_HOST_STREAM_V1.to_string(),
+        REMOTE_CAPABILITY_TURN_HISTORY_V1.to_string(),
         REMOTE_CAPABILITY_DEVICE_MODEL_DEFAULTS_V1.to_string(),
     ]
 }

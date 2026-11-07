@@ -1,8 +1,10 @@
 import { useDeviceDirectory, resolveDeviceNameFrom } from '@/infrastructure/account/deviceDirectory';
 import { ChatInputAttachments } from './ChatInputAttachments';
+import { readCompactComposerInputWidth } from './compactComposerInputWidth';
 import { useExcerptComposerActions } from '../selection/useExcerptComposerActions';
 import { isConversationExcerpt, formatConversationExcerpt } from '@/shared/utils/conversationExcerpt';
 import { withConversationExcerpts } from '../utils/composerPresentation';
+import { expandLargePastes, pickReferencedLargePastes } from '../utils/largePasteMetadata';
 /**
  * Standalone chat input component
  * Separated from bottom bar, supports session-level state awareness
@@ -92,7 +94,7 @@ import {
   sessionComposerStore,
   type PendingLargePasteMap,
 } from '../store/sessionComposerStore';
-import { getActiveSurfaceScope } from '@/infrastructure/peer-device/deviceSurface';
+import { getActiveSurfaceScope, isSurfaceChangedError } from '@/infrastructure/peer-device/deviceSurface';
 import { useAssistantBootstrap } from '@/app/hooks/useAssistantBootstrap';
 import {
   clearComposerForSubmission,
@@ -121,6 +123,11 @@ import { ThreadGoalDialogs } from './thread-goal/ThreadGoalDialogs';
 import { getAppearanceOverlayHost } from '@/infrastructure/appearance/runtime/AppearanceOverlayHost';
 import { useAnchoredPopoverPosition } from '@/shared/utils/useAnchoredPopoverPosition';
 import { FlowChatManager } from '@/flow_chat/services/FlowChatManager';
+import {
+  isManualCompactionPending,
+  markManualCompactionPending,
+  settleManualCompaction,
+} from '../services/manualCompactionState';
 import { interruptedTurnRecoveryGate } from '@/flow_chat/services/interruptedTurnRecoveryGate';
 import {
   getDeepReviewLaunchErrorMessage,
@@ -252,11 +259,19 @@ import {
 } from '../utils/tokenUsageDisplay';
 import { agentAPI } from '@/infrastructure/api/service-api/AgentAPI';
 import type { SessionPermissionMode } from '@/infrastructure/api/service-api/AgentAPI';
-import { isSessionInUseError } from '@/infrastructure/api/errors/TauriCommandError';
+import {
+  isOutcomeUnknownError,
+  isSessionInUseError,
+  isTauriCommandError,
+} from '@/infrastructure/api/errors/TauriCommandError';
 import { isPeerDeviceModeActive } from '@/infrastructure/peer-device/peerModeFlag';
 import { usePeerDeviceModeOptional } from '@/infrastructure/peer-device/peerDeviceContextState';
-import { isBtwSessionDraft } from '../utils/modelSelectionTarget';
+import { isBtwParentBackedSession, isBtwSessionDraft } from '../utils/modelSelectionTarget';
 import { hasSessionStarted, isSessionBindingLocked } from '../utils/sessionLifecycle';
+import {
+  canTreatMissingPermissionModeAsDefault,
+  isSessionNotFoundError,
+} from '../utils/sessionPermissionMode';
 import { prepareSessionDraftForCommand } from '../services/sessionDraftService';
 import { useSessionWorkspaceSelection } from '../hooks/useSessionWorkspaceSelection';
 import { SubagentAvatar, resolveSubagentNameKey } from '../subagent-identity';
@@ -329,6 +344,18 @@ const log = createLogger('ChatInput');
 // Stable empty array so the input-history selector returns the same reference
 // when a session has no history, avoiding needless re-renders.
 const EMPTY_INPUT_HISTORY: string[] = [];
+
+function manualCompactionTurnId(): string {
+  return globalThis.crypto?.randomUUID?.()
+    ?? `manual-compact-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+function isUncertainCompactionOutcome(error: unknown): boolean {
+  if (isSurfaceChangedError(error) || isOutcomeUnknownError(error)) return true;
+  if (isTauriCommandError(error) && error.isNetworkError()) return true;
+  const message = error instanceof Error ? error.message : String(error);
+  return /timeout|network|connection|fetch|transport|aborted|surface changed/i.test(message);
+}
 
 export interface ChatInputProps {
   /** Conversation hosts use an in-flow composer without the workbench context bar. */
@@ -671,6 +698,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   const removeContext = useContextStore(state => state.removeContext);
   const clearContexts = useContextStore(state => state.clearContexts);
   const replaceContexts = useContextStore(state => state.replaceContexts);
+  const restoreContexts = useCallback((items: ContextItem[]) => {
+    items.forEach(addContext);
+  }, [addContext]);
 
   const contextsRef = useRef(contexts);
   contextsRef.current = contexts;
@@ -752,8 +782,10 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   const effectiveTargetSession = effectiveTargetSessionId
     ? flowChatState.sessions.get(effectiveTargetSessionId)
     : undefined;
+  const hasEffectiveTargetSession = effectiveTargetSession !== undefined;
   const peer = usePeerDeviceModeOptional();
   const isBtwDraftTarget = isBtwSessionDraft(effectiveTargetSession);
+  const isBtwParentBackedTarget = isBtwParentBackedSession(effectiveTargetSession);
   const btwDraftSettingsInherited = isBtwDraftTarget && Boolean(peer?.peerMode.active)
     && (effectiveTargetSession?.config.modelPoolId
       ? peer?.currentPeerCapabilities?.btwModelPoolSelectionV1 !== true
@@ -762,8 +794,22 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   // A submission keeps the session started even if every surviving Turn is
   // later rolled back. Before that first submission, the composer intentionally
   // stays expanded instead of collapsing as the empty draft is measured.
-  const effectiveTargetSessionStarted = effectiveTargetSession ? hasSessionStarted(effectiveTargetSession) : false;
-  const isNewSessionComposer = !effectiveTargetSessionStarted;
+  const historySessionOpenTransition = useSyncExternalStore(
+    subscribeHistorySessionOpenTransition,
+    getHistorySessionOpenTransitionSnapshot,
+    getHistorySessionOpenTransitionSnapshot,
+  );
+  // A persisted session whose history is still loading has no turns yet, but
+  // it is not a new session: treating it as one drew the expanded new-session
+  // composer for the length of the load and then collapsed it (a height jump).
+  const effectiveTargetSessionStarted = effectiveTargetSession
+    ? hasSessionStarted(effectiveTargetSession) || effectiveTargetSession.isHistorical === true
+      || effectiveTargetSession.historyState === 'metadata-only' || effectiveTargetSession.historyState === 'hydrating'
+    : false;
+  // While a session is being opened the composer already belongs to it: keep
+  // the conversation layout instead of the new-session one, so its height and
+  // controls do not change when the session arrives.
+  const isNewSessionComposer = !effectiveTargetSessionStarted && historySessionOpenTransition === null;
   const dispatchObserverJob = dispatchJobStore(state => {
     const jobId = effectiveTargetSession?.config.dispatchJobId;
     return jobId ? state.jobs[jobId] : undefined;
@@ -777,11 +823,6 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     hostMasksDispatch: !!registration,
     displayAsChild: isBtwSession,
   });
-  const historySessionOpenTransition = useSyncExternalStore(
-    subscribeHistorySessionOpenTransition,
-    getHistorySessionOpenTransitionSnapshot,
-    getHistorySessionOpenTransitionSnapshot,
-  );
   const acpSessionForInput = useMemo(
     () => acpSessionRef(effectiveTargetSession),
     [effectiveTargetSession],
@@ -921,6 +962,11 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     if (!containerEl || !boxEl) {
       return null;
     }
+
+    // A compact composer already has the track we want. Cloning it here adds
+    // DOM/style invalidation and a second layout on every session attachment.
+    const compactWidth = readCompactComposerInputWidth(containerEl);
+    if (compactWidth !== null) return compactWidth;
 
     const clone = containerEl.cloneNode(true) as HTMLElement;
     clone.style.position = 'fixed';
@@ -1130,9 +1176,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     }
 
     let rafId: number | null = null;
-    // Only width feeds the capsule measurement, and re-measuring clones the whole
-    // composer into the document (two forced layouts). The box height animates on
-    // every capsule — multi-line flip, so reacting to height would run that clone
+    // Only width feeds the capsule measurement. Expanded composers still need
+    // a compact clone (two forced layouts). The box height animates on
+    // every capsule ↔ multi-line flip, so reacting to height would run that clone
     // once per frame of the transition — exactly while the user is typing at the
     // wrap boundary. Ignore entries whose width is unchanged.
     const lastObservedWidths = new WeakMap<Element, number>();
@@ -1620,42 +1666,71 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     targetWorkspacePath,
   ]);
 
+  // Catalog refreshes (e.g. opening the "+" menu) publish new mode objects with
+  // identical content. Key tool resolution on stable values so a refresh does
+  // not hide tool-gated actions; explicit config events bump the revision.
+  const targetModeId = targetModeInfo?.id ?? null;
+  const targetModeSource = targetModeInfo?.source ?? null;
+  const targetModeDefaultToolsKey = targetModeInfo?.defaultTools
+    ? targetModeInfo.defaultTools.join('\n')
+    : null;
+  const targetModeInfoRef = useRef(targetModeInfo);
+  targetModeInfoRef.current = targetModeInfo;
+  const resolvedTargetModeKeyRef = useRef<string | null>(null);
+  const [targetModeConfigRevision, setTargetModeConfigRevision] = useState(0);
+
   useEffect(() => {
-    if (isSubagentInputTarget) {
+    const bumpRevision = () => setTargetModeConfigRevision(revision => revision + 1);
+    globalEventBus.on('mode:config:updated', bumpRevision);
+    globalEventBus.on('custom-agent:updated', bumpRevision);
+    return () => {
+      globalEventBus.off('mode:config:updated', bumpRevision);
+      globalEventBus.off('custom-agent:updated', bumpRevision);
+    };
+  }, []);
+
+  useEffect(() => {
+    const clearTargetModeTools = () => {
+      resolvedTargetModeKeyRef.current = null;
       setTargetModeEnabledTools(null);
       setTargetModeToolsResolved(false);
+    };
+
+    if (isSubagentInputTarget || !targetModeId) {
+      clearTargetModeTools();
       return;
     }
 
-    if (!targetModeInfo) {
-      setTargetModeEnabledTools(null);
-      setTargetModeToolsResolved(false);
-      return;
-    }
-    if (targetModeInfo.source === 'external') {
-      setTargetModeEnabledTools(targetModeInfo.defaultTools ?? null);
+    const modeKey = `${targetModeSource ?? ''}:${targetModeId}`;
+    if (targetModeSource === 'external') {
+      resolvedTargetModeKeyRef.current = modeKey;
+      setTargetModeEnabledTools(targetModeInfoRef.current?.defaultTools ?? null);
       setTargetModeToolsResolved(true);
       return;
     }
 
+    // Keep the last known tools while re-resolving the same mode so gated
+    // actions do not flicker; only a different mode starts unresolved.
+    if (resolvedTargetModeKeyRef.current !== modeKey) {
+      clearTargetModeTools();
+    }
+
     let cancelled = false;
-    setTargetModeEnabledTools(null);
-    setTargetModeToolsResolved(false);
     (async () => {
       try {
-        const config = await configAPI.getAgentProfileConfig(targetModeInfo.id);
+        const config = await configAPI.getAgentProfileConfig(targetModeId);
         if (!cancelled) {
+          resolvedTargetModeKeyRef.current = modeKey;
           setTargetModeEnabledTools(config.enabled_tools ?? null);
           setTargetModeToolsResolved(true);
         }
       } catch (err) {
         log.error('Failed to load mode tool config for chat input', {
           err,
-          targetAgentType: targetModeInfo.id,
+          targetAgentType: targetModeId,
         });
         if (!cancelled) {
-          setTargetModeEnabledTools(null);
-          setTargetModeToolsResolved(false);
+          clearTargetModeTools();
         }
       }
     })();
@@ -1663,7 +1738,13 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [isSubagentInputTarget, targetModeInfo]);
+  }, [
+    isSubagentInputTarget,
+    targetModeId,
+    targetModeSource,
+    targetModeDefaultToolsKey,
+    targetModeConfigRevision,
+  ]);
 
   const canUseThreadGoal =
     caps.threadGoal &&
@@ -1739,6 +1820,19 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     workspaceId: effectiveTargetSession?.workspaceId || contextWorkspace?.id,
     workspaceKind: contextWorkspace?.workspaceKind,
   });
+  /*
+   * The add menu's "additional modes" item is built from these skills. Fetched
+   * only on open, it arrived after the rest of the menu and pushed it down.
+   * Warm them once the composer has been shown a moment (or the moment the
+   * pointer reaches the add button), so the menu opens whole; each opening
+   * still revalidates in place.
+   */
+  const [modeSkillsWarm, setModeSkillsWarm] = useState(false);
+  useEffect(() => {
+    if (modeSkillsWarm || !isSceneActive || !canUseSkillsForTarget) return;
+    const timer = window.setTimeout(() => setModeSkillsWarm(true), 600);
+    return () => window.clearTimeout(timer);
+  }, [canUseSkillsForTarget, isSceneActive, modeSkillsWarm]);
   const {
     skills: resolvedModeSkills,
     loading: resolvedModeSkillsLoading,
@@ -1749,6 +1843,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     retry: retryResolvedModeSkills,
   } = useResolvedModeSkills({
     enabled: isSceneActive && canUseSkillsForTarget && (
+      modeSkillsWarm ||
       isModeDropdownOpen ||
       contextTriggerState.isActive ||
       (slashCommandState.isActive && (slashCommandState.kind === 'all' || slashCommandState.kind === 'skills'))
@@ -2483,20 +2578,12 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       return;
     }
 
-    replacePendingLargePastes(Object.fromEntries(
-      entries.filter(([placeholder]) => text.includes(placeholder))
-    ));
+    replacePendingLargePastes(pickReferencedLargePastes(pendingLargePastesRef.current, text) ?? {});
   }, [replacePendingLargePastes]);
 
-  const expandPendingLargePastes = useCallback((text: string) => {
-    let expanded = text;
-    for (const [placeholder, actual] of Object.entries(pendingLargePastesRef.current)) {
-      if (expanded.includes(placeholder)) {
-        expanded = expanded.split(placeholder).join(actual);
-      }
-    }
-    return expanded;
-  }, []);
+  const expandPendingLargePastes = useCallback((text: string) => (
+    expandLargePastes(text, pendingLargePastesRef.current)
+  ), []);
 
   const expandComposerSpecialTokens = useCallback((text: string) => {
     return expandAdditionalModePromptReferenceTokens(
@@ -2541,6 +2628,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       /** Complete composer context replacement, including image attachments. */
       contexts?: ContextItem[];
       composerPresentation?: ComposerPresentation;
+      largePastes?: Record<string, string>;
       onlyIfEmpty?: boolean;
       mode?: 'replace' | 'append';
       separator?: string;
@@ -2566,10 +2654,13 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       if (composerPresentation && data.mode !== 'append') {
         const restoredValue = composerPresentationToEditorText(composerPresentation);
         replaceContexts(data.contexts ?? composerPresentationContexts(composerPresentation));
-        clearPendingLargePastes();
+        const restoredLargePastes = pickReferencedLargePastes(data.largePastes, restoredValue) ?? {};
+        replacePendingLargePastes(restoredLargePastes);
         dispatchInput({ type: 'SET_VALUE', payload: restoredValue });
         inputValueRef.current = restoredValue;
-        richTextInputRef.current?.restoreComposerPresentation?.(composerPresentation);
+        richTextInputRef.current?.restoreComposerPresentation?.(composerPresentation, {
+          largePastes: restoredLargePastes,
+        });
         richTextInputRef.current?.focus();
         return;
       }
@@ -2590,7 +2681,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({
           : content;
 
       if (data.mode !== 'append') {
-        clearPendingLargePastes();
+        // A restored message keeps its pasted bodies so the placeholders
+        // render as capsules again instead of becoming literal text.
+        replacePendingLargePastes(pickReferencedLargePastes(data.largePastes, nextValue) ?? {});
         if (data.contexts) {
           replaceContexts(data.contexts);
         }
@@ -2608,7 +2701,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     return () => {
       globalEventBus.off('fill-chat-input', handleFillChatInput);
     };
-  }, [addContext, clearPendingLargePastes, conversationScope, dispatchInput, replaceContexts]);
+  }, [addContext, conversationScope, dispatchInput, replaceContexts, replacePendingLargePastes]);
 
   // Expose current input value for external queries (e.g. deep review fill-back confirmation)
   React.useEffect(() => {
@@ -2717,6 +2810,11 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       setActiveTurnPermissionMode(null);
       return undefined;
     }
+    if (!hasEffectiveTargetSession) {
+      setSessionPermissionMode(null);
+      setSessionPermissionModeUnread(false);
+      return undefined;
+    }
     if (effectiveTargetSession?.draft) {
       setSessionPermissionMode(effectiveTargetSession.draft.permissionMode ?? null);
       setPermissionModeResolvedForSessionId(effectiveTargetSessionId);
@@ -2726,6 +2824,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     void (async () => {
       try {
         const permissionSessionId = isBtwDraftTarget
+          || isBtwParentBackedTarget
           ? effectiveTargetSession?.parentSessionId : effectiveTargetSessionId;
         if (!permissionSessionId) return;
         const response = await readComposerPermissionMode({
@@ -2749,6 +2848,28 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         }
       } catch (error) {
         log.warn('Failed to read session permission mode', error);
+        if (
+          permissionModeRequestGenerationRef.current === generation
+          && isSessionNotFoundError(error)
+          && canTreatMissingPermissionModeAsDefault(
+            hasEffectiveTargetSession
+              ? {
+                  dialogTurns: effectiveTargetSession?.dialogTurns ?? [],
+                  historyState: effectiveTargetSession?.historyState,
+                  isHistorical: effectiveTargetSession?.isHistorical,
+                  persistedTurnCount: effectiveTargetSession?.persistedTurnCount,
+                }
+              : undefined,
+          )
+        ) {
+          // A newly reserved empty Session is intentionally host-less until
+          // its first message. Keep the default mode without reporting a
+          // failed read; later materialization reruns this effect.
+          setSessionPermissionMode(null);
+          setSessionPermissionModeUnread(false);
+          permissionModeUnreadNotifiedRef.current = null;
+          return;
+        }
         // Falling back to the global default is the safe read: it never shows a
         // wider mode than the session actually runs with. The resolved gate
         // keeps the control hidden until that default itself has loaded, and
@@ -2776,6 +2897,10 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     sessionOwningId,
     sessionOwningPath,
     effectiveTargetSession?.workspacePath,
+    effectiveTargetSession?.dialogTurns,
+    effectiveTargetSession?.historyState,
+    effectiveTargetSession?.isHistorical,
+    effectiveTargetSession?.persistedTurnCount,
     effectiveTargetSession?.remoteConnectionId,
     effectiveTargetSession?.remoteSshHost,
     effectiveTargetSession?.parentSessionId,
@@ -2783,8 +2908,10 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     effectiveTargetSession?.externalHistory,
     effectiveTargetSession?.externalContinuationPermissionMode,
     isBtwDraftTarget,
+    isBtwParentBackedTarget,
     isAcpTargetSession,
     t,
+    hasEffectiveTargetSession,
   ]);
 
   const applySessionPermissionMode = useCallback(async (
@@ -3939,6 +4066,11 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       return;
     }
 
+    if (isManualCompactionPending(effectiveTargetSessionId)) {
+      notificationService.info(t('chatInput.compactPending'));
+      return;
+    }
+
     if (derivedState?.isProcessing) {
       notificationService.warning(
         t('chatInput.compactBusy')
@@ -3954,17 +4086,30 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       return;
     }
 
+    const requestedTurnId = manualCompactionTurnId();
+    markManualCompactionPending(effectiveTargetSessionId, requestedTurnId);
     dispatchInput({ type: 'CLEAR_VALUE' });
     setQueuedInput(null);
     setSlashCommandState({ isActive: false, kind: 'all', query: '', selectedIndex: 0 });
 
     try {
-      await FlowChatManager.getInstance().compactSession(effectiveTargetSessionId);
+      const result = await FlowChatManager.getInstance().compactSession(
+        effectiveTargetSessionId,
+        requestedTurnId,
+      );
+      if (!result.accepted) {
+        throw new Error(t('chatInput.compactFailed'));
+      }
     } catch (error) {
       log.error('Failed to trigger /compact', {
         error,
         sessionId: effectiveTargetSessionId,
       });
+      if (isUncertainCompactionOutcome(error)) {
+        notificationService.info(t('chatInput.compactPending'));
+        return;
+      }
+      settleManualCompaction(effectiveTargetSessionId, requestedTurnId);
       dispatchInput({ type: 'SET_VALUE', payload: message });
       notificationService.error(
         error instanceof Error ? error.message : t('error.unknown'),
@@ -6916,11 +7061,13 @@ export const ChatInput: React.FC<ChatInputProps> = ({
               ))}
               <RichTextInput
                 ref={richTextInputRef}
+                historyScope={`${deviceSurfaceScope.epoch}:${deviceSurfaceScope.key(effectiveTargetSessionId)}`}
                 value={inputState.value}
                 onChange={handleInputChange}
                 onLargePaste={createLargePastePlaceholder}
                 onPasteFiles={handleClipboardFiles}
                 pendingLargePastes={pendingLargePastes}
+                onRestoreLargePastes={replacePendingLargePastes}
                 skillReferenceNames={skillReferenceNames}
                 onUpdateLargePaste={updateLargePaste}
                 onRemoveLargePaste={removeLargePaste}
@@ -6931,6 +7078,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 disabled={!targetCanCompose || caps.transferInFlight || isInterruptedTurnRecoveryInFlight}
                 contexts={contexts}
                 onRemoveContext={removeContext}
+                onRestoreContexts={restoreContexts}
                 onContextTriggerStateChange={setContextTriggerState}
                 onInlineTriggerStateChange={setInlineTriggerState}
                 data-testid="chat-input-textarea"
@@ -7252,7 +7400,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                   ref={agentBoostRef}
                 >
                   {!isAcpTargetSession && (
-                    <span className="bitfun-chat-input__agent-boost-trigger" ref={boostTriggerRef} data-bitfun-component="chat-input" data-bitfun-part="boostTrigger" data-bitfun-state={modeState.dropdownOpen ? 'open' : undefined}>
+                    <span className="bitfun-chat-input__agent-boost-trigger" ref={boostTriggerRef} onPointerEnter={() => setModeSkillsWarm(true)} data-bitfun-component="chat-input" data-bitfun-part="boostTrigger" data-bitfun-state={modeState.dropdownOpen ? 'open' : undefined}>
                       <Tooltip content={t('chatInput.addBoostTooltip')}>
                         <ChatComposerActionButton
                           aria-label={t('chatInput.addBoostTooltip')}
@@ -7264,6 +7412,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                             e.stopPropagation();
                             if (!modeState.dropdownOpen) {
                               void refreshWorkspaceModeCatalog();
+                              if (modeSkillsWarm) retryResolvedModeSkills();
+                              else setModeSkillsWarm(true);
                             }
                             dispatchMode({ type: 'TOGGLE_DROPDOWN' });
                           }}

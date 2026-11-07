@@ -3,9 +3,7 @@ use crate::native_hooks::{
     dispatch_pre_tool_use, hook_settings_paths, ordered_layers, overview, overview_with_facts,
     take_pending_session_context, AgentHooksConfig, NativeHookSessionFacts,
 };
-use bitfun_agent_runtime::native_hooks::{
-    AgentHookEvent, AgentHookScope, AgentHookSettingsLayer,
-};
+use bitfun_agent_runtime::native_hooks::{AgentHookEvent, AgentHookScope, AgentHookSettingsLayer};
 use serde_json::json;
 use std::path::{Path, PathBuf};
 
@@ -170,11 +168,9 @@ fn oversized_settings_files_are_ignored() {
 }
 
 #[tokio::test]
-async fn remote_workspaces_skip_hook_dispatch() {
-    // Remote workspaces never dispatch: a local hook process cannot act on
-    // the remote filesystem. The skip resolves to a no-op decision regardless
-    // of local configuration; when hooks are configured it is reported, not
-    // silent.
+async fn remote_workspaces_without_a_target_provider_skip_hook_dispatch() {
+    // User Hooks remain disabled remotely. Without a target workspace provider
+    // the project layer also fails closed rather than falling back locally.
     let decision = dispatch_pre_tool_use(
         NativeHookSessionFacts {
             workspace_id: Some("remote-workspace"),
@@ -184,6 +180,7 @@ async fn remote_workspaces_skip_hook_dispatch() {
             is_remote_workspace: true,
             model: "model-x",
             bypass_permissions: false,
+            workspace_services: None,
         },
         "Bash",
         "call-1",

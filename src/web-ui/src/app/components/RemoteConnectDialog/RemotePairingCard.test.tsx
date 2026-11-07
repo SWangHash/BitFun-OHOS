@@ -46,7 +46,7 @@ describe('RemotePairingCard pending states', () => {
   it.each(['bot', 'network'] as const)('renders one waiting status for a %s pairing code', owner => {
     const view = renderCard({ owner, pairingCode: '123456' });
     expect(view.querySelectorAll('[role="status"]')).toHaveLength(1);
-    expect(view.querySelectorAll('[data-bitfun-component="status-pill"]')).toHaveLength(1);
+    expect(view.querySelectorAll('[data-bitfun-part="stateMark"]')).toHaveLength(1);
     expect(view.querySelector('.bitfun-remote-connect__pairing-code')?.textContent).toBe('123456');
     expect(view.textContent?.match(/remoteConnect.stateWaiting(?:Bot)?/g)).toHaveLength(1);
   });

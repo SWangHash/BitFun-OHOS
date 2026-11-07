@@ -17,7 +17,6 @@ vi.mock('@bitfun/ui', () => ({
   Tooltip: ({ children }: AnyProps) => <>{children}</>,
   Icon: () => <i />,
   SearchField: ({ value }: AnyProps) => <input readOnly value={String(value ?? '')} />,
-  FieldGroup: ({ children }: AnyProps) => <div>{children}</div>,
   Button: ({ children, onClick, ...rest }: AnyProps & { onClick?: () => void }) => (
     <button type="button" onClick={onClick} aria-pressed={rest['aria-pressed'] as boolean}>
       {children}
@@ -35,7 +34,6 @@ vi.mock('@/infrastructure/config/components/common', () => ({
   ConfigPageRow: ({ children, label, ...rest }: AnyProps) => <div data-bitfun-part={rest['data-bitfun-part'] as string}>{label as React.ReactNode}{children}</div>,
   ConfigPageContent: ({ children }: AnyProps) => <div>{children}</div>,
   ConfigPageSection: ({ children }: AnyProps) => <section>{children}</section>,
-  ConfigPageRow: ({ label, children }: AnyProps) => <div>{label}{children}</div>,
 }));
 
 vi.mock('@/infrastructure/i18n', () => ({
@@ -57,14 +55,19 @@ vi.mock('@/infrastructure/confirm-dialog', () => ({
   confirmWarning: vi.fn().mockResolvedValue(false),
 }));
 
-function pressModB(): void {
-  document.body.dispatchEvent(new KeyboardEvent('keydown', {
-    key: 'b',
-    code: 'KeyB',
-    ctrlKey: true,
+function pressKey(init: KeyboardEventInit): void {
+  const target = document.activeElement instanceof HTMLElement
+    ? document.activeElement
+    : document.body;
+  target.dispatchEvent(new KeyboardEvent('keydown', {
     bubbles: true,
     cancelable: true,
+    ...init,
   }));
+}
+
+function pressModB(): void {
+  pressKey({ key: 'b', code: 'KeyB', ctrlKey: true });
 }
 
 /** The record button of the row for `panel.toggleLeft`. */
@@ -112,21 +115,21 @@ describe('KeyboardShortcutsSection recording', () => {
     vi.clearAllMocks();
   });
 
-  // ShortcutManager's window/capture listener is installed at construction, so
-  // it runs before the recorder's listener whatever order the effects mount in:
-  // the sidebar had already collapsed by the time the recorder called
-  // preventDefault. Recording has to suspend dispatch, not try to outrun it.
+  // ShortcutManager's window listener is installed at construction, so it runs
+  // before a local recorder listener whatever order the effects mount in. The
+  // recorder therefore claims the key through ShortcutManager.capture, which
+  // handles matching events before command dispatch without disabling every
+  // other shortcut while a row is recording.
   it('does not run the global shortcut while recording it', async () => {
     await act(async () => root.render(<KeyboardShortcutsSection />));
 
     await act(async () => { recordButton().click(); });
-    expect(shortcutManager.isShortcutEnabled()).toBe(false);
+    expect(shortcutManager.isShortcutEnabled()).toBe(true);
 
     await act(async () => { pressModB(); });
 
     expect(toggleLeftPanel).not.toHaveBeenCalled();
     // Recording ended, so the same key works again immediately.
-    expect(shortcutManager.isShortcutEnabled()).toBe(true);
     await act(async () => { pressModB(); });
     expect(toggleLeftPanel).toHaveBeenCalledTimes(1);
   });
@@ -136,9 +139,7 @@ describe('KeyboardShortcutsSection recording', () => {
     await act(async () => { recordButton().click(); });
 
     await act(async () => {
-      document.body.dispatchEvent(new KeyboardEvent('keydown', {
-        key: 'Escape', code: 'Escape', bubbles: true, cancelable: true,
-      }));
+      pressKey({ key: 'Escape', code: 'Escape' });
     });
 
     expect(shortcutManager.isShortcutEnabled()).toBe(true);
@@ -149,12 +150,14 @@ describe('KeyboardShortcutsSection recording', () => {
   it('restores dispatch when the settings page goes away mid-recording', async () => {
     await act(async () => root.render(<KeyboardShortcutsSection />));
     await act(async () => { recordButton().click(); });
-    expect(shortcutManager.isShortcutEnabled()).toBe(false);
+    await act(async () => {
+      pressKey({ key: 'Shift', code: 'ShiftLeft', shiftKey: true });
+    });
+    expect(toggleLeftPanel).not.toHaveBeenCalled();
 
     // Unmounting the tab runs the same cleanup the user's navigation would.
     await act(async () => root.render(<></>));
 
-    expect(shortcutManager.isShortcutEnabled()).toBe(true);
     await act(async () => { pressModB(); });
     expect(toggleLeftPanel).toHaveBeenCalledTimes(1);
   });

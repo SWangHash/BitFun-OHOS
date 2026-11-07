@@ -22,6 +22,7 @@ import { useApp } from '../hooks/useApp';
 import { selectActiveSceneId, useSceneStore } from '../stores/sceneStore';
 import { useI18n } from '@/infrastructure/i18n';
 import { useNavResize } from './useNavResize';
+import { useNativeSceneBackdrop } from './useNativeSceneBackdrop';
 import './WorkspaceBody.scss';
 
 const NAV_DEFAULT_WIDTH = 300;
@@ -52,11 +53,13 @@ const WorkspaceBody: React.FC<WorkspaceBodyProps> = ({
 }) => {
   const { t } = useI18n('components');
   const navId = useId();
+  const sceneSurfaceRef = useNativeSceneBackdrop();
   const { workspace: currentWorkspace } = useCurrentWorkspace();
   const { state, toggleLeftPanel } = useApp();
   const activeSceneId = useSceneStore(selectActiveSceneId);
   const isNavCollapsed = state.layout.leftPanelCollapsed;
   const [navWidth, setNavWidth] = useState(NAV_DEFAULT_WIDTH);
+  const [navResizing, setNavResizing] = useState(false);
   const navAreaRef = useRef<HTMLDivElement>(null);
   const navDividerRef = useRef<HTMLDivElement>(null);
   const navGripRef = useRef<SVGPathElement>(null);
@@ -71,6 +74,7 @@ const WorkspaceBody: React.FC<WorkspaceBodyProps> = ({
     collapsed: isNavCollapsed,
     onWidthChange: setNavWidth,
     onCollapse: toggleLeftPanel,
+    onResizeStateChange: setNavResizing,
   });
 
   return (
@@ -139,6 +143,7 @@ const WorkspaceBody: React.FC<WorkspaceBodyProps> = ({
       {/* Right: visual scene surface + any shell-level overlay */}
       <div className="bitfun-workspace-body__scene-area" data-bitfun-scene="workbench" data-bitfun-part="sceneArea">
         <div
+          ref={sceneSurfaceRef}
           className="bitfun-workspace-body__scene-surface"
           data-bitfun-scene="workbench"
           data-bitfun-part="sceneSurface"
@@ -146,6 +151,7 @@ const WorkspaceBody: React.FC<WorkspaceBodyProps> = ({
           <SceneChromeProvider activeSceneId={activeSceneId}>
             <div data-bitfun-creation-slot="scene-header" />
             <WorkbenchLayout
+              navigationResizing={navResizing}
               workspacePath={currentWorkspace?.rootPath}
               onMinimize={onMinimize}
               onMaximize={onMaximize}

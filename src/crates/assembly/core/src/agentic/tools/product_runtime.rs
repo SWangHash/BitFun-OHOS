@@ -14,7 +14,6 @@ mod mcp_catalog;
 mod snapshot;
 
 use crate::agentic::tools::registry::{ProductToolDecoratorRef, ToolRegistry};
-use materialization::{create_product_tool_registry_from_plan, ProductToolMaterializationError};
 use bitfun_agent_tools::SnapshotToolDecorator;
 #[cfg(not(feature = "product-full"))]
 use bitfun_product_capabilities::agent_runtime_baseline_tool_plan;
@@ -22,6 +21,7 @@ use bitfun_product_capabilities::{
     product_assembly_plan_for_profile, DeliveryProfile, ProductAssemblyPlan, ProductToolPlan,
 };
 use bitfun_tool_packs::{ToolPackFeatureGroup, ToolProviderGroupPlan};
+use materialization::{create_product_tool_registry_from_plan, ProductToolMaterializationError};
 use snapshot::ProductSnapshotToolWrapper;
 use std::sync::Arc;
 
@@ -202,7 +202,6 @@ mod tests {
 
         assert_eq!(owner_registry.get_tool_names(), expected_names);
         assert!(owner_registry.get_tool("CodeReview").is_none());
-        assert!(owner_registry.get_tool("CreateCanvas").is_none());
         assert!(owner_registry.get_tool("InitMiniApp").is_none());
     }
 
@@ -227,7 +226,6 @@ mod tests {
 
         assert_eq!(owner_registry.get_tool_names(), expected_names);
         assert!(owner_registry.get_tool("CodeReview").is_none());
-        assert!(owner_registry.get_tool("CreateCanvas").is_none());
         assert!(owner_registry.get_tool("InitMiniApp").is_none());
     }
 
@@ -313,7 +311,6 @@ mod baseline_tests {
         for excluded in [
             "view_image",
             "GetFileDiff",
-            "CreateCanvas",
             "WebSearch",
             "ListMCPResources",
             "Worktree",

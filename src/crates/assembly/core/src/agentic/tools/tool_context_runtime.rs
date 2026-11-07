@@ -39,7 +39,9 @@ use bitfun_agent_runtime::checkpoint::{
     build_light_checkpoint as build_runtime_light_checkpoint, LightCheckpointWorkspaceFacts,
 };
 use bitfun_agent_runtime::permission::{AUTO_APPROVE_ASK_CONTEXT_KEY, PERMISSION_MODE_CONTEXT_KEY};
-use bitfun_agent_runtime::remote_file_delivery::TOOL_CONTEXT_REMOTE_FILE_DELIVERY_KEY;
+use bitfun_agent_runtime::remote_file_delivery::{
+    TOOL_CONTEXT_PEER_DEVICE_CONTROL_KEY, TOOL_CONTEXT_REMOTE_FILE_DELIVERY_KEY,
+};
 use bitfun_agent_runtime::user_questions::{
     UserQuestionController, USER_INPUT_AVAILABLE_CONTEXT_KEY, USER_INPUT_MODEL_ROUND_CONTEXT_KEY,
     USER_INPUT_PARENT_CONTEXT_KEY,
@@ -81,6 +83,7 @@ pub struct ToolUseContext {
     pub workspace: Option<WorkspaceBinding>,
     pub loaded_deferred_tool_specs: Vec<LoadedDeferredToolSpec>,
     pub primary_model_facts: PrimaryModelFacts,
+    pub model_client: Option<Arc<crate::infrastructure::ai::AIClient>>,
     /// Extended context data passed from execution layer to tools.
     pub custom_data: HashMap<String, Value>,
     /// Desktop automation (Computer use); only set in BitFun desktop.
@@ -237,6 +240,7 @@ impl ToolUseContext {
             workspace,
             loaded_deferred_tool_specs: Vec::new(),
             primary_model_facts: PrimaryModelFacts::default(),
+            model_client: None,
             custom_data: HashMap::new(),
             computer_use_host: None,
             runtime_tool_restrictions: ToolRuntimeRestrictions::default(),
@@ -339,6 +343,7 @@ pub(crate) fn build_tool_use_context_for_execution_context(
         workspace: context.workspace.clone(),
         loaded_deferred_tool_specs: context.loaded_deferred_tool_specs.clone(),
         primary_model_facts: context.primary_model_facts.clone(),
+        model_client: context.model_client.clone(),
         custom_data: build_tool_context_custom_data(context),
         computer_use_host,
         runtime_handles: core_tool_runtime_handles(
@@ -368,7 +373,18 @@ pub(crate) fn build_tool_description_context(
     let mut custom_data = HashMap::new();
     let primary_model_facts = primary_model_facts.cloned().unwrap_or_default();
     for (key, value) in context_vars {
-        custom_data.insert(key.clone(), Value::String(value.clone()));
+        // Availability checks see the same origin booleans as execution.
+        // Other description context values retain their existing string shape.
+        let value = if matches!(
+            key.as_str(),
+            TOOL_CONTEXT_PEER_DEVICE_CONTROL_KEY | TOOL_CONTEXT_REMOTE_FILE_DELIVERY_KEY
+        ) && matches!(value.as_str(), "true" | "false")
+        {
+            Value::Bool(value == "true")
+        } else {
+            Value::String(value.clone())
+        };
+        custom_data.insert(key.clone(), value);
     }
 
     ToolUseContext {
@@ -379,6 +395,7 @@ pub(crate) fn build_tool_description_context(
         workspace: workspace.cloned(),
         loaded_deferred_tool_specs: Vec::new(),
         primary_model_facts,
+        model_client: None,
         custom_data,
         computer_use_host: None,
         runtime_tool_restrictions: runtime_tool_restrictions.clone(),
@@ -504,6 +521,7 @@ fn build_tool_context_custom_data(context: &ToolExecutionContext) -> HashMap<Str
     for key in [
         USER_INPUT_AVAILABLE_CONTEXT_KEY,
         AUTO_APPROVE_ASK_CONTEXT_KEY,
+        TOOL_CONTEXT_PEER_DEVICE_CONTROL_KEY,
     ] {
         let value = match context.context_vars.get(key).map(String::as_str) {
             Some("true") => Some(true),
@@ -990,6 +1008,7 @@ mod context_facts_tests {
             dialog_turn_id: None,
             workspace: Some(WorkspaceBinding::new(None, PathBuf::from(root))),
             loaded_deferred_tool_specs: Vec::new(),
+            model_client: None,
             primary_model_facts: PrimaryModelFacts::default(),
             custom_data: HashMap::new(),
             computer_use_host: None,
@@ -1007,6 +1026,7 @@ mod context_facts_tests {
             dialog_turn_id: Some("turn-1".to_string()),
             workspace: Some(WorkspaceBinding::new(None, PathBuf::from("/repo/project"))),
             loaded_deferred_tool_specs: vec![loaded_spec("WebFetch")],
+            model_client: None,
             primary_model_facts: PrimaryModelFacts::default(),
             custom_data: HashMap::new(),
             computer_use_host: None,
@@ -1055,6 +1075,7 @@ mod context_facts_tests {
             dialog_turn_id: Some("turn-runtime".to_string()),
             workspace: Some(WorkspaceBinding::new(None, PathBuf::from("/repo/runtime"))),
             loaded_deferred_tool_specs: vec![loaded_spec("WebFetch"), loaded_spec("Worktree")],
+            model_client: None,
             primary_model_facts: PrimaryModelFacts::default(),
             custom_data,
             computer_use_host: None,
@@ -1120,6 +1141,7 @@ mod context_facts_tests {
                 session_identity,
             )),
             loaded_deferred_tool_specs: Vec::new(),
+            model_client: None,
             primary_model_facts: PrimaryModelFacts::default(),
             custom_data: HashMap::new(),
             computer_use_host: None,
@@ -1173,6 +1195,7 @@ mod path_resolution_tests {
             dialog_turn_id: None,
             workspace: Some(WorkspaceBinding::new(None, PathBuf::from(root))),
             loaded_deferred_tool_specs: Vec::new(),
+            model_client: None,
             primary_model_facts: PrimaryModelFacts::default(),
             custom_data: HashMap::new(),
             computer_use_host: None,
@@ -1197,6 +1220,7 @@ mod path_resolution_tests {
                 session_identity,
             )),
             loaded_deferred_tool_specs: Vec::new(),
+            model_client: None,
             primary_model_facts: PrimaryModelFacts::default(),
             custom_data: HashMap::new(),
             computer_use_host: None,
@@ -1280,6 +1304,7 @@ mod path_resolution_tests {
             dialog_turn_id: None,
             workspace: None,
             loaded_deferred_tool_specs: Vec::new(),
+            model_client: None,
             primary_model_facts: PrimaryModelFacts::default(),
             custom_data: HashMap::new(),
             computer_use_host: None,
@@ -1567,6 +1592,7 @@ mod call_runtime_tests {
             dialog_turn_id: None,
             workspace: None,
             loaded_deferred_tool_specs: Vec::new(),
+            model_client: None,
             primary_model_facts: PrimaryModelFacts::default(),
             custom_data: HashMap::new(),
             computer_use_host: None,
@@ -1604,6 +1630,7 @@ mod call_runtime_tests {
             dialog_turn_id: None,
             workspace: None,
             loaded_deferred_tool_specs: Vec::new(),
+            model_client: None,
             primary_model_facts: PrimaryModelFacts::default(),
             custom_data: HashMap::new(),
             computer_use_host: None,
@@ -1645,6 +1672,7 @@ mod call_runtime_tests {
             dialog_turn_id: Some("subagent-turn".to_string()),
             workspace: None,
             loaded_deferred_tool_specs: Vec::new(),
+            model_client: None,
             primary_model_facts: PrimaryModelFacts::default(),
             custom_data,
             computer_use_host: None,
@@ -1679,6 +1707,33 @@ mod context_builder_tests {
     use crate::agentic::tools::ToolRuntimeRestrictions;
     use std::collections::HashMap;
     use tool_runtime::context::PrimaryModelFacts;
+
+    #[test]
+    fn desktop_cards_listing_context_preserves_control_origin_booleans() {
+        use bitfun_agent_runtime::remote_file_delivery::{
+            TOOL_CONTEXT_PEER_DEVICE_CONTROL_KEY, TOOL_CONTEXT_REMOTE_FILE_DELIVERY_KEY,
+        };
+        for key in [
+            TOOL_CONTEXT_PEER_DEVICE_CONTROL_KEY,
+            TOOL_CONTEXT_REMOTE_FILE_DELIVERY_KEY,
+        ] {
+            for value in ["true", "false"] {
+                let context_vars = HashMap::from([(key.to_string(), value.to_string())]);
+                let context = build_tool_description_context(
+                    "Creative",
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    &context_vars,
+                    &ToolRuntimeRestrictions::default(),
+                );
+                assert_eq!(context.custom_data[key].as_bool(), Some(value == "true"));
+            }
+        }
+    }
 
     #[test]
     fn tool_description_context_preserves_manifest_custom_data_shape() {
@@ -1839,6 +1894,7 @@ mod task_context_tests {
                 observation_context: None,
                 agent_type: "agent".to_string(),
                 workspace: None,
+                model_client: None,
                 primary_model_facts: PrimaryModelFacts::new(
                     "primary-model",
                     "vision-model",
@@ -1896,10 +1952,54 @@ mod task_context_tests {
     }
 
     #[test]
+    fn desktop_cards_tool_context_keeps_turn_scoped_peer_origin() {
+        use bitfun_agent_runtime::remote_file_delivery::TOOL_CONTEXT_PEER_DEVICE_CONTROL_KEY;
+        for origin in [None, Some("true"), Some("false")] {
+            let mut task = task_with_context_vars();
+            if let Some(origin) = origin {
+                task.context
+                    .context_vars
+                    .insert(TOOL_CONTEXT_PEER_DEVICE_CONTROL_KEY.into(), origin.into());
+            }
+            let context = build_tool_use_context_for_task(&task, None, CancellationToken::new());
+            assert_eq!(
+                context
+                    .custom_data
+                    .get(TOOL_CONTEXT_PEER_DEVICE_CONTROL_KEY),
+                origin.map(|value| json!(value == "true")).as_ref(),
+            );
+        }
+    }
+
+    #[test]
     fn tool_task_context_materialization_preserves_runtime_fields() {
-        let task = task_with_context_vars();
+        use std::sync::Arc;
+        let mut task = task_with_context_vars();
+        let client = Arc::new(crate::infrastructure::ai::AIClient::new(
+            bitfun_core_types::AIConfig {
+                name: "originating-review-client".into(),
+                base_url: "http://127.0.0.1".into(),
+                request_url: "http://127.0.0.1/v1/chat/completions".into(),
+                api_key: "fixture".into(),
+                model: "original-model".into(),
+                format: "openai".into(),
+                context_window: 4096,
+                max_tokens: Some(128),
+                max_images_per_request: None,
+                temperature: None,
+                top_p: None,
+                inline_think_in_text: false,
+                custom_headers: None,
+                custom_headers_mode: None,
+                skip_ssl_verify: false,
+                custom_request_body: None,
+                custom_request_body_mode: None,
+            },
+        ));
+        task.context.model_client = Some(client.clone());
 
         let context = build_tool_use_context_for_task(&task, None, CancellationToken::new());
+        assert!(Arc::ptr_eq(context.model_client.as_ref().unwrap(), &client));
 
         assert_eq!(context.tool_call_id.as_deref(), Some("tool_context_1"));
         assert_eq!(context.agent_type.as_deref(), Some("agent"));
@@ -1976,5 +2076,6 @@ mod task_context_tests {
         assert!(value.get("unlockedCollapsedTools").is_none());
         assert!(value.get("customData").is_none());
         assert!(value.get("cancellationToken").is_none());
+        assert!(value.get("modelClient").is_none());
     }
 }

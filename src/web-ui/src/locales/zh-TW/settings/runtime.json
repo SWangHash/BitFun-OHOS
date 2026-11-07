@@ -189,6 +189,14 @@
       "generic": "目前系統無法使用完整的桌面控制功能。"
     }
   },
+  "browserLinks": {
+    "sectionTitle": "網頁連結",
+    "defaultTarget": "預設開啟方式",
+    "description": "選擇點擊對話中的網頁連結時使用的瀏覽器。僅對目前裝置生效，右鍵選單仍可單獨選擇。",
+    "builtin": "內建瀏覽器",
+    "external": "系統預設瀏覽器",
+    "browserTab": "目前瀏覽器（新分頁）"
+  },
   "browserControl": {
     "sectionTitle": "瀏覽器控制",
     "sectionDescription": "選擇工作階段執行網頁操作時使用的瀏覽器。",
@@ -267,5 +275,25 @@
     "ptcTooltip": "PTC 透過 RunCode 執行 TypeScript。",
     "ptcPython": "PTC（Python）",
     "ptcPythonTooltip": "PTC 透過 RunCode 執行 Python。"
+  },
+  "genui": {
+    "title": "生成式 UI",
+    "description": "選擇新建生成式 UI 應用使用的元件庫。既有應用會繼續使用已儲存的元件庫與版本。",
+    "collection": "生成式 UI 設定",
+    "loading": "正在讀取元件設定",
+    "retry": "重試",
+    "unknown": "目前版本不支援此元件集合，已保留原設定。請選擇已安裝的集合。",
+    "collections": {
+      "openui": "Open Intelligent UI：在 FlowChat 中串流顯示 OpenUI Lang，保留本地狀態與動作。",
+      "openbitfun": "BitFun：使用目前 BitFun 元件庫與桌面樣式。"
+    },
+    "specification": "UI 規範",
+    "viewport": "目標視口",
+    "responsiveViewport": "響應目前宿主寬度",
+    "componentLibraries": "可用元件庫",
+    "styleResources": "樣式資源",
+    "hostShell": "宿主外殼",
+    "designRules": "設計規則",
+    "acceptance": "驗收檢查"
   }
 }

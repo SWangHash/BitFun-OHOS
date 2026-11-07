@@ -27,7 +27,7 @@ import { globalEventBus } from '@/infrastructure/event-bus';
 import { shouldIgnoreCardToggleClick } from '@/shared/utils/textSelection';
 import { observeElementResize } from '@/shared/utils/sharedResizeObserver';
 import { formatContextForPrompt } from '@/shared/utils/contextPrompt';
-import { Button, Dialog, DialogClose, Tooltip, Icon, IconButton, MenuItem, MenuPopover, type MenuEntry, type MenuItemProps } from '@bitfun/ui';
+import { Button, Dialog, DialogBody, DialogClose, DialogFooter, DialogHeader, DialogHeading, DialogTitle, Textarea, Tooltip, Icon, IconButton, MenuItem, MenuPopover, type MenuEntry, type MenuItemProps } from '@bitfun/ui';
 import { confirmDanger } from '@/infrastructure/confirm-dialog';
 import { ToolProcessingDots } from '@bitfun/ui/flow-chat';
 import { UserMessageEditComposer } from './UserMessageEditComposer';
@@ -60,6 +60,8 @@ import { restoreImageContextsFromPayload } from '../../utils/imageContextRestora
 import { writeComposerClipboardPayload } from '../../utils/composerClipboard';
 import { buildImagePayload } from '../../utils/imagePayload';
 import { UserMessagePresentationContent } from './UserMessagePresentationContent';
+import { UserMessageLargePasteContext } from './userMessageLargePasteContext';
+import { expandLargePastes, readLargePastesMetadata } from '../../utils/largePasteMetadata';
 import { splitUserMessagePreview } from './userMessagePreview';
 import { UserMessageImage } from './UserMessageImage';
 import { useSubmittedMessageMotion } from './useSubmittedMessageMotion';
@@ -177,6 +179,38 @@ export const UserMessageItem = React.memo<UserMessageItemProps>(
       const presentation = parseComposerPresentation(message?.metadata?.composerPresentation);
       return hasComposerPresentationReferences(presentation) ? presentation : null;
     }, [message?.metadata?.composerPresentation]);
+    const largePastes = useMemo(
+      () => readLargePastesMetadata(message?.metadata),
+      [message?.metadata],
+    );
+    // Edit works on the real text: the edit composer has no paste store, and an
+    // unchanged edit must still compare equal to the original.
+    const editableContent = useMemo(
+      () => expandLargePastes(messageContent, largePastes),
+      [largePastes, messageContent],
+    );
+    const editablePresentation = useMemo(() => (
+      composerPresentation && largePastes
+        ? {
+            ...composerPresentation,
+            segments: composerPresentation.segments.map(segment => (
+              segment.kind === 'text'
+                ? { ...segment, text: expandLargePastes(segment.text, largePastes) }
+                : segment
+            )),
+          }
+        : composerPresentation
+    ), [composerPresentation, largePastes]);
+    const [openLargePaste, setOpenLargePaste] = useState<string | null>(null);
+    const [largePasteCopied, setLargePasteCopied] = useState(false);
+    const largePasteContextValue = useMemo(() => (largePastes ? {
+      largePastes,
+      openLargePaste: (placeholder: string) => {
+        setLargePasteCopied(false);
+        setOpenLargePaste(placeholder);
+      },
+    } : null), [largePastes]);
+    const openLargePasteText = openLargePaste ? largePastes?.[openLargePaste] ?? null : null;
     const messageImages = useMemo(() => message?.images ?? [], [message?.images]);
     const restoredComposerContexts = useMemo(() => [
       ...(composerPresentation ? composerPresentationContexts(composerPresentation) : []),
@@ -196,6 +230,7 @@ export const UserMessageItem = React.memo<UserMessageItemProps>(
       [restoredComposerContexts],
     );
     const isUsageReportMessage = message?.metadata?.localCommandKind === 'usage_report';
+    const isGenUIHostEvidence = Boolean(message?.metadata?.genUIHostRepair);
     const isGoalLoadingMessage = Boolean(message?.metadata?.threadGoalKickoff);
     const isThreadGoalContinuationCheck = Boolean(message?.metadata?.threadGoalContinuation);
     const isThreadGoalSystemMessage = Boolean(
@@ -209,7 +244,7 @@ export const UserMessageItem = React.memo<UserMessageItemProps>(
       () => resolveSessionRelationship(activeSession),
       [activeSession]
     );
-    const canShowRollbackAction = allowUserMessageRollback && !sessionRelationship.isSubagent;
+    const canShowRollbackAction = allowUserMessageRollback && !sessionRelationship.isSubagent && !isGenUIHostEvidence;
 
     const currentSession = activeSessionOverride
       ?? (sessionId ? flowChatStore.getState().sessions.get(sessionId) ?? null : null)
@@ -261,10 +296,11 @@ export const UserMessageItem = React.memo<UserMessageItemProps>(
       !isRemoteSession &&
       !isFollowedSource &&
       !isThreadGoalSystemMessage &&
+      !isGenUIHostEvidence &&
       !isSystemTriggered &&
       !steeringStatus && !hostQueueStatus;
     const canEdit = canEditBase && isSessionIdle && !isEditSubmitting && !sessionMutation;
-    const canShowEditAction = allowUserMessageEdit && !isFailed && !isThreadGoalSystemMessage && !hostQueueStatus;
+    const canShowEditAction = allowUserMessageEdit && !isFailed && !isThreadGoalSystemMessage && !isGenUIHostEvidence && !hostQueueStatus;
     const canShowRollbackMenuItem = !isFailed && canShowRollbackAction && !steeringStatus && !hostQueueStatus;
     const canShowActionMenu = canShowEditAction || canShowRollbackMenuItem;
     const rollbackPending = sessionMutation?.kind === 'rollback' && sessionMutation.targetTurnId === turnId;
@@ -326,15 +362,15 @@ export const UserMessageItem = React.memo<UserMessageItemProps>(
 
       return cleaned;
     }, [isThreadGoalContinuationCheck, messageContent, messageImages]);
-    const copyText = composerPresentation
+    const copyText = expandLargePastes(composerPresentation
       ? composerPresentationToAccessibleText(composerPresentation)
-      : messageContent;
+      : messageContent, largePastes);
     // The readable value stays in text/plain while the canonical token text
     // rides along in the HTML flavor, so pasting a copied message back into the
     // composer rebuilds its capsules instead of leaving their source text.
-    const copyTokens = composerPresentation
+    const copyTokens = expandLargePastes(composerPresentation
       ? composerPresentationToClipboardText(composerPresentation)
-      : messageContent;
+      : messageContent, largePastes);
 
     const messagePreview = useMemo(() => splitUserMessagePreview(composerPresentation ?? {
       version: 1,
@@ -381,6 +417,16 @@ export const UserMessageItem = React.memo<UserMessageItemProps>(
       }
     }, [copyText, copyTokens]);
 
+    const handleCopyLargePaste = useCallback(async () => {
+      if (openLargePasteText === null) return;
+      try {
+        await navigator.clipboard.writeText(openLargePasteText);
+        setLargePasteCopied(true);
+      } catch (error) {
+        log.error('Failed to copy pasted content', error);
+      }
+    }, [openLargePasteText]);
+
     const handleRollback = useCallback(async () => {
       if (!canRollback || !resolvedSessionId) return;
 
@@ -419,6 +465,7 @@ export const UserMessageItem = React.memo<UserMessageItemProps>(
             content: composerContent,
             contexts: restoredComposerContexts,
             ...(composerPresentation ? { composerPresentation } : {}),
+            ...(largePastes ? { largePastes } : {}),
           });
         }
 
@@ -427,12 +474,12 @@ export const UserMessageItem = React.memo<UserMessageItemProps>(
         log.error('Rollback failed', error);
         notificationService.error(`${t('message.rollbackFailed')}: ${error instanceof Error ? error.message : String(error)}`);
       }
-    }, [actionTurnIndex, canRollback, composerPresentation, resolvedSessionId, restoredComposerContexts, t, turnId, messageContent]);
+    }, [actionTurnIndex, canRollback, composerPresentation, largePastes, resolvedSessionId, restoredComposerContexts, t, turnId, messageContent]);
 
     const handleBeginEdit = useCallback(() => {
       if (!canEdit) return;
-      beginEdit(turnId, messageContent);
-    }, [beginEdit, canEdit, messageContent, turnId]);
+      beginEdit(turnId, editableContent);
+    }, [beginEdit, canEdit, editableContent, turnId]);
 
     const actionMenuItems: MenuEntry[] = [
       ...(canShowEditAction ? [{
@@ -454,11 +501,11 @@ export const UserMessageItem = React.memo<UserMessageItemProps>(
     const handleSubmitEdit = useCallback(async (submittedPresentation?: ComposerPresentation) => {
       if (!resolvedSessionId || actionTurnIndex < 0 || isEditSubmitting) return;
 
-      const editedPresentation = submittedPresentation ?? composerPresentation;
+      const editedPresentation = submittedPresentation ?? editablePresentation;
       const editedContent = editedPresentation
         ? composerPresentationToEditorText(editedPresentation)
         : editDraft.trim();
-      if (!editedContent || editedContent === messageContent.trim()) {
+      if (!editedContent || editedContent === editableContent.trim()) {
         cancelEdit();
         return;
       }
@@ -485,7 +532,7 @@ export const UserMessageItem = React.memo<UserMessageItemProps>(
         await editAndRerunUserMessage({
           sessionId: resolvedSessionId,
           turnId,
-          originalContent: messageContent,
+          originalContent: editableContent,
           editedContent,
           agentType: currentSession?.mode,
           rerun: async (content, agentType, sessionMutationLeaseId) => {
@@ -529,11 +576,11 @@ export const UserMessageItem = React.memo<UserMessageItemProps>(
     }, [
       cancelEdit,
       actionTurnIndex,
-      composerPresentation,
       currentSession?.mode,
       editDraft,
+      editableContent,
+      editablePresentation,
       isEditSubmitting,
-      messageContent,
       restoredImageContexts,
       resolvedSessionId,
       setEditSubmitting,
@@ -561,11 +608,12 @@ export const UserMessageItem = React.memo<UserMessageItemProps>(
         content: messageContent,
         contexts: restoredComposerContexts,
         ...(composerPresentation ? { composerPresentation } : {}),
+        ...(largePastes ? { largePastes } : {}),
       });
       if (submissionPhase === 'failed' && resolvedSessionId) {
         finishSubmittedMessagePreview(getActiveSurfaceScope(), resolvedSessionId, turnId);
       }
-    }, [composerPresentation, messageContent, restoredComposerContexts, submissionPhase, resolvedSessionId, turnId]);
+    }, [composerPresentation, largePastes, messageContent, restoredComposerContexts, submissionPhase, resolvedSessionId, turnId]);
 
     const handleOpenUsageReport = useCallback((report: SessionUsageReport, initialTab?: SessionUsagePanelTab) => {
       void import('../../services/openSessionUsageReport').then(({ openSessionUsagePanel }) => {
@@ -581,22 +629,6 @@ export const UserMessageItem = React.memo<UserMessageItemProps>(
       });
     }, [currentSession?.sessionId, currentSession?.workspacePath, messageContent, resolvedSessionId, t]);
     
-    // Collapse when clicking outside.
-    useEffect(() => {
-      if (!expanded) return;
-      
-      const handleClickOutside = (e: MouseEvent) => {
-        if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-          setExpanded(false);
-        }
-      };
-      
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => {
-        document.removeEventListener('mousedown', handleClickOutside);
-      };
-    }, [expanded]);
-
     // Avoid zero-size errors by rendering a placeholder instead of null.
     if (!message) {
       return <div data-bitfun-product-component="user-message-item" data-bitfun-product-part="root" style={{ minHeight: '1px' }} />;
@@ -626,17 +658,25 @@ export const UserMessageItem = React.memo<UserMessageItemProps>(
         </div>
       );
     }
-    
-    const messageTextContent = messagePreview.overflow ? (
-      <>
-        <span className="user-message-item__content-preview">
-          <UserMessagePresentationContent presentation={messagePreview.preview} />
-        </span>
-        <span className="user-message-item__content-overflow">
-          <UserMessagePresentationContent presentation={messagePreview.overflow} />
-        </span>
-      </>
-    ) : <UserMessagePresentationContent presentation={messagePreview.preview} />;
+
+    // Alternate transcript surfaces may render this component without the
+    // virtual-item projection. Host repair evidence stays invisible there too.
+    if (isGenUIHostEvidence) return null;
+
+    const messageTextContent = (
+      <UserMessageLargePasteContext.Provider value={largePasteContextValue}>
+        {messagePreview.overflow ? (
+          <>
+            <span className="user-message-item__content-preview">
+              <UserMessagePresentationContent presentation={messagePreview.preview} />
+            </span>
+            <span className="user-message-item__content-overflow">
+              <UserMessagePresentationContent presentation={messagePreview.overflow} />
+            </span>
+          </>
+        ) : <UserMessagePresentationContent presentation={messagePreview.preview} />}
+      </UserMessageLargePasteContext.Provider>
+    );
 
     const messageImageGallery = messageImages.length > 0 ? (
       <div
@@ -677,7 +717,7 @@ export const UserMessageItem = React.memo<UserMessageItemProps>(
               onChange={setEditDraft}
               onSubmit={handleSubmitEdit}
               onCancel={cancelEdit}
-              presentation={composerPresentation}
+              presentation={editablePresentation}
               workspacePath={currentSession?.workspacePath}
               workspaceId={currentSession?.workspaceId}
               remoteConnectionId={
@@ -773,6 +813,35 @@ export const UserMessageItem = React.memo<UserMessageItemProps>(
             >
               <DialogClose className="user-message-item__lightbox-close" icon={<Icon name="xmark" size="md" />} />
               <img src={lightboxImage} alt="Preview" onClick={(e) => e.stopPropagation()} />
+            </Dialog>
+          )}
+          {openLargePasteText !== null && (
+            <Dialog
+              open
+              size="md"
+              onOpenChange={(open) => { if (!open) setOpenLargePaste(null); }}
+            >
+              <DialogHeader>
+                <DialogHeading>
+                  <DialogTitle>{t('input.largePasteDialogTitle')}</DialogTitle>
+                </DialogHeading>
+                <DialogClose />
+              </DialogHeader>
+              <DialogBody>
+                <Textarea
+                  className="user-message-item__large-paste-text"
+                  label={t('input.largePasteContentLabel')}
+                  value={openLargePasteText}
+                  readOnly
+                  rows={12}
+                  spellCheck={false}
+                />
+              </DialogBody>
+              <DialogFooter>
+                <Button type="button" size="sm" variant="outline" onClick={() => void handleCopyLargePaste()}>
+                  {largePasteCopied ? t('input.largePasteCopied') : t('input.largePasteCopy')}
+                </Button>
+              </DialogFooter>
             </Dialog>
           )}
         </div>

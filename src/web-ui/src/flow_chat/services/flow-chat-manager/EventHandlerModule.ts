@@ -100,6 +100,11 @@ import {
   scheduleModelResponseStatus,
 } from './RuntimeStatusModule';
 import { requestRuntimeProjectionRepair } from './PeerSessionRefreshModule';
+import {
+  isManualCompactionPending,
+  markManualCompactionPending,
+  settleManualCompaction,
+} from '../manualCompactionState';
 import { isPeerDeviceModeActive } from '@/infrastructure/peer-device/peerModeFlag';
 import {
   optimisticTurnAdoptionKey,
@@ -119,6 +124,16 @@ import { captureContentScope } from '@/shared/services/workbenchContentService';
 import { api } from '@/infrastructure/api/service-api/ApiClient';
 
 const pendingImageAnalysisTurns = new Map<string, string>();
+
+function settleManualCompactionEvent(sessionId: string, turnId?: string): void {
+  // Older hosts may ignore the caller-provided id. Once a terminal event is
+  // observed for the pending session, adopt its authoritative turn id before
+  // settling so replay remains compatible across upgrades.
+  if (isManualCompactionPending(sessionId) && typeof turnId === 'string') {
+    markManualCompactionPending(sessionId, turnId);
+  }
+  settleManualCompaction(sessionId, turnId);
+}
 
 /** Apply host timing separately from model arguments and tolerate event batching. */
 export function handleUserQuestionWaiting(context: FlowChatContext, event: {
@@ -272,6 +287,7 @@ export const __test_only__ = {
   handleModelRoundStart,
   handleModelRoundComplete,
   handleTokenUsageUpdate,
+  handleCompressionStarted,
   handleCompressionCompleted,
   handleDialogTurnInterrupted,
   handleDialogTurnRecovered,
@@ -2086,7 +2102,7 @@ function handleDialogTurnStarted(context: FlowChatContext, event: any): void {
       const hadDeferredOldSave = context.deferredStorageIdentitySaves?.delete(deferredOldKey) === true;
       const hadDeferredNewSave = context.deferredStorageIdentitySaves?.delete(deferredNewKey) === true;
       if (hadDeferredOldSave || hadDeferredNewSave) {
-        void saveDialogTurnToDisk(context, sessionId, turnId);
+        void saveDialogTurnToDisk(context, sessionId, turnId).catch(error => log.warn('Deferred turn save failed', { sessionId, turnId, error }));
       }
     }
   }
@@ -2170,7 +2186,7 @@ function handleDialogTurnStarted(context: FlowChatContext, event: any): void {
     }));
     const deferredKey = `${sessionId}:${turnId}`;
     if (context.deferredStorageIdentitySaves?.delete(deferredKey)) {
-      void saveDialogTurnToDisk(context, sessionId, turnId);
+      void saveDialogTurnToDisk(context, sessionId, turnId).catch(error => log.warn('Deferred turn save failed', { sessionId, turnId, error }));
     }
   }
   reconcileBackgroundSubagentSession(sessionId);
@@ -2685,6 +2701,10 @@ function handleCompressionStarted(_context: FlowChatContext, event: any): void {
   log.info('Context compression started', {
     sessionId, turnId, compressionId, trigger, tokensBefore, contextWindow
   });
+
+  if (trigger === 'manual' && typeof sessionId === 'string') {
+    markManualCompactionPending(sessionId, typeof turnId === 'string' ? turnId : undefined);
+  }
   
   const store = FlowChatStore.getInstance();
   const session = store.getState().sessions.get(sessionId);
@@ -2766,8 +2786,12 @@ function handleCompressionCompleted(context: FlowChatContext, event: any): void 
     || !session?.dialogTurns.some(turn => turn.id === turnId)
   ) {
     log.debug('Dropped compression completion for non-visible turn', { sessionId, turnId });
+    settleManualCompactionEvent(sessionId, turnId);
+    requestRuntimeProjectionRepair(sessionId);
     return;
   }
+
+  settleManualCompactionEvent(sessionId, turnId);
   
   store.updateModelRoundItem(sessionId, turnId, compressionId, {
     toolResult: {
@@ -2815,6 +2839,14 @@ function handleCompressionFailed(context: FlowChatContext, event: any): void {
   log.error('Context compression failed', { sessionId, turnId, compressionId, error });
   
   const store = FlowChatStore.getInstance();
+
+  settleManualCompactionEvent(sessionId, turnId);
+
+  const session = store.getState().sessions.get(sessionId);
+  if (!session || !session.dialogTurns.some(turn => turn.id === turnId)) {
+    requestRuntimeProjectionRepair(sessionId);
+    return;
+  }
   
   store.updateModelRoundItem(sessionId, turnId, compressionId, {
     toolResult: {
@@ -3000,6 +3032,7 @@ export function handleDialogTurnComplete(
     log.warn('DialogTurnCompleted missing sessionId or turnId', { event });
     return;
   }
+  settleManualCompactionEvent(sessionId, turnId);
   const store = FlowChatStore.getInstance();
   const session = store.getState().sessions.get(sessionId);
   const existingTurn = session?.dialogTurns.find(turn => turn.id === turnId);
@@ -3120,6 +3153,7 @@ function handleDialogTurnFailed(context: FlowChatContext, event: any): void {
   }
 
   log.error('Dialog turn failed', { sessionId, turnId, error, errorDetail });
+  settleManualCompactionEvent(sessionId, turnId);
   clearPendingTurnCompletion(context, sessionId, turnId);
   clearRuntimeStatus(context, sessionId, turnId);
   
@@ -3226,6 +3260,7 @@ function handleDialogTurnCancelled(
   }
 
   log.info('Dialog turn cancelled', { sessionId, turnId });
+  settleManualCompactionEvent(sessionId, turnId);
   clearPendingTurnCompletion(context, sessionId, turnId);
   clearRuntimeStatus(context, sessionId, turnId);
   
@@ -3299,6 +3334,7 @@ function handleDialogTurnInterrupted(context: FlowChatContext, event: any): void
     log.warn('DialogTurnInterrupted missing identity or generation', { event });
     return;
   }
+  settleManualCompactionEvent(sessionId, turnId);
   interruptedTurnRecoveryGate.clearInterrupted({ sessionId, turnId, executionGeneration });
   if (context.handledTerminalTurnEvents.has(`${sessionId}:${turnId}`)) {
     log.debug('Ignoring DialogTurnInterrupted after authoritative terminal settlement', {

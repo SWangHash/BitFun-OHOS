@@ -25,6 +25,11 @@ import { GenerateImageToolCard } from './GenerateImageToolCard';
 // Task remains only as a compatibility tool.
 const COMPATIBILITY_ONLY_TOOL_CARD_NAMES = new Set(Object.keys(compatibilityToolPresentationOwners));
 
+// GenUI remains in the shared tool catalog for metadata and policy lookup, but
+// its content is mounted by FlowToolCard's inline surface rather than this
+// legacy component registry.
+const INLINE_FLOWCHAT_TOOL_NAMES = new Set(['GenerativeUI']);
+
 describe('tool card registry', () => {
   it('keeps BitFun controls visible through their dedicated product card', () => {
     expect(getToolCardComponent('BitFunControl')).toBe(BitFunControlToolCard);
@@ -47,11 +52,11 @@ describe('tool card registry', () => {
   });
 
   it('keeps current lightweight dedicated-card classification aligned with the component registry', () => {
-    expect([...DEDICATED_TOOL_CARD_NAMES].sort()).toEqual(
-      Object.keys(TOOL_CARD_COMPONENTS)
+    expect([...DEDICATED_TOOL_CARD_NAMES]
+      .filter((toolName) => !INLINE_FLOWCHAT_TOOL_NAMES.has(toolName))
+      .sort()).toEqual(Object.keys(TOOL_CARD_COMPONENTS)
         .filter((toolName) => !COMPATIBILITY_ONLY_TOOL_CARD_NAMES.has(toolName))
-        .sort(),
-    );
+        .sort());
   });
 
   it.each([...genericToolNames])('keeps %s on its explicit generic-card path', (toolName) => {
@@ -127,7 +132,6 @@ describe('tool card registry', () => {
       'AskUserQuestion',
       'CreatePlan',
       'InitMiniApp',
-      'GenerativeUI',
       'ComputerUse',
       'BitFunControl',
       'CreateCanvas',
@@ -139,6 +143,7 @@ describe('tool card registry', () => {
     expect([...standardNames, ...productOwnedNames].sort()).toEqual(
       Object.keys(TOOL_CARD_COMPONENTS).sort(),
     );
+    expect(TOOL_CARD_COMPONENTS).not.toHaveProperty('GenerativeUI');
   });
 
   it.each(['Bash', 'TerminalControl', 'Git'])(

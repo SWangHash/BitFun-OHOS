@@ -16,25 +16,28 @@ import { CanvasToolbarHost, CanvasToolbarProvider } from '../components/panels/c
 import AuxPane from '../scenes/session/AuxPane';
 import { useWorkbenchPaneLayout } from './workbenchPaneLayoutStore';
 import { WorkbenchResizeContext } from './workbenchResize';
+import { useWindowResizeLayout } from '../layout/windowResizeScheduler';
 import { PANEL_COMMON_CONFIG, RIGHT_PANEL_CONFIG } from '../layout/panelConfig';
 import './WorkbenchLayout.scss';
 
 type WorkbenchLayoutProps = React.ComponentProps<typeof SceneTopBar> & {
   workspacePath?: string;
+  navigationResizing?: boolean;
   children: React.ReactNode;
 };
 
 /** The shell owns both content regions and their chrome, independently of scenes. */
-export default function WorkbenchLayout({ workspacePath, children, ...windowProps }: WorkbenchLayoutProps) {
+export default function WorkbenchLayout({ workspacePath, navigationResizing = false, children, ...windowProps }: WorkbenchLayoutProps) {
   const pane = useWorkbenchPaneLayout();
   const { t } = useI18n('components');
   const { t: tCommon } = useI18n('common');
   const [resizing, setResizing] = useState(false);
   const [settling, setSettling] = useState(false);
+  const windowMeasurementSuspended = useWindowResizeLayout(state => state.measurementSuspended);
   const resizeState = useMemo(() => ({
     resizing,
-    measurementSuspended: resizing || settling,
-  }), [resizing, settling]);
+    measurementSuspended: resizing || navigationResizing || settling || windowMeasurementSuspended,
+  }), [resizing, navigationResizing, settling, windowMeasurementSuspended]);
   const [offeredTab, setOfferedTab] = useState(false);
   const [dropTarget, setDropTarget] = useState<'leading' | 'trailing' | null>(null);
   const panelOpen = pane.mode !== 'chat-only';
@@ -63,7 +66,7 @@ export default function WorkbenchLayout({ workspacePath, children, ...windowProp
       frame = requestAnimationFrame(() => setSettling(false));
     });
     return () => cancelAnimationFrame(frame);
-  }, [pane.mode, pane.contentSide, pane.displayMode, pane.preferredRightPaneWidth, pane.preferredOverlayWidth]);
+  }, [pane.mode, pane.contentSide, pane.displayMode, pane.preferredRightPaneWidth, pane.preferredOverlayWidth, navigationResizing]);
   const panelLabel = tCommon(panelOpen ? 'header.collapseRightPanel' : 'header.expandRightPanel');
   const maximizeLabel = t(pane.mode === 'content-only' ? 'canvas.restorePanel' : 'canvas.maximizePanel');
   const dropOnPane = (event: React.DragEvent, location: WorkbenchPane) => {
@@ -77,7 +80,7 @@ export default function WorkbenchLayout({ workspacePath, children, ...windowProp
   const renderTabs = (location: WorkbenchPane) => <div className="bitfun-workbench-layout__pane-tabs"
     data-bitfun-scene="workbench" data-bitfun-part="paneTabs">
     {(location === 'primary' || hasSecondaryScenes) && <SceneBar pane={location} showDropHint={false} />}
-    {location === canvasPane && <div className="bitfun-workbench-layout__canvas-tabs" data-bitfun-scene="workbench" data-bitfun-part="canvasTabs" data-shortcut-scope="canvas"
+    {location === canvasPane && <div className="bitfun-workbench-layout__canvas-tabs" data-bitfun-scene="workbench" data-bitfun-part="canvasTabs" data-shortcut-scope="canvas" data-canvas-mode="agent"
       onPointerDownCapture={() => useSceneStore.getState().selectCanvas()}
       onFocusCapture={() => useSceneStore.getState().selectCanvas()}>
       <CanvasToolbarHost />

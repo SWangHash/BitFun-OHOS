@@ -22,6 +22,7 @@ use super::PeerHostKind;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum PeerHostCapability {
+    GenUiLibrariesV1,
     ModelRoutingV1,
     ModelPoolSelectionV1,
     /// Versioned, execution-host-owned background report decisions are persisted and projected.
@@ -103,6 +104,8 @@ pub enum PeerHostCapability {
     WholeSessionCopyV1,
     /// Bounded session trajectory summaries and host-side body search.
     SessionTrajectoryV1,
+    /// `search_referenceable_sessions` accepts an omitted query to browse.
+    SessionReferenceBrowseV1,
     /// `submit_user_answers` is implemented for Runtime-owned questions.
     UserQuestionResponse,
     /// First human interaction disables the unattended question timeout.
@@ -119,6 +122,7 @@ pub enum PeerHostCapability {
 impl PeerHostCapability {
     /// Every capability id, in wire order.
     pub const ALL: &'static [PeerHostCapability] = &[
+        Self::GenUiLibrariesV1,
         Self::ModelRoutingV1,
         Self::ModelPoolSelectionV1,
         Self::BackgroundResultDeliveryV1,
@@ -159,6 +163,7 @@ impl PeerHostCapability {
         Self::WorkspaceHtmlPreviewV1,
         Self::WholeSessionCopyV1,
         Self::SessionTrajectoryV1,
+        Self::SessionReferenceBrowseV1,
         Self::UserQuestionResponse,
         Self::UserQuestionInteractionV1,
         Self::SshNoneAuthV1,
@@ -168,6 +173,7 @@ impl PeerHostCapability {
     /// The key used in the `peer_mode_ping` `capabilities` object.
     pub const fn key(self) -> &'static str {
         match self {
+            Self::GenUiLibrariesV1 => "gen_ui_libraries_v1",
             Self::ModelRoutingV1 => "model_routing_v1",
             Self::ModelPoolSelectionV1 => "model_pool_selection_v1",
             Self::BackgroundResultDeliveryV1 => "background_result_delivery_v1",
@@ -207,6 +213,7 @@ impl PeerHostCapability {
             Self::WorkspaceIdReferencesV1 => "workspace_id_references_v1",
             Self::WorkspaceHtmlPreviewV1 => "workspace_html_preview_v1",
             Self::SessionTrajectoryV1 => "session_trajectory_v1",
+            Self::SessionReferenceBrowseV1 => "session_reference_browse_v1",
             Self::WholeSessionCopyV1 => "whole_session_copy_v1",
             Self::UserQuestionResponse => "user_question_response",
             Self::UserQuestionInteractionV1 => "user_question_interaction_v1",
@@ -224,6 +231,7 @@ impl PeerHostCapability {
 /// Desktop publishes everything except `TerminalCursorReplayV1`: it fans out
 /// `terminal_event`, and that key selects the other delivery path.
 const DESKTOP_CAPABILITIES: &[PeerHostCapability] = &[
+    PeerHostCapability::GenUiLibrariesV1,
     PeerHostCapability::ModelRoutingV1,
     PeerHostCapability::ModelPoolSelectionV1,
     PeerHostCapability::BackgroundResultDeliveryV1,
@@ -264,6 +272,7 @@ const DESKTOP_CAPABILITIES: &[PeerHostCapability] = &[
     PeerHostCapability::WorkspaceHtmlPreviewV1,
     PeerHostCapability::WholeSessionCopyV1,
     PeerHostCapability::SessionTrajectoryV1,
+    PeerHostCapability::SessionReferenceBrowseV1,
     PeerHostCapability::UserQuestionResponse,
     PeerHostCapability::UserQuestionInteractionV1,
     PeerHostCapability::SshNoneAuthV1,

@@ -11,7 +11,7 @@ use bitfun_runtime_ports::{
 use bitfun_services_core::credential_vault::CredentialVault;
 use bitfun_services_integrations::web_tools::{
     BitFunSearchHttpAuth, BitFunSearchHttpProvider, DeepSeekSearchProvider, ExaSearchApiProvider,
-    FreeExaMcpProvider, TavilySearchProvider,
+    FreeExaMcpProvider, KeenableSearchProvider, TavilySearchProvider,
 };
 use serde::{Deserialize, Serialize};
 use std::path::Path;
@@ -97,17 +97,26 @@ fn credential_entry_id(credential_id: &str) -> BitFunResult<&str> {
 }
 
 async fn read_credential(vault: &CredentialVault, credential_id: &str) -> BitFunResult<String> {
-    let credential_id = credential_entry_id(credential_id)?;
-    let bytes = vault
-        .get(credential_id)
-        .await
-        .map_err(|error| {
-            BitFunError::config(format!("Failed to read WebSearch credential: {error}"))
-        })?
+    read_optional_credential(vault, credential_id)
+        .await?
         .ok_or_else(|| {
             BitFunError::config("WebSearch credential is not configured on this device".to_string())
-        })?;
+        })
+}
+
+async fn read_optional_credential(
+    vault: &CredentialVault,
+    credential_id: &str,
+) -> BitFunResult<Option<String>> {
+    let credential_id = credential_entry_id(credential_id)?;
+    let Some(bytes) = vault.get(credential_id).await.map_err(|error| {
+        BitFunError::config(format!("Failed to read WebSearch credential: {error}"))
+    })?
+    else {
+        return Ok(None);
+    };
     String::from_utf8(bytes)
+        .map(Some)
         .map_err(|_| BitFunError::config("WebSearch credential is not valid UTF-8".to_string()))
 }
 
@@ -140,6 +149,14 @@ async fn resolve_provider(config: &WebSearchConfig) -> Arc<dyn WebSearchProvider
                 let secret =
                     read_credential(&vault, &config.providers.deepseek.credential_id).await?;
                 Ok(Arc::new(DeepSeekSearchProvider::new(secret)) as Arc<dyn WebSearchProvider>)
+            }
+            WebSearchProviderId::KEENABLE => {
+                // Keenable works without a key; a saved key only lifts rate limits.
+                let vault = credential_vault()?;
+                let api_key =
+                    read_optional_credential(&vault, &config.providers.keenable.credential_id)
+                        .await?;
+                Ok(Arc::new(KeenableSearchProvider::new(api_key)) as Arc<dyn WebSearchProvider>)
             }
             WebSearchProviderId::BITFUN_SEARCH_HTTP => {
                 let http = &config.providers.bitfun_search_http;
@@ -246,6 +263,7 @@ fn credential_id_for_provider<'a>(
         }
         WebSearchProviderId::TAVILY => Ok(config.providers.tavily.credential_id.as_str()),
         WebSearchProviderId::DEEPSEEK => Ok(config.providers.deepseek.credential_id.as_str()),
+        WebSearchProviderId::KEENABLE => Ok(config.providers.keenable.credential_id.as_str()),
         WebSearchProviderId::BITFUN_SEARCH_HTTP => {
             if matches!(
                 config.providers.bitfun_search_http.auth.mode.trim(),
@@ -483,6 +501,7 @@ mod tests {
         for provider in [
             WebSearchProviderId::EXA_SEARCH_API,
             WebSearchProviderId::DEEPSEEK,
+            WebSearchProviderId::KEENABLE,
         ] {
             let credential_id =
                 credential_id_for_provider(&config, provider).expect("Search API credential id");
@@ -515,6 +534,36 @@ mod tests {
                 .await
                 .expect("read cleared credential status"));
         }
+    }
+
+    #[tokio::test]
+    async fn optional_credential_is_absent_until_saved() {
+        std::fs::create_dir_all("E:/tmp").expect("E:/tmp should be available for tests");
+        let directory = Builder::new()
+            .prefix("bitfun-web-search-vault-optional-")
+            .tempdir_in("E:/tmp")
+            .expect("create WebSearch test directory");
+        let vault = credential_vault_in(directory.path());
+        let config = WebSearchConfig::default();
+        let credential_id = credential_id_for_provider(&config, WebSearchProviderId::KEENABLE)
+            .expect("Keenable credential id");
+
+        assert_eq!(
+            read_optional_credential(&vault, credential_id)
+                .await
+                .expect("read absent optional credential"),
+            None
+        );
+        store_credential(&vault, credential_id, "keenable-test-key")
+            .await
+            .expect("save credential");
+        assert_eq!(
+            read_optional_credential(&vault, credential_id)
+                .await
+                .expect("read saved optional credential")
+                .as_deref(),
+            Some("keenable-test-key")
+        );
     }
 
     #[tokio::test]

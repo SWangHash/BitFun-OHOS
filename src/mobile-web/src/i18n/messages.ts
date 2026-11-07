@@ -13,6 +13,12 @@ export const messages: Record<MobileLanguage, MessageTree> = {
     },
     backgroundDelivery: { quiet: 'Background task completed · No report needed', running: 'Background task running' },
     queue: {
+      "reorder": "Drag to reorder",
+      "moveUp": "Move up",
+      "moveDown": "Move down",
+      "orderChanged": "The queue changed. Refresh it before reordering.",
+      "reorderUnsupported": "Update the execution host to reorder queued messages.",
+
       "title": "Queued messages",
       "about": "About queued messages",
       "memoryNotice": "Accepted messages run while this page is closed. Restarting the execution device clears pending messages.",
@@ -385,6 +391,12 @@ export const messages: Record<MobileLanguage, MessageTree> = {
     },
     backgroundDelivery: { quiet: '后台任务已完成 · 无需汇报', running: '后台任务执行中' },
     queue: {
+      "reorder": "拖动排序",
+      "moveUp": "上移",
+      "moveDown": "下移",
+      "orderChanged": "队列已变化，请刷新后重新调整顺序。",
+      "reorderUnsupported": "升级执行端后可调整排队消息的顺序。",
+
       "title": "待发送",
       "about": "排队消息说明",
       "memoryNotice": "消息接受后，关闭此页面仍会执行。执行设备重启会清空待执行消息。",
@@ -757,6 +769,12 @@ export const messages: Record<MobileLanguage, MessageTree> = {
     },
     backgroundDelivery: { quiet: '背景任務已完成 · 無需回報', running: '背景任務執行中' },
     queue: {
+      "reorder": "拖曳排序",
+      "moveUp": "上移",
+      "moveDown": "下移",
+      "orderChanged": "佇列已變更，請重新整理後再調整順序。",
+      "reorderUnsupported": "升級執行端後可調整排隊訊息的順序。",
+
       "title": "待傳送",
       "about": "排隊訊息說明",
       "memoryNotice": "訊息接受後，關閉此頁面仍會執行。執行裝置重新啟動會清空待執行訊息。",

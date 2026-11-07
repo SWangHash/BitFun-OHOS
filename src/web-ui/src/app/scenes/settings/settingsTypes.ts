@@ -35,6 +35,7 @@ export type SettingsViewId =
 /** Anchors in a single settings page, not nested pages or tab panels. */
 export type SettingsSectionId =
   | 'message-sending'
+  | 'btw-close-confirmation'
   | 'text-selection'
   | 'sidebar-navigation'
   | 'pet'

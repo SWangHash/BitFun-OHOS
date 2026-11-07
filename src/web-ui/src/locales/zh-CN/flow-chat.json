@@ -88,6 +88,7 @@
     "waitingForModelResponse": "等待模型响应..."
   },
   "historyState": {
+    "emptyWindow": "这段历史中没有可显示的消息。",
     "loadingTitle": "正在加载历史会话",
     "loadingDescription": "正在准备该会话的历史内容。",
     "failedTitle": "历史会话加载失败",
@@ -145,6 +146,8 @@
       "tokenCapacity": "{{used}} / {{size}} Tokens",
       "loading": "正在加载上下文用量…",
       "loadFailed": "无法加载上下文用量，请收起后重新打开。",
+      "unsupported": "该设备暂不支持查看上下文用量。",
+      "updateRequired": "该设备上的 BitFun 版本暂不支持查看上下文用量，更新该设备上的 BitFun 后即可查看。",
       "title": "上下文构成",
       "label": "上下文",
       "utilization": "使用占比",
@@ -713,7 +716,10 @@
       "deviceDisconnected": "所选麦克风已断开连接",
       "lowVolume": "没有检测到声音，请检查所选麦克风。",
       "failed": "语音输入失败",
-      "recording": "正在录音，点击停止按钮可结束录制"
+      "recording": "正在录音，点击停止按钮可结束录制",
+      "empty": "没有识别到语音",
+      "transcribeOnly": "插入转写文本",
+      "transcribeAndSend": "转写并发送"
     },
     "nativeDropRemoteUnsupported": "无法将本地文件直接附加到远程工作区，请先通过文件面板上传。",
     "nativeDropFailed": "无法附加拖入的文件。",
@@ -841,7 +847,8 @@
         "compactRejected": "目标设备未能开始压缩，请稍后重试。",
         "sessionNotReady": "远程任务仍在准备中，请稍后再发送。",
         "submissionUnconfirmed": "暂时无法确认目标是否已接收任务。请稍后检查任务状态。"
-      }
+      },
+      "deviceIncompatible": "客户端版本不兼容，无法在此设备上运行任务"
     },
     "harness": {
       "selectorTooltip": "当前执行：{{name}}",
@@ -1003,6 +1010,7 @@
     "compactAction": "压缩会话",
     "compactNoSession": "当前没有可用于 /compact 的会话",
     "compactBusy": "请等待当前会话空闲后再使用 /compact。",
+    "compactPending": "会话压缩仍在进行中，请等待完成后再使用 /compact。",
     "compactUsage": "请直接使用 /compact，不要附加额外参数。",
     "compactFailed": "会话压缩失败",
     "goalAction": "会话目标",
@@ -1124,6 +1132,12 @@
     "currentStatus": "当前状态: {{status}}"
   },
   "contextPicker": {
+    "sessions": {
+      "label": "会话",
+      "empty": "没有可引用的会话",
+      "loadFailed": "无法加载会话，请返回后重试。",
+      "unsupportedHost": "当前主机不支持浏览会话。"
+    },
     "mcp": {
       "label": "MCP",
       "server": "MCP 服务",
@@ -1882,6 +1896,16 @@
     "generativeUI": {
       "action": "生成界面",
       "streamingPreview": "预览流式生成中",
+      "state": {
+        "starting": "准备生成界面",
+        "streaming": "界面生成中",
+        "data-pending": "等待数据填充",
+        "interactive": "可交互预览",
+        "complete": "已完成并交付",
+        "delivery-pending": "界面可用，正在后台交付",
+        "degraded": "界面可用，但交付需要处理",
+        "failed": "生成界面时遇到问题"
+      },
       "openSource": "打开源码",
       "renderFailed": "组件渲染失败。",
       "waitingForContent": "等待组件内容中...",
@@ -1897,7 +1921,51 @@
       "workspaceUnavailable": "当前会话没有可用工作区，无法保存生成式 UI 源码",
       "openSourceFailed": "打开生成式 UI 源码编辑器失败",
       "ready": "预览就绪",
-      "finished": "生成结束"
+      "finished": "生成结束",
+      "readOnly": "只读预览",
+      "hostedState": "宿主管理状态",
+      "retrySave": "重试保存",
+      "requiredField": "请填写{{label}}",
+      "recordsUnit": "条记录",
+      "selectPlaceholder": "请选择",
+      "addRecord": "添加记录",
+      "actions": "操作",
+      "deleteRecord": "删除",
+      "noRecords": "暂无记录",
+      "savedSettings": "应用设置",
+      "catalogItemsUnit": "项",
+      "search": "$t(shared:tools.search)",
+      "noMatches": "没有匹配项",
+      "planProgress": "已完成 {{completed}} / {{total}}",
+      "today": "今天",
+      "unregisteredPart": "组件不可用：{{component}}",
+      "verification": "运行验收",
+      "repair": "携带诊断修复",
+      "repairFailed": "无法提交修复请求",
+      "hostEvidence": "已将宿主渲染诊断发送给智能体",
+      "unverified": "未验证",
+      "passed": "通过",
+      "failed": "$t(shared:statuses.failed)",
+      "observed": "已观察到",
+      "restored": "已恢复",
+      "preflight": "描述校验",
+      "render": "挂载内容",
+      "interaction": "交互",
+      "persistence": "持久化",
+      "reopen": "状态恢复",
+      "saved": "已保存",
+      "verifyReload": "从保存记录重开验证",
+      "checks": "交互自检",
+      "probeReopen": "交互状态保存重开",
+      "layout": "交付布局检查",
+      "requirementCoverage": "交付需求复核",
+      "visual": "交付截图复核",
+      "preview": "预览 · 修改不会保存",
+      "steps": {
+        "pending": "未开始",
+        "current": "进行中",
+        "complete": "$t(shared:statuses.done)"
+      }
     },
     "generativeWidget": {
       "exportFileNamePrefix": "BitFun组件",
@@ -3687,6 +3755,21 @@
         "title": "整理桌面截图",
         "description": "重命名、分组并归档最近的截图。",
         "prompt": "帮我整理桌面上最近的截图。\n\n首先，扫描桌面并统计有多少截图/图片。向我展示：\n\n- 总数\n\n- 日期范围（最早到最新）\n\n然后，只关注最近 14 天内的截图。对每一张：\n\n- 识别它显示的内容\n\n- 建议一个描述性文件名\n\n- 提议它应归入哪个文件夹（或是否可以删除）\n\n将相似的截图分组。在做出任何更改之前先向我展示计划。\n\n我确认后，先只整理 10 个文件作为预览。如果超过 10 个文件，继续处理其余文件之前先与我确认。"
+      },
+      "reply_email": {
+        "title": "写一封邮件回复",
+        "description": "给出礼貌、清晰、可复制的邮件模板（含不同语气版本）。",
+        "prompt": "请帮我写一封邮件回复。\n\n对方邮件内容（可粘贴）：\n我的目标（确认/拒绝/推进/澄清）：\n语气（正式/友好/强硬但礼貌）：\n需要包含的信息点：\n\n请输出：\n1) 主题（Subject）建议\n2) 邮件正文（2 个版本：更正式/更简洁）\n3) 需要对方确认的问题列表（如有）"
+      },
+      "make_docx": {
+        "title": "写一份结构化文档",
+        "description": "把资料整理成清晰、可复用的文档。",
+        "prompt": "请帮我写一份结构化文档。\n\n文档类型（PRD/方案/复盘/报告/SOP）：\n受众：\n语气（正式/友好/简洁）：\n必须包含的信息点：\n期望长度：\n\n最终交付：\n1) 建议目录结构\n2) 完整正文内容\n3) 将 Markdown 文档保存到 artifacts/"
+      },
+      "make_spreadsheet": {
+        "title": "做一张表格",
+        "description": "设计字段与公式，让表格能自动汇总与复用。",
+        "prompt": "请帮我设计一张表格结构（字段 + 示例行），用于下面的用途：\n\n用途：\n数据来源：\n需要的统计口径/汇总方式：\n输出格式偏好（周报/仪表盘/清单）：\n\n请输出：\n1) 推荐字段列表（含字段类型与说明）\n2) 示例数据（3-5 行）\n3) 常用公式/透视表建议\n4) 数据校验与填表规范"
       }
     }
   },
@@ -3695,15 +3778,19 @@
     "showAll": "显示全部"
   },
   "pendingQueue": {
-    "title": "等待发送",
-    "label": "等待发送 {{count}}",
+    "title": "待发送",
+    "label": "待发送 {{count}}",
     "attachmentCount": "{{count}} 个图片附件",
     "attachmentCount_one": "{{count}} 个图片附件",
     "attachmentCount_other": "{{count}} 个图片附件",
     "emptyPlaceholder": "（空消息）",
     "statusSending": "正在引导…",
-    "statusFailed": "发送失败 — 请编辑 / 立即发送 / 删除以清除该项",
+    "statusQueuedSending": "发送中…",
+    "statusFailed": "发送失败",
     "actions": {
+      "more": "更多消息操作",
+      "collapse": "收起待发送列表",
+      "sendNowLabel": "立即发送",
       "edit": "编辑",
       "sendNow": "立即发送（引导）",
       "delete": "删除"
@@ -3714,7 +3801,12 @@
     "errors": {
       "composerNotEmpty": "请先发送或清空当前输入和附件，再编辑这条等待发送的消息",
       "sendNowFailed": "立即发送失败，请稍后重试"
-    }
+    },
+    "reorder": "拖动排序",
+    "moveUp": "上移",
+    "moveDown": "下移",
+    "orderChanged": "队列已变化，请刷新后重新调整顺序。",
+    "reorderUnsupported": "升级执行端后可调整排队消息的顺序。"
   },
   "steering": {
     "title": "立即引导",
@@ -3977,6 +4069,7 @@
     "cancel": "移出队列",
     "refresh": "刷新",
     "unknown": "尚未确认是否送达，请先检查再重发。",
+    "retry": "重试",
     "checkRetry": "检查 / 重试",
     "copyDraft": "复制草稿到输入框",
     "dismiss": "关闭本地提醒",

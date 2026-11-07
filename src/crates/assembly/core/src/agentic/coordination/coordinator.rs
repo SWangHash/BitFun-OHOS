@@ -15,7 +15,6 @@ use super::{
 use crate::agentic::agents::{
     get_agent_registry, is_swarm_delegate_agent_type, ExternalSubagentModelBinding,
 };
-use crate::agentic::context_profile::ContextProfilePolicy;
 use crate::agentic::core::{
     InternalReminderKind, Message, MessageContent, MessageSemanticKind, ProcessingPhase, Session,
     SessionAgentRouteOwner, SessionConfig, SessionContinuationPolicy, SessionKind,
@@ -96,7 +95,7 @@ use bitfun_agent_runtime::prompt_suggestion::{
 };
 use bitfun_agent_runtime::remote_file_delivery::{
     needs_computer_links_for_source, remote_file_delivery_reminder,
-    TOOL_CONTEXT_REMOTE_FILE_DELIVERY_KEY,
+    TOOL_CONTEXT_PEER_DEVICE_CONTROL_KEY, TOOL_CONTEXT_REMOTE_FILE_DELIVERY_KEY,
 };
 use bitfun_agent_runtime::sdk::PermissionReply;
 use bitfun_agent_runtime::user_questions::USER_INPUT_AVAILABLE_CONTEXT_KEY;
@@ -607,6 +606,23 @@ fn metadata_bool(metadata: Option<&serde_json::Value>, key: &str) -> Option<bool
     metadata
         .and_then(|metadata| metadata.get(key))
         .and_then(serde_json::Value::as_bool)
+}
+
+/// Rebuild control facts from this turn's metadata, including on recovery.
+/// Session history and host-wide controller attachments are not its origin.
+fn copy_turn_control_context(
+    context: &mut HashMap<String, String>,
+    metadata: Option<&serde_json::Value>,
+) {
+    for key in [
+        USER_INPUT_AVAILABLE_CONTEXT_KEY,
+        AUTO_APPROVE_ASK_CONTEXT_KEY,
+        TOOL_CONTEXT_PEER_DEVICE_CONTROL_KEY,
+    ] {
+        if let Some(value) = metadata_bool(metadata, key) {
+            context.insert(key.to_string(), value.to_string());
+        }
+    }
 }
 
 fn runtime_tool_restrictions_for_session_lifetime(
@@ -1448,7 +1464,6 @@ pub struct ConversationCoordinator {
     telemetry: Telemetry,
     subagent_concurrency_limiter: Arc<RwLock<Option<SubagentConcurrencyLimiter>>>,
     swarm_concurrency_limiter: Arc<RwLock<Option<SubagentConcurrencyLimiter>>>,
-    subagent_profile_concurrency_limiters: Arc<RwLock<HashMap<usize, SubagentConcurrencyLimiter>>>,
     /// Registry for dynamically adjusting subagent timeouts.
     subagent_timeout_registry: Arc<RwLock<HashMap<String, Arc<SubagentTimeoutHandle>>>>,
     /// Active subagent executions keyed by subagent session id.
@@ -2397,7 +2412,6 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             telemetry: Telemetry::noop(),
             subagent_concurrency_limiter: Arc::new(RwLock::new(None)),
             swarm_concurrency_limiter: Arc::new(RwLock::new(None)),
-            subagent_profile_concurrency_limiters: Arc::new(RwLock::new(HashMap::new())),
             subagent_timeout_registry: Arc::new(RwLock::new(HashMap::new())),
             active_subagent_executions: Arc::new(DashMap::new()),
             background_subagent_tasks: Arc::new(DashMap::new()),
@@ -3238,6 +3252,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         session: &'a Session,
         workspace_root: Option<&'a Path>,
         is_remote_workspace: bool,
+        workspace_services: Option<&'a WorkspaceServices>,
     ) -> NativeHookSessionFacts<'a> {
         NativeHookSessionFacts {
             workspace_id: session.config.workspace_id.as_deref(),
@@ -3247,6 +3262,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             is_remote_workspace,
             model: session.config.model_id.as_deref().unwrap_or_default(),
             bypass_permissions: false,
+            workspace_services,
         }
     }
 
@@ -3265,10 +3281,26 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
     /// Run SessionStart hooks. `source` follows the Codex vocabulary:
     /// `startup` | `resume` | `clear` | `compact`.
     async fn dispatch_session_start_hooks(session: &Session, source: &str) {
-        let workspace_root = session.config.workspace_path.as_ref().map(Path::new);
+        let binding = Self::build_workspace_binding(&session.config).await;
+        let workspace_root = binding.as_ref().map(|binding| binding.root_path());
         let is_remote = Self::session_hooks_are_remote(session).await;
+        let workspace_services = match Self::build_workspace_services(&binding).await {
+            Ok(services) => services,
+            Err(error) => {
+                warn!(
+                    "SessionStart project Hooks are unavailable for the workspace: {}",
+                    error
+                );
+                None
+            }
+        };
         native_hooks::dispatch_session_start(
-            Self::session_hook_facts(session, workspace_root, is_remote),
+            Self::session_hook_facts(
+                session,
+                workspace_root,
+                is_remote,
+                workspace_services.as_ref(),
+            ),
             source,
         )
         .await;
@@ -4813,14 +4845,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             .await;
 
             let mut child_context = HashMap::new();
-            for key in [
-                USER_INPUT_AVAILABLE_CONTEXT_KEY,
-                AUTO_APPROVE_ASK_CONTEXT_KEY,
-            ] {
-                if let Some(value) = metadata_bool(Some(&user_message_metadata), key) {
-                    child_context.insert(key.to_string(), value.to_string());
-                }
-            }
+            copy_turn_control_context(&mut child_context, Some(&user_message_metadata));
             // The delegated child runs under the same resolved mode as the
             // submission that triggered it, so resolve the same three layers
             // here instead of letting the child fall back to the global
@@ -6154,7 +6179,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             .get_thread_goal(session_id, storage_path.as_path())
             .await?;
 
-        let plan = maybe_build_continuation_after_turn(
+        let mut plan = maybe_build_continuation_after_turn(
             &self.thread_goal_store(),
             self.thread_goal_runtime(session_id).as_ref(),
             session_id,
@@ -6164,6 +6189,16 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             turn_completed,
         )
         .await?;
+        // An automatic continuation still belongs to the originating control
+        // surface, even after its controller disconnects.
+        if let Some(plan) = plan.as_mut() {
+            if let Some(peer) =
+                metadata_bool(user_message_metadata, TOOL_CONTEXT_PEER_DEVICE_CONTROL_KEY)
+            {
+                plan.user_message_metadata[TOOL_CONTEXT_PEER_DEVICE_CONTROL_KEY] =
+                    serde_json::json!(peer);
+            }
+        }
 
         let goal_after = self
             .thread_goal_store()
@@ -6602,6 +6637,23 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             .map(|_task| ())
     }
 
+    /// Start a manual compaction and return once the maintenance turn has been
+    /// admitted. The compaction model request and context commit continue in
+    /// the detached task; callers observe completion through the normal
+    /// DialogTurn/ContextCompression events.
+    pub async fn start_manual_compaction_detached(
+        &self,
+        session_id: String,
+        requested_turn_id: Option<String>,
+    ) -> BitFunResult<String> {
+        let task = self
+            .start_manual_compaction_task(session_id, requested_turn_id)
+            .await?;
+        let turn_id = task.turn_id.clone();
+        drop(task.completion);
+        Ok(turn_id)
+    }
+
     pub(crate) async fn prepare_input_images(
         &self,
         session_id: &str,
@@ -6969,6 +7021,10 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             }
         }
 
+        // Resolve the workspace provider before UserPromptSubmit so a remote
+        // project Hook can run on the target before the turn is admitted.
+        let workspace_services = Self::build_workspace_services(&session_workspace).await?;
+
         // UserPromptSubmit hooks run before any turn state is created, so a
         // blocking hook rejects the prompt without leaving a partial turn.
         // Their context (plus buffered SessionStart context) is prepended to
@@ -6980,6 +7036,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                     &session,
                     session.config.workspace_path.as_deref().map(Path::new),
                     Self::session_hooks_are_remote(&session).await,
+                    workspace_services.as_ref(),
                 )
             },
             &user_input,
@@ -7120,9 +7177,6 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             }
             user_message_metadata = Some(metadata);
         }
-
-        // Build WorkspaceServices based on the workspace type
-        let workspace_services = Self::build_workspace_services(&session_workspace).await?;
 
         info!(
             "Dialog turn workspace context: session_id={}, workspace_path={:?}, is_remote={}, workspace_services={}",
@@ -7684,23 +7738,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                 "true".to_string(),
             );
         }
-        if let Some(user_input_available) = metadata_bool(
-            user_message_metadata.as_ref(),
-            USER_INPUT_AVAILABLE_CONTEXT_KEY,
-        ) {
-            context_vars.insert(
-                USER_INPUT_AVAILABLE_CONTEXT_KEY.to_string(),
-                user_input_available.to_string(),
-            );
-        }
-        if let Some(auto_approve_ask) =
-            metadata_bool(user_message_metadata.as_ref(), AUTO_APPROVE_ASK_CONTEXT_KEY)
-        {
-            context_vars.insert(
-                AUTO_APPROVE_ASK_CONTEXT_KEY.to_string(),
-                auto_approve_ask.to_string(),
-            );
-        }
+        copy_turn_control_context(&mut context_vars, user_message_metadata.as_ref());
         Self::copy_output_schema_context(&mut context_vars, user_message_metadata.as_ref());
         if let Some(delivery) =
             bitfun_core_types::background_delivery::BackgroundDelivery::from_metadata(
@@ -8268,24 +8306,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                     .to_string(),
             );
         }
-        if let Some(user_input_available) = metadata_bool(
-            plan.user_message_metadata.as_ref(),
-            USER_INPUT_AVAILABLE_CONTEXT_KEY,
-        ) {
-            context_vars.insert(
-                USER_INPUT_AVAILABLE_CONTEXT_KEY.to_string(),
-                user_input_available.to_string(),
-            );
-        }
-        if let Some(auto_approve_ask) = metadata_bool(
-            plan.user_message_metadata.as_ref(),
-            AUTO_APPROVE_ASK_CONTEXT_KEY,
-        ) {
-            context_vars.insert(
-                AUTO_APPROVE_ASK_CONTEXT_KEY.to_string(),
-                auto_approve_ask.to_string(),
-            );
-        }
+        copy_turn_control_context(&mut context_vars, plan.user_message_metadata.as_ref());
         Self::copy_output_schema_context(&mut context_vars, plan.user_message_metadata.as_ref());
 
         let execution_context = ExecutionContext {
@@ -9208,10 +9229,23 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                 Self::session_hooks_are_remote(&session).await,
                 session.config.model_id.clone().unwrap_or_default(),
                 session.config.workspace_id.clone(),
+                match Self::build_workspace_services(
+                    &Self::build_workspace_binding(&session.config).await,
+                )
+                .await
+                {
+                    Ok(services) => services,
+                    Err(error) => {
+                        warn!("SessionEnd project Hooks are unavailable: {}", error);
+                        None
+                    }
+                },
             )),
             None => None,
         };
-        if let Some((is_remote_workspace, model, workspace_id)) = session_hook_facts {
+        if let Some((is_remote_workspace, model, workspace_id, workspace_services)) =
+            session_hook_facts
+        {
             native_hooks::dispatch_session_end(
                 NativeHookSessionFacts {
                     workspace_id: workspace_id.as_deref(),
@@ -9221,6 +9255,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                     is_remote_workspace,
                     model: &model,
                     bypass_permissions: false,
+                    workspace_services: workspace_services.as_ref(),
                 },
                 "other",
             )
@@ -10892,32 +10927,6 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         limiter
     }
 
-    async fn get_subagent_profile_concurrency_limiter(
-        &self,
-        max_concurrency: usize,
-    ) -> SubagentConcurrencyLimiter {
-        let max_concurrency = normalize_subagent_max_concurrency(max_concurrency);
-
-        {
-            let limiter_guard = self.subagent_profile_concurrency_limiters.read().await;
-            if let Some(limiter) = limiter_guard.get(&max_concurrency) {
-                return limiter.clone();
-            }
-        }
-
-        let mut limiter_guard = self.subagent_profile_concurrency_limiters.write().await;
-        if let Some(limiter) = limiter_guard.get(&max_concurrency) {
-            return limiter.clone();
-        }
-
-        let limiter = SubagentConcurrencyLimiter {
-            semaphore: Arc::new(Semaphore::new(max_concurrency)),
-            max_concurrency,
-        };
-        limiter_guard.insert(max_concurrency, limiter.clone());
-        limiter
-    }
-
     async fn get_swarm_concurrency_limiter(&self) -> SubagentConcurrencyLimiter {
         let configured = match GlobalConfigManager::get_service().await {
             Ok(config_service) => match config_service
@@ -11034,7 +11043,6 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
     async fn acquire_subagent_concurrency_permit(
         &self,
         agent_type: &str,
-        profile_concurrency_cap: usize,
         cancel_token: Option<&CancellationToken>,
         deadline: Option<Instant>,
     ) -> BitFunResult<(
@@ -11057,19 +11065,6 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             ));
         }
 
-        let profile_limiter = self
-            .get_subagent_profile_concurrency_limiter(profile_concurrency_cap)
-            .await;
-        let profile_permit = self
-            .acquire_permit_from_limiter(
-                &profile_limiter,
-                agent_type,
-                cancel_token,
-                deadline,
-                "profile",
-            )
-            .await?;
-
         let global_limiter = self.get_subagent_concurrency_limiter().await;
         let global_permit = self
             .acquire_permit_from_limiter(
@@ -11083,55 +11078,11 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
 
         let wait_ms = started_waiting.elapsed().as_millis();
         debug!(
-            "Acquired subagent concurrency permits: agent_type={}, wait_ms={}, profile_max_concurrency={}, global_max_concurrency={}",
-            agent_type, wait_ms, profile_limiter.max_concurrency, global_limiter.max_concurrency
+            "Acquired subagent concurrency permit: agent_type={}, wait_ms={}, max_concurrency={}",
+            agent_type, wait_ms, global_limiter.max_concurrency
         );
 
-        Ok((
-            vec![
-                (profile_permit, profile_limiter),
-                (global_permit, global_limiter),
-            ],
-            wait_ms,
-        ))
-    }
-
-    fn context_profile_policy_for_subagent(
-        &self,
-        agent_type: &str,
-        session_config: &SessionConfig,
-        subagent_parent_info: Option<&SubagentParentInfo>,
-    ) -> ContextProfilePolicy {
-        if let Some(parent_info) = subagent_parent_info {
-            if let Some(parent_session) = self.session_manager.get_session(&parent_info.session_id)
-            {
-                let parent_is_review_subagent = get_agent_registry()
-                    .get_subagent_is_review(&parent_session.agent_type)
-                    .unwrap_or(false);
-                let is_review_subagent = get_agent_registry()
-                    .get_subagent_is_review(agent_type)
-                    .unwrap_or(false);
-                return ContextProfilePolicy::for_subagent_context_and_models(
-                    agent_type,
-                    is_review_subagent,
-                    session_config.model_id.as_deref(),
-                    Some(&parent_session.agent_type),
-                    parent_is_review_subagent,
-                    parent_session.config.model_id.as_deref(),
-                );
-            }
-        }
-
-        let is_review_subagent = get_agent_registry()
-            .get_subagent_is_review(agent_type)
-            .unwrap_or(false);
-        let model_id = session_config.model_id.as_deref().unwrap_or_default();
-        ContextProfilePolicy::for_agent_context_and_model(
-            agent_type,
-            is_review_subagent,
-            model_id,
-            model_id,
-        )
+        Ok((vec![(global_permit, global_limiter)], wait_ms))
     }
 
     async fn execute_hidden_subagent_internal(
@@ -11232,18 +11183,6 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             .map(|info| info.tool_call_id.as_str())
             .unwrap_or("-");
 
-        let context_profile_policy = self.context_profile_policy_for_subagent(
-            &agent_type,
-            &session_config,
-            subagent_parent_info.as_ref(),
-        );
-        debug!(
-            "Subagent context profile policy selected: agent_type={}, profile={:?}, profile_concurrency_cap={}",
-            agent_type,
-            context_profile_policy.profile,
-            context_profile_policy.subagent_concurrency_cap
-        );
-
         // Check cancel token (before creating session)
         if let Some(token) = cancel_token {
             if token.is_cancelled() {
@@ -11263,12 +11202,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         // target hidden session may have been created by the scheduler before
         // this point so per-session queueing can use its real session_id.
         let (permits, wait_ms) = match self
-            .acquire_subagent_concurrency_permit(
-                &agent_type,
-                context_profile_policy.subagent_concurrency_cap,
-                cancel_token,
-                initial_deadline,
-            )
+            .acquire_subagent_concurrency_permit(&agent_type, cancel_token, initial_deadline)
             .await
         {
             Ok(value) => value,
@@ -11572,6 +11506,8 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         }
 
         let subagent_workspace = Self::build_workspace_binding(&session.config).await;
+        let subagent_services = Self::build_workspace_services(&subagent_workspace).await?;
+        let subagent_hook_services = subagent_services.clone();
         let subagent_workspace_path = subagent_workspace
             .as_ref()
             .map(|workspace| workspace.root_path_string());
@@ -11621,6 +11557,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
             is_remote_workspace: subagent_hook_is_remote,
             model: &subagent_hook_model,
             bypass_permissions: false,
+            workspace_services: subagent_hook_services.as_ref(),
         };
         for section in
             native_hooks::dispatch_subagent_start(subagent_hook_facts, &session_id, &agent_type)
@@ -11644,7 +11581,6 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                 session.config.model_pool_selection_revision.to_string(),
             );
         }
-        let subagent_services = Self::build_workspace_services(&subagent_workspace).await?;
         let execution_context = ExecutionContext {
             session_id: session_id.clone(),
             dialog_turn_id: dialog_turn_id.clone(),
@@ -13804,6 +13740,17 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
         let workspace_path = session.config.workspace_path.clone().map(PathBuf::from);
         let is_remote_workspace = Self::session_hooks_are_remote(&session).await;
         let model = session.config.model_id.clone().unwrap_or_default();
+        let workspace_services = match Self::build_workspace_services(
+            &Self::build_workspace_binding(&session.config).await,
+        )
+        .await
+        {
+            Ok(services) => services,
+            Err(error) => {
+                warn!("SessionEnd project Hooks are unavailable: {}", error);
+                None
+            }
+        };
         if let Some(workspace_path) = workspace_path.as_deref() {
             native_hooks::dispatch_session_end(
                 NativeHookSessionFacts {
@@ -13814,6 +13761,7 @@ Update the persona files and delete BOOTSTRAP.md as soon as bootstrap is complet
                     is_remote_workspace,
                     model: &model,
                     bypass_permissions: false,
+                    workspace_services: workspace_services.as_ref(),
                 },
                 "other",
             )
@@ -15809,6 +15757,7 @@ impl bitfun_runtime_ports::AgentSessionModelPort for ConversationCoordinator {
         Ok(bitfun_core_types::model_pool::SessionModelTarget {
             session_id: session.session_id,
             selection,
+            reasoning_preset: session.config.reasoning_preset,
             binding: session.config.model_pool_binding,
         })
     }
@@ -15817,7 +15766,6 @@ impl bitfun_runtime_ports::AgentSessionModelPort for ConversationCoordinator {
         &self,
         session_id: &str,
     ) -> bitfun_runtime_ports::PortResult<bitfun_core_types::model_pool::SessionModelTarget> {
-        use bitfun_core_types::model_pool::{ModelSelection, SessionModelTarget};
         let session = self
             .session_manager
             .get_session(session_id)
@@ -15826,18 +15774,7 @@ impl bitfun_runtime_ports::AgentSessionModelPort for ConversationCoordinator {
                     "Session not found: {session_id}"
                 )))
             })?;
-        let selection = if let Some(pool_id) = session.config.model_pool_id {
-            ModelSelection::Pool { pool_id }
-        } else {
-            ModelSelection::Model {
-                model_ref: session.config.model_id.unwrap_or_else(|| "primary".into()),
-            }
-        };
-        Ok(SessionModelTarget {
-            session_id: session.session_id,
-            selection,
-            binding: session.config.model_pool_binding,
-        })
+        Ok(crate::agentic::session::session_model_target(session))
     }
 
     async fn update_session_model(
@@ -16149,6 +16086,7 @@ impl ConversationCoordinator {
             observation_context: None,
             agent_type: session.agent_type,
             workspace,
+            model_client: None,
             primary_model_facts: PrimaryModelFacts::default(),
             context_vars: HashMap::new(),
             subagent_parent_info: None,
@@ -17502,6 +17440,41 @@ pub(crate) mod tests {
     use std::path::Path;
 
     #[test]
+    fn desktop_cards_turn_origin_survives_recovery_without_tainting_local_turns() {
+        use bitfun_agent_runtime::remote_file_delivery::TOOL_CONTEXT_PEER_DEVICE_CONTROL_KEY;
+        use std::collections::HashMap;
+
+        // A legacy/local payload has no source marker. New host-stamped
+        // metadata round-trips through persisted turns and queue entries.
+        for metadata in [
+            None,
+            Some(serde_json::json!({"surface": "flow_chat"})),
+            Some(serde_json::json!({"peer_device_control": true, "requestId": "peer-turn"})),
+            Some(serde_json::json!({"peer_device_control": false})),
+        ] {
+            let restored: Option<serde_json::Value> =
+                serde_json::from_str(&serde_json::to_string(&metadata).unwrap()).unwrap();
+            let mut original_context = HashMap::new();
+            super::copy_turn_control_context(&mut original_context, metadata.as_ref());
+            let mut recovered_context = HashMap::new();
+            super::copy_turn_control_context(&mut recovered_context, restored.as_ref());
+            assert_eq!(original_context, recovered_context);
+            let expected = metadata
+                .as_ref()
+                .and_then(|value| value.get(TOOL_CONTEXT_PEER_DEVICE_CONTROL_KEY))
+                .and_then(serde_json::Value::as_bool)
+                .map(|value| value.to_string());
+            assert_eq!(
+                recovered_context.get(TOOL_CONTEXT_PEER_DEVICE_CONTROL_KEY),
+                expected.as_ref()
+            );
+        }
+        let mut next_local_turn = HashMap::new();
+        super::copy_turn_control_context(&mut next_local_turn, None);
+        assert!(!next_local_turn.contains_key(TOOL_CONTEXT_PEER_DEVICE_CONTROL_KEY));
+    }
+
+    #[test]
     fn input_image_count_admission_ignores_stale_pool_pointers_for_fixed_models() {
         let mut config = SessionConfig {
             model_id: Some("fixed-vision".into()),
@@ -18188,6 +18161,7 @@ pub(crate) mod tests {
                     observation_context: None,
                     agent_type: "Standard".to_string(),
                     workspace: None,
+                    model_client: None,
                     primary_model_facts: Default::default(),
                     context_vars: HashMap::new(),
                     subagent_parent_info: None,
@@ -19228,6 +19202,76 @@ pub(crate) mod tests {
             btw_session_memory_mode(true, true),
             SessionMemoryMode::Enabled
         );
+    }
+
+    #[tokio::test]
+    async fn subagent_concurrency_uses_global_capacity_for_all_ordinary_agent_types() {
+        use super::SubagentConcurrencyPermitGuard;
+        use tokio::time::Instant;
+
+        let (coordinator, _) = test_coordinator();
+        let limiter = coordinator.get_subagent_concurrency_limiter().await;
+        let capacity = limiter.max_concurrency;
+        let agent_types = [
+            "Explore",
+            "Cowork",
+            "ResearchSpecialist",
+            "ReviewSecurity",
+            "Standard",
+        ];
+        let mut guards = Vec::new();
+        for index in 0..capacity {
+            let agent_type = agent_types[index % agent_types.len()];
+            let (permits, _) = coordinator
+                .acquire_subagent_concurrency_permit(
+                    agent_type,
+                    None,
+                    Some(Instant::now() + Duration::from_secs(5)),
+                )
+                .await
+                .expect("ordinary agents should share all configured global slots");
+            assert_eq!(permits.len(), 1);
+            assert!(Arc::ptr_eq(&permits[0].1.semaphore, &limiter.semaphore));
+            guards.push(SubagentConcurrencyPermitGuard::new(
+                permits,
+                agent_type.to_string(),
+            ));
+        }
+        assert_eq!(limiter.semaphore.available_permits(), 0);
+
+        let timed_out = coordinator
+            .acquire_subagent_concurrency_permit("Explore", None, Some(Instant::now()))
+            .await;
+        assert!(matches!(
+            timed_out,
+            Err(crate::util::errors::BitFunError::Timeout(_))
+        ));
+
+        let cancelled = CancellationToken::new();
+        cancelled.cancel();
+        let cancelled_wait = coordinator
+            .acquire_subagent_concurrency_permit("ResearchSpecialist", Some(&cancelled), None)
+            .await;
+        assert!(matches!(
+            cancelled_wait,
+            Err(crate::util::errors::BitFunError::Cancelled(_))
+        ));
+
+        guards.pop();
+        let (permits, _) = coordinator
+            .acquire_subagent_concurrency_permit(
+                "ResearchSpecialist",
+                None,
+                Some(Instant::now() + Duration::from_secs(5)),
+            )
+            .await
+            .expect("releasing a slot should admit a different ordinary agent type");
+        drop(SubagentConcurrencyPermitGuard::new(
+            permits,
+            "ResearchSpecialist".to_string(),
+        ));
+        drop(guards);
+        assert_eq!(limiter.semaphore.available_permits(), capacity);
     }
 
     #[tokio::test]

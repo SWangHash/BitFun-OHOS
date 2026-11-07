@@ -76,7 +76,9 @@ export const hostWindowChromeInsetBlockStart = (): number =>
  * same clearance as the CSS driven ones.
  */
 export const readHostChromeInsetBlockStart = (element: Element | null | undefined): number => {
-  if (!element || typeof window === 'undefined') return 0;
+  // Only a host that paints its own window chrome reserves the strip; every
+  // other host must not pay for a style read on each positioned overlay.
+  if (!element || typeof window === 'undefined' || !usesHostWindowControls()) return 0;
   const raw = window
     .getComputedStyle(element)
     .getPropertyValue(HOST_CHROME_INSET_BLOCK_START_VARIABLE);

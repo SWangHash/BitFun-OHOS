@@ -440,8 +440,7 @@ mod tests {
         // Run the real provider against separate fixture roots through both Session bindings.
         // These are routing/behavior tests, not evidence of a live SSH connection.
         for remote in [false, true] {
-            let root =
-                std::env::temp_dir().join(format!("bitfun-delete-{}", uuid::Uuid::new_v4()));
+            let root = std::env::temp_dir().join(format!("bitfun-delete-{}", uuid::Uuid::new_v4()));
             std::fs::create_dir_all(root.join("empty")).unwrap();
             std::fs::create_dir_all(root.join("nonempty")).unwrap();
             std::fs::write(root.join("nonempty/keep.txt"), "keep").unwrap();
@@ -473,6 +472,7 @@ mod tests {
                 dialog_turn_id: None,
                 workspace: Some(workspace),
                 loaded_deferred_tool_specs: Vec::new(),
+                model_client: None,
                 primary_model_facts: Default::default(),
                 custom_data: Default::default(),
                 computer_use_host: None,

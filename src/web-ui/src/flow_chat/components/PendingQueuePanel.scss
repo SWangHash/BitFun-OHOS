@@ -1,50 +1,10 @@
+// Geometry, rows, status tones and action layout come from ChatComposerQueue.
 .bitfun-pending-queue-panel {
-  &__item {
-    position: relative;
-
-    &--sending {
-      pointer-events: none;
-    }
-  }
-
-  &__content {
-    min-width: 0;
-  }
-
-  &__preview {
-    display: block;
-    min-width: 0;
-    overflow: hidden;
-    font-size: var(--bitfun-type-body-md-font-size);
-    line-height: var(--bitfun-type-body-sm-line-height);
-    white-space: nowrap;
-  }
-
-  &__preview-empty {
-    color: var(--bitfun-color-content-muted);
-    font-style: italic;
-  }
-
-  &__sending-label,
-  &__failed-label {
+  &__legacy-note {
+    margin: 0;
+    padding-inline: var(--bitfun-space-3);
     font-size: var(--bitfun-type-meta-font-size);
     line-height: var(--bitfun-type-body-sm-line-height);
-  }
-
-  &__sending-label {
     color: var(--bitfun-color-content-muted);
-  }
-
-  &__failed-label {
-    color: var(--bitfun-color-status-danger-content);
-    font-weight: var(--bitfun-type-label-sm-font-weight);
-  }
-
-  &__actions {
-    flex: 0 0 auto;
-  }
-
-  &__btn--danger:hover:not(:disabled) {
-    color: var(--bitfun-color-status-danger-content);
   }
 }

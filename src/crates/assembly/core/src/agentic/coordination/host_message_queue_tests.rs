@@ -39,6 +39,77 @@ async fn fixture() -> (
     (scheduler, sessions, root, snapshot.queue_epoch)
 }
 
+/// A session switched away from (local <-> remote) is no longer loaded on the
+/// execution host. Passive queue reads must keep answering from the
+/// scheduler's own receipts instead of failing every poll.
+#[tokio::test]
+async fn host_queue_reads_degrade_for_a_session_not_loaded_on_the_host() {
+    let (scheduler, sessions, _root, epoch) = fixture().await;
+    scheduler
+        .manage_host_queue(request(
+            Some(&epoch),
+            Action::Submit {
+                message: message("queued-a"),
+            },
+        ))
+        .await
+        .unwrap();
+    sessions.evict_loaded_session_for_test("host-queue-session");
+
+    let list = scheduler
+        .manage_host_queue(request(None, Action::List))
+        .await
+        .unwrap();
+    assert_eq!(list.queue_epoch, epoch, "receipts stay readable");
+    assert_eq!(list.items.len(), 1);
+    assert_eq!(list.items[0].turn_id, "queued-a");
+    assert_eq!(list.used, 1);
+
+    let receipt = scheduler
+        .manage_host_queue(request(
+            Some(&epoch),
+            Action::Get {
+                turn_id: "queued-a".into(),
+            },
+        ))
+        .await
+        .unwrap();
+    assert_eq!(
+        receipt.receipt.as_ref().map(|item| item.turn_id.as_str()),
+        Some("queued-a")
+    );
+
+    // A mutation still refuses to accept user work for an unloaded session.
+    let submit = scheduler
+        .manage_host_queue(request(
+            Some(&epoch),
+            Action::Submit {
+                message: message("queued-b"),
+            },
+        ))
+        .await
+        .unwrap_err();
+    assert_eq!(
+        submit.message,
+        "Session is not loaded on the execution host"
+    );
+    let promote = scheduler
+        .manage_host_queue(request(
+            Some(&epoch),
+            Action::Promote {
+                turn_id: "queued-a".into(),
+                operation_id: "promote-a".into(),
+                expected_active_turn_id: None,
+            },
+        ))
+        .await
+        .unwrap_err();
+    assert_eq!(
+        promote.message,
+        "Session is not loaded on the execution host"
+    );
+}
+
 #[tokio::test]
 async fn host_queue_subagent_conversation_admission_precedes_receipts_and_queue_mutation() {
     use bitfun_core_types::{SessionContinuationPolicy, SessionKind};
@@ -1527,4 +1598,110 @@ async fn host_queue_handoff_preserves_turn_scoped_sdk_steering() {
         Some("queued-user")
     );
     assert!(!scheduler.queues.has_items("host-queue-session"));
+}
+
+#[tokio::test]
+async fn host_queue_reorder_changes_dispatch_order_and_retries_exactly_once() {
+    let (scheduler, _sessions, _root, epoch) = fixture().await;
+    let mut snapshot = scheduler
+        .manage_host_queue(request(None, Action::List))
+        .await
+        .unwrap();
+    assert_eq!(snapshot.supports_reorder, Some(true));
+    for id in ["first", "second", "third"] {
+        snapshot = scheduler
+            .manage_host_queue(request(
+                Some(&epoch),
+                Action::Submit {
+                    message: message(id),
+                },
+            ))
+            .await
+            .unwrap();
+    }
+    let reorder = Action::Reorder {
+        turn_id: "third".into(),
+        before_turn_id: Some("first".into()),
+        operation_id: "move-third".into(),
+        expected_revision: snapshot.revision,
+    };
+    let moved = scheduler
+        .manage_host_queue(request(Some(&epoch), reorder.clone()))
+        .await
+        .unwrap();
+    assert_eq!(
+        moved
+            .items
+            .iter()
+            .map(|item| item.turn_id.as_str())
+            .collect::<Vec<_>>(),
+        ["third", "first", "second"]
+    );
+    let replay = scheduler
+        .manage_host_queue(request(Some(&epoch), reorder))
+        .await
+        .unwrap();
+    assert_eq!(replay.revision, moved.revision);
+    let stale = scheduler
+        .manage_host_queue(request(
+            Some(&epoch),
+            Action::Reorder {
+                turn_id: "second".into(),
+                before_turn_id: None,
+                operation_id: "stale".into(),
+                expected_revision: snapshot.revision,
+            },
+        ))
+        .await
+        .unwrap_err();
+    assert!(stale.message.contains("queue_conflict:"));
+    for expected in ["third", "first", "second"] {
+        assert_eq!(
+            scheduler
+                .queues
+                .dequeue_next("host-queue-session")
+                .unwrap()
+                .turn_id
+                .as_deref(),
+            Some(expected)
+        );
+    }
+}
+
+#[tokio::test]
+async fn host_queue_reorder_rejects_invalid_targets_without_losing_work() {
+    let (scheduler, _sessions, _root, epoch) = fixture().await;
+    let snapshot = scheduler
+        .manage_host_queue(request(
+            Some(&epoch),
+            Action::Submit {
+                message: message("only"),
+            },
+        ))
+        .await
+        .unwrap();
+    for before in ["missing", "only"] {
+        let failure = scheduler
+            .manage_host_queue(request(
+                Some(&epoch),
+                Action::Reorder {
+                    turn_id: "only".into(),
+                    before_turn_id: Some(before.into()),
+                    operation_id: before.into(),
+                    expected_revision: snapshot.revision,
+                },
+            ))
+            .await
+            .unwrap_err();
+        assert!(failure.message.contains("queue_conflict:"));
+    }
+    assert_eq!(
+        scheduler
+            .queues
+            .dequeue_next("host-queue-session")
+            .unwrap()
+            .turn_id
+            .as_deref(),
+        Some("only")
+    );
 }

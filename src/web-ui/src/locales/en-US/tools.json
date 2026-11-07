@@ -104,7 +104,19 @@
         "sourcePreviewFallback": "This document contains syntax that is not safely editable in visual mode. Edit in source mode or switch to preview.",
         "largeFileSourceOnly": "This file is too large for the rich renderer; source mode keeps the editor responsive.",
         "linkTargetMissing": "Linked file was not found on disk."
-      }
+      },
+      "blockTypes": {
+        "math": "Equation",
+        "code": "Code block",
+        "reference": "Link reference",
+        "footnote": "Footnote"
+      },
+      "finishBlockEdit": "Done editing",
+      "editImage": "Edit image",
+      "imageAddress": "Image address",
+      "imageAltText": "Alternative text",
+      "imageTitle": "Image title",
+      "editBlockSource": "Edit block source"
     },
     "planViewer": {
       "loadingPlan": "Loading plan...",

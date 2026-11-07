@@ -5,14 +5,14 @@
  * Session tabs show only the referenced session title.
  */
 
-import React, { useCallback, useState, useEffect, useRef } from 'react';
+import React, { useCallback, useState, useEffect, useId, useMemo, useRef, useSyncExternalStore } from 'react';
 import { Pin, CircleAlert } from 'lucide-react';
 import { useSceneStore } from '../../stores/sceneStore';
 import { useContextMenuStore } from '@/shared/context-menu-system/store/ContextMenuStore';
 import { ContextType } from '@/shared/context-menu-system/types/context.types';
 import type { MenuItem } from '@/shared/context-menu-system/types/menu.types';
 
-import { Icon, TabGroup, Tooltip, type TabGroupItem } from '@bitfun/ui';
+import { Icon, OverflowText, TabGroup, Tooltip, type TabGroupItem } from '@bitfun/ui';
 import { useSceneTabNavigation } from './useSceneTabNavigation';
 import { SessionTabHistoryMenu } from './SessionTabHistoryMenu';
 import { useSceneManager } from '../../hooks/useSceneManager';
@@ -22,7 +22,8 @@ import { isSceneTabClosable } from '../../scenes/registry';
 import { useContentResourceStore } from '../../workbench/contentResourceStore';
 import { dropSessionTabOnWorkbench, isSessionTabDrag, type WorkbenchTabDropTarget } from '../../workbench/canvasTabTransfer';
 import { useAgentCanvasStore } from '../panels/content-canvas/stores';
-import { onSurfaceActivated } from '@/infrastructure/peer-device/deviceSurface';
+import { getActiveSurfaceId, isLocalSurface, onSurfaceActivated } from '@/infrastructure/peer-device/deviceSurface';
+import { resolveDeviceNameFrom, useDeviceDirectory } from '@/infrastructure/account/deviceDirectory';
 import { useI18n } from '@/infrastructure/i18n/hooks/useI18n';
 import { dropSceneTab, isSceneTabDrag, writeSceneTabDrag, endSceneTabDrag } from '../../workbench/sceneTabTransfer';
 import type { WorkbenchPane } from '../../workbench/scenePaneModel';
@@ -40,6 +41,50 @@ function getSceneIdFromTabTarget(target: EventTarget | null): SceneTabId | undef
 
 function hasSessionHistory(tab: SceneTab | undefined): boolean {
   return Boolean(tab?.session && tab.sessionHistory?.some(id => id !== tab.session!.sessionId));
+}
+
+interface TabDeviceGroup {
+  /** Position among the groups; keys the group's label element. */
+  order: number;
+  name: string;
+  /** The rendered device: its scenes, not only its sessions, sit in this group. */
+  current: boolean;
+}
+
+/**
+ * Tabs ordered so each device's tabs sit together, with the group each first
+ * tab opens. A tab without a session belongs to the rendered device. Groups
+ * keep the order their device first appears in, tabs keep theirs within it,
+ * and a window whose tabs share one device has no groups at all.
+ */
+function useTabDeviceGroups(tabs: readonly SceneTab[]): {
+  tabs: readonly SceneTab[];
+  groupStarts: ReadonlyMap<SceneTabId, TabDeviceGroup>;
+} {
+  const directory = useDeviceDirectory();
+  const activeSurfaceId = useSyncExternalStore(onSurfaceActivated, getActiveSurfaceId, getActiveSurfaceId);
+  return useMemo(() => {
+    const bySurface = new Map<string, SceneTab[]>();
+    for (const tab of tabs) {
+      const surfaceId = tab.session?.surfaceId ?? activeSurfaceId;
+      const group = bySurface.get(surfaceId);
+      if (group) group.push(tab);
+      else bySurface.set(surfaceId, [tab]);
+    }
+    const groupStarts = new Map<SceneTabId, TabDeviceGroup>();
+    if (bySurface.size < 2) return { tabs, groupStarts };
+    const ordered: SceneTab[] = [];
+    for (const [surfaceId, group] of bySurface) {
+      const deviceId = isLocalSurface(surfaceId) ? directory.localId : surfaceId;
+      groupStarts.set(group[0].id, {
+        order: groupStarts.size,
+        name: deviceId ? resolveDeviceNameFrom(directory.devices, deviceId) : surfaceId,
+        current: surfaceId === activeSurfaceId,
+      });
+      ordered.push(...group);
+    }
+    return { tabs: ordered, groupStarts };
+  }, [activeSurfaceId, directory.devices, directory.localId, tabs]);
 }
 
 interface SceneBarProps {
@@ -63,6 +108,8 @@ const SceneBar: React.FC<SceneBarProps> = ({
     closeScene,
   } = useSceneManager(pane);
   const sessionLabels = useSessionTabLabels(openTabs);
+  const { tabs: shownTabs, groupStarts } = useTabDeviceGroups(openTabs);
+  const groupLabelId = useId();
   const focusedPane = useSceneStore(state => state.focusedPane);
   const resources = useContentResourceStore(state => state.resources);
   const selectedTabId = pendingTabId ?? activeTabId;
@@ -97,8 +144,25 @@ const SceneBar: React.FC<SceneBarProps> = ({
   } = useSceneTabNavigation({
     activeTabId: selectedTabId,
     navigationMotion,
-    openTabIds: openTabs.map(tab => tab.id),
+    openTabIds: shownTabs.map(tab => tab.id),
   });
+
+  /**
+   * A hovered tab grows to reveal its close action. Near the scroll end that
+   * growth lands past the visible edge, so bring the grown tab fully in view
+   * once it has grown (or at once when the growth is not animated).
+   */
+  const revealGrownTab = useCallback((item: HTMLElement) => {
+    const scroller = tabsRef.current;
+    if (!scroller || !item.matches(':hover')) return;
+    // The visible edge is the scroller's, or the forward arrow's when it shows.
+    const arrow = scroller.parentElement?.querySelector<HTMLElement>('[data-bitfun-part="scrollNext"]:not(:disabled)');
+    const edge = Math.min(scroller.getBoundingClientRect().right, arrow?.getBoundingClientRect().left ?? Infinity);
+    const overflow = item.getBoundingClientRect().right - edge;
+    if (overflow <= 0) return;
+    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    scroller.scrollBy({ left: Math.ceil(overflow) + 2, behavior: reduced ? 'auto' : 'smooth' });
+  }, [tabsRef]);
 
   const handleTabValueChange = useCallback((value: string) => {
     closeHistory();
@@ -146,7 +210,7 @@ const SceneBar: React.FC<SceneBarProps> = ({
       const rect = item.getBoundingClientRect();
       return { tabId, placement: event.clientX < rect.left + rect.width / 2 ? 'before' : 'after' };
     }
-    const last = openTabs[openTabs.length - 1];
+    const last = shownTabs[shownTabs.length - 1];
     return last ? { tabId: last.id, placement: 'after' } : undefined;
   };
 
@@ -212,7 +276,11 @@ const SceneBar: React.FC<SceneBarProps> = ({
     });
   };
 
-  const tabItems = openTabs.reduce<TabGroupItem[]>((items, tab) => {
+    // Each tab names its device through the label that opens its group.
+  let groupLabel: string | undefined;
+  const tabItems = shownTabs.reduce<TabGroupItem[]>((items, tab) => {
+    const group = groupStarts.get(tab.id);
+    if (group) groupLabel = `${groupLabelId}-${group.order}`;
     const def = tabDefs.find(candidate => candidate.id === tab.id);
     if (!def) return items;
 
@@ -246,6 +314,7 @@ const SceneBar: React.FC<SceneBarProps> = ({
         'aria-expanded': hasSessionHistory(tab)
           ? historyOpen && history?.tabId === tab.id
           : undefined,
+        'aria-describedby': groupLabel,
       },
       // Keep the close hit target stationary between pointer down and up;
       // shrinking it can retarget the click at the button edge (issue #2210).
@@ -337,13 +406,13 @@ const SceneBar: React.FC<SceneBarProps> = ({
           renderItem={(item, node) => {
             const tabId = item.value as SceneTabId;
             const tab = openTabs.find(candidate => candidate.id === tabId);
-            // The wrapper carries no native title: the scoped path tooltip
-            // lives on the label text slot instead, so it never stacks with
-            // the close action's own tooltip (issue #400 follow-up).
-            return <div className="bitfun-scene-bar__item" draggable
+            const group = groupStarts.get(tabId);
+            const itemNode = <div className="bitfun-scene-bar__item" draggable
               data-scene-tab-id={tabId}
+              data-pending={pendingTabId === tabId || undefined}
               data-session-history-open={historyOpen && history?.tabId === tabId ? 'true' : undefined}
               data-canvas-drop-position={activeCanvasDrop?.target?.tabId === tabId ? activeCanvasDrop.target.placement : undefined}
+              onContextMenu={event => handleContextMenu(event, tabId)}
               onClick={event => {
                 const trigger = (event.target as Element).closest<HTMLElement>('[role="tab"]');
                 if (trigger) toggleHistory(tabId, trigger);
@@ -356,10 +425,29 @@ const SceneBar: React.FC<SceneBarProps> = ({
                 event.stopPropagation();
                 if (!historyOpen) toggleHistory(tabId, trigger);
               }}
-              onContextMenu={event => handleContextMenu(event, tabId)}
+              onPointerEnter={event => {
+                const item = event.currentTarget;
+                requestAnimationFrame(() => revealGrownTab(item));
+              }}
+              onTransitionEnd={event => {
+                if (event.propertyName === 'padding-inline-end') revealGrownTab(event.currentTarget);
+              }}
               onDragStart={event => { closeHistory(); writeSceneTabDrag(event.dataTransfer, tabId); if (tab?.session) beginConversationTransfer(event.dataTransfer, tab.session, tabId); }}
               onDragEnd={() => { endConversationTransfer(); endSceneTabDrag(); }}
             >{node}</div>;
+            if (!group) return itemNode;
+            // Named once, ahead of the device's tabs; the tabs carry the name
+            // to assistive tech through aria-describedby.
+            return <>
+              <span className="bitfun-scene-bar__device-group" role="presentation"
+                id={`${groupLabelId}-${group.order}`}
+                data-current={group.current || undefined}
+                data-first={group.order === 0 || undefined}
+                data-bitfun-component="scene-bar" data-bitfun-part="tabDevice">
+                <OverflowText className="bitfun-scene-bar__device-group-name">{group.name}</OverflowText>
+              </span>
+              {itemNode}
+            </>;
           }}
           size="sm"
           value={selectedTabId ?? undefined}

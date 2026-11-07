@@ -9,6 +9,6 @@ export const sceneBarAppearanceDescriptor: AppearanceSurfaceDescriptor = {
     { id: 'controls' },
     { id: 'hostControls' },
     { id: 'dropHint' },
-    { id: 'history' },
+    { id: 'tabDevice' },
   ],
 };

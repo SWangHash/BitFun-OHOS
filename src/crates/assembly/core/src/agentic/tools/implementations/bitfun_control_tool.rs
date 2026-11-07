@@ -1,15 +1,15 @@
 //! BitFunControl — discover and control user-facing BitFun features and settings.
 
 use crate::agentic::agents::get_agent_registry;
-use crate::agentic::tools::framework::{
-    PermissionIntent, Tool, ToolResult, ToolUseContext, ValidationResult,
-};
 use crate::agentic::tools::bitfun_control_config::{
     global_shared_product_control_executor, SharedProductControlExecutor,
 };
 use crate::agentic::tools::bitfun_control_host::{
-    invoke_bitfun_control, bitfun_control_host_available, BitFunControlHostRequest,
+    bitfun_control_host_available, invoke_bitfun_control, BitFunControlHostRequest,
     ProductControlAction,
+};
+use crate::agentic::tools::framework::{
+    PermissionIntent, Tool, ToolResult, ToolUseContext, ValidationResult,
 };
 #[cfg(test)]
 use crate::service::config::ConfigService;
@@ -73,9 +73,7 @@ impl BitFunControlTool {
                     bitfun_product_domains::product_control::inspect_contract(capability_id)
                         .map_err(BitFunError::tool)?;
                 let object = result.as_object_mut().ok_or_else(|| {
-                    BitFunError::tool(
-                        "Product-control inspection was not an object".to_string(),
-                    )
+                    BitFunError::tool("Product-control inspection was not an object".to_string())
                 })?;
                 object.insert(
                     "controlAvailability".to_string(),
@@ -717,9 +715,10 @@ impl Tool for BitFunControlTool {
                 discover_product_capabilities(&request).map_err(BitFunError::tool)?
             }
             ProductControlAction::Get => {
-                let capability_id = request.capability_id.as_deref().ok_or_else(|| {
-                    BitFunError::tool("capability_id is required".to_string())
-                })?;
+                let capability_id = request
+                    .capability_id
+                    .as_deref()
+                    .ok_or_else(|| BitFunError::tool("capability_id is required".to_string()))?;
                 let mut result = if bitfun_control_host_available() {
                     match invoke_bitfun_control(request.clone()).await {
                         Ok(result) => result,
@@ -827,6 +826,7 @@ mod tests {
             dialog_turn_id: None,
             workspace: None,
             loaded_deferred_tool_specs: Vec::new(),
+            model_client: None,
             primary_model_facts: tool_runtime::context::PrimaryModelFacts::default(),
             custom_data: HashMap::new(),
             computer_use_host: None,
@@ -864,10 +864,7 @@ mod tests {
             .await
             .expect("config service"),
         );
-        (
-            BitFunControlTool::with_config_service(config_service),
-            dir,
-        )
+        (BitFunControlTool::with_config_service(config_service), dir)
     }
 
     #[tokio::test]
@@ -1335,9 +1332,7 @@ mod tests {
             "capability_id": "setting.application.pet",
             "operation_id": "list-pets"
         });
-        assert!(BitFunControlTool::operation_is_readonly(
-            &read_operation
-        ));
+        assert!(BitFunControlTool::operation_is_readonly(&read_operation));
         assert!(tool
             .permission_intents(&read_operation, &context())
             .unwrap()

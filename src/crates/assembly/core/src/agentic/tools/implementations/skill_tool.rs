@@ -480,8 +480,7 @@ Use the remote project skill.
         async fn is_dir(&self, path: &str) -> anyhow::Result<bool> {
             Ok(matches!(
                 path,
-                "/remote/project/.bitfun/skills"
-                    | "/remote/project/.bitfun/skills/remote-only"
+                "/remote/project/.bitfun/skills" | "/remote/project/.bitfun/skills/remote-only"
             ))
         }
 
@@ -539,8 +538,7 @@ Use the remote project skill.
                 );
             }
             if self.imported
-                && path
-                    == "/remote/project/.bitfun/skills/remote-review/.bitfun-import.json"
+                && path == "/remote/project/.bitfun/skills/remote-review/.bitfun-import.json"
             {
                 return Ok(json!({ "schemaVersion": 1, "importId": "remote-import", "sourceKey": "project::claude::remote-review", "sourcePath": "/remote/project/.claude/skills/remote-review", "sourceId": "claude-code", "sourceLabel": "Claude Code", "sourceSlot": "claude", "fingerprint": "fixture" }).to_string());
             }
@@ -596,6 +594,7 @@ Use the remote project skill.
             dialog_turn_id: None,
             workspace: Some(WorkspaceBinding::new(None, root)),
             loaded_deferred_tool_specs: Vec::new(),
+            model_client: None,
             primary_model_facts: tool_runtime::context::PrimaryModelFacts::default(),
             custom_data: Default::default(),
             computer_use_host: None,
@@ -1125,6 +1124,7 @@ Use the remote project skill.
             dialog_turn_id: None,
             workspace: Some(workspace),
             loaded_deferred_tool_specs: Vec::new(),
+            model_client: None,
             primary_model_facts: tool_runtime::context::PrimaryModelFacts::default(),
             custom_data: Default::default(),
             computer_use_host: None,
@@ -1167,6 +1167,7 @@ Use the remote project skill.
             dialog_turn_id: None,
             workspace: Some(workspace),
             loaded_deferred_tool_specs: Vec::new(),
+            model_client: None,
             primary_model_facts: tool_runtime::context::PrimaryModelFacts::default(),
             custom_data: Default::default(),
             computer_use_host: None,
@@ -1215,6 +1216,7 @@ Use the remote project skill.
             dialog_turn_id: None,
             workspace: None,
             loaded_deferred_tool_specs: Vec::new(),
+            model_client: None,
             primary_model_facts: tool_runtime::context::PrimaryModelFacts::default(),
             custom_data: Default::default(),
             computer_use_host: None,

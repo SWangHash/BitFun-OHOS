@@ -59,6 +59,7 @@ pub enum ProductFeatureGroup {
     ComputerUse,
     ImageAnalysis,
     ImageGeneration,
+    OfficeDocuments,
     MiniApp,
     Pages,
     Creation,
@@ -76,6 +77,7 @@ impl ProductFeatureGroup {
             Self::ComputerUse => "computer-use",
             Self::ImageAnalysis => "image-analysis",
             Self::ImageGeneration => "image-generation",
+            Self::OfficeDocuments => "office-documents",
             Self::MiniApp => "miniapp",
             Self::Pages => "pages",
             Self::Creation => "creation",
@@ -101,6 +103,7 @@ impl From<ToolPackFeatureGroup> for ProductFeatureGroup {
             ToolPackFeatureGroup::ComputerUse => Self::ComputerUse,
             ToolPackFeatureGroup::ImageAnalysis => Self::ImageAnalysis,
             ToolPackFeatureGroup::ImageGeneration => Self::ImageGeneration,
+            ToolPackFeatureGroup::OfficeDocuments => Self::OfficeDocuments,
             ToolPackFeatureGroup::MiniApp => Self::MiniApp,
             ToolPackFeatureGroup::Pages => Self::Pages,
             ToolPackFeatureGroup::Creation => Self::Creation,
@@ -120,6 +123,7 @@ impl From<ProductFeatureGroup> for ToolPackFeatureGroup {
             ProductFeatureGroup::ComputerUse => Self::ComputerUse,
             ProductFeatureGroup::ImageAnalysis => Self::ImageAnalysis,
             ProductFeatureGroup::ImageGeneration => Self::ImageGeneration,
+            ProductFeatureGroup::OfficeDocuments => Self::OfficeDocuments,
             ProductFeatureGroup::MiniApp => Self::MiniApp,
             ProductFeatureGroup::Pages => Self::Pages,
             ProductFeatureGroup::Creation => Self::Creation,
@@ -1120,7 +1124,8 @@ const DEFAULT_PRODUCT_CAPABILITY_PACKS: &[ProductCapabilityPack] = &[
     MINIAPP_CAPABILITY_PACK,
     PAGES_CAPABILITY_PACK,
     CREATION_CAPABILITY_PACK,
-    // CANVAS_CAPABILITY_PACK, // canvas-runtime cannot be compiled on OHOS
+    #[cfg(not(target_env = "ohos"))]
+    CANVAS_CAPABILITY_PACK,
     VOICE_INPUT_CAPABILITY_PACK,
 ];
 const EMPTY_PRODUCT_CAPABILITY_PACKS: &[ProductCapabilityPack] = &[];

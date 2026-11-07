@@ -404,10 +404,8 @@ pub async fn get_agent_profile_configs() -> BitFunResult<HashMap<String, AgentPr
     let config_service = GlobalConfigManager::get_service().await?;
     let raw = config_service.get_config(Some("ai.agent_profiles")).await?;
     let mut migrated =
-        bitfun_config_contracts::agent_identity_migration::canonicalize_agent_profile_keys(
-            &raw,
-        )
-        .map_err(BitFunError::config)?;
+        bitfun_config_contracts::agent_identity_migration::canonicalize_agent_profile_keys(&raw)
+            .map_err(BitFunError::config)?;
     migrated.retain(|_, value| !value.is_null());
     let mut profiles: HashMap<String, AgentProfileConfig> =
         serde_json::from_value(Value::Object(migrated))?;
@@ -446,10 +444,7 @@ pub async fn get_agent_profile_view(agent_id: &str) -> BitFunResult<AgentProfile
         .ok_or_else(|| BitFunError::config(format!("Agent does not exist: {}", agent_id)))
 }
 
-pub async fn persist_agent_profile_from_value(
-    agent_id: &str,
-    config: Value,
-) -> BitFunResult<()> {
+pub async fn persist_agent_profile_from_value(agent_id: &str, config: Value) -> BitFunResult<()> {
     let agent_id = bitfun_core_types::agent_identity::canonical_agent_id(agent_id);
     let config_service = GlobalConfigManager::get_service().await?;
     let agent_defaults = get_agent_defaults().await;

@@ -53,7 +53,7 @@ use bitfun_services_integrations::remote_connect::{
     REMOTE_CAPABILITY_DEVICE_MODEL_DEFAULTS_V1, REMOTE_CAPABILITY_DIALOG_STEER_V1,
     REMOTE_CAPABILITY_HARNESS_PROFILES_V1, REMOTE_CAPABILITY_HOST_STREAM_V1,
     REMOTE_CAPABILITY_PLAN_BUILD_V1, REMOTE_CAPABILITY_SESSION_ROLLBACK_V1,
-    REMOTE_FILE_MAX_CHUNK_BYTES, REMOTE_FILE_MAX_READ_BYTES,
+    REMOTE_CAPABILITY_TURN_HISTORY_V1, REMOTE_FILE_MAX_CHUNK_BYTES, REMOTE_FILE_MAX_READ_BYTES,
 };
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -313,6 +313,173 @@ fn remote_chat_projection_owner_extracts_images_and_display_text() {
         project_remote_chat_user(None, "  keep fallback spacing  ").content,
         "  keep fallback spacing  "
     );
+}
+
+const TINY_PNG_BASE64: &str = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+
+/// A 1x1 PNG, small enough to travel within the mobile thumbnail budget.
+const TINY_PNG: &[u8] = &[
+    0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52,
+    0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x06, 0x00, 0x00, 0x00, 0x1f, 0x15, 0xc4,
+    0x89, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x44, 0x41, 0x54, 0x78, 0xda, 0x63, 0xfc, 0xcf, 0xc0, 0x50,
+    0x0f, 0x00, 0x04, 0x85, 0x01, 0x80, 0x84, 0xa9, 0x8c, 0x21, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45,
+    0x4e, 0x44, 0xae, 0x42, 0x60, 0x82,
+];
+
+#[test]
+fn remote_chat_projection_owner_recovers_pixels_behind_an_attachment_path() {
+    let metadata = serde_json::json!({
+        "original_text": "look at this",
+        "images": [
+            {
+                "name": "dropped-on-the-desktop.png",
+                "image_path": "/Users/dev/Pictures/dropped-on-the-desktop.png",
+                "mime_type": "image/png"
+            },
+            {
+                "name": "private-key",
+                "image_path": "/Users/dev/.ssh/id_ed25519",
+                "mime_type": "image/png"
+            },
+            {
+                "name": "moved-away.png",
+                "image_path": "/Users/dev/Pictures/moved-away.png",
+                "mime_type": "image/png"
+            }
+        ]
+    });
+
+    let read_pixels = |image_path: &str| match image_path {
+        "/Users/dev/Pictures/dropped-on-the-desktop.png" => Some(TINY_PNG.to_vec()),
+        // Split so the repository's secret scanner does not read this fixture
+        // as a real leaked key. There is no key material here, only the header
+        // a private key would start with.
+        "/Users/dev/.ssh/id_ed25519" => Some(
+            concat!("-----BEGIN OPENSSH ", "PRIVATE KEY-----")
+                .as_bytes()
+                .to_vec(),
+        ),
+        _ => None,
+    };
+    let projection = project_remote_chat_user(Some(&metadata), "fallback", &read_pixels);
+
+    assert_eq!(
+        projection.images,
+        vec![
+            // The pixels behind the path travel, typed from the bytes rather
+            // than from the recorded mime, so an old conversation shows its
+            // image on a client that cannot reach this filesystem.
+            ChatImageAttachment {
+                name: "dropped-on-the-desktop.png".to_string(),
+                data_url: format!("data:image/png;base64,{TINY_PNG_BASE64}"),
+            },
+            // A path aimed at something that is not an image never comes back
+            // as base64, whatever the attachment claims its type is.
+            ChatImageAttachment {
+                name: "private-key".to_string(),
+                data_url: String::new(),
+            },
+            // A path that no longer resolves still names the attachment.
+            ChatImageAttachment {
+                name: "moved-away.png".to_string(),
+                data_url: String::new(),
+            },
+        ]
+    );
+}
+
+#[test]
+fn relay_records_carry_attachment_pixels_on_the_turn_record_alone() {
+    let turn: bitfun_services_core::session::DialogTurnData = serde_json::from_value(
+        serde_json::json!({
+            "turnId": "turn-1",
+            "turnIndex": 0,
+            "sessionId": "session-1",
+            "timestamp": 1_700_000_000_u64,
+            "startTime": 1_700_000_000_u64,
+            "status": "completed",
+            "userMessage": {
+                "id": "message-user-1",
+                "content": "look at this",
+                "timestamp": 1_700_000_000_u64,
+                "metadata": {
+                    "original_text": "look at this",
+                    "images": [
+                        {"name": "dropped.png", "image_path": "/Users/dev/Pictures/dropped.png", "mime_type": "image/png"},
+                        {"name": "already-inline.png", "image_path": "/Users/dev/Pictures/dropped.png", "data_url": "data:image/png;base64,recorded"}
+                    ]
+                }
+            },
+            "modelRounds": [{
+                "id": "round-1",
+                "turnId": "turn-1",
+                "roundIndex": 0,
+                "timestamp": 1_700_000_000_u64,
+                "startTime": 1_700_000_000_u64,
+                "status": "completed",
+                "textItems": [{"id": "item-1", "roundId": "round-1", "turnId": "turn-1", "content": "on it", "timestamp": 1_700_000_000_u64, "orderIndex": 0, "status": "completed", "isStreaming": false}],
+                "thinkingItems": [],
+                "toolItems": []
+            }]
+        }),
+    )
+    .expect("turn fixture deserializes");
+
+    let read_pixels = |image_path: &str| match image_path {
+        "/Users/dev/Pictures/dropped.png" => Some(TINY_PNG.to_vec()),
+        _ => None,
+    };
+    let records =
+        bitfun_services_integrations::remote_connect::session_records::records_from_turns(
+            std::slice::from_ref(&turn),
+            &read_pixels,
+        )
+        .expect("records build");
+
+    let images_of = |record: &serde_json::Value| {
+        record["turn"]["userMessage"]["metadata"]["images"]
+            .as_array()
+            .expect("attachments survive the record")
+            .iter()
+            .map(|image| image["data_url"].as_str().unwrap_or_default().to_string())
+            .collect::<Vec<_>>()
+    };
+
+    // The turn record is what clients build the user message from, so the pixels
+    // behind a recorded path join it there and a recorded data URL is left alone.
+    let turn_record = records
+        .iter()
+        .find(|record| record["id"] == "turn/turn-1")
+        .expect("turn record is published");
+    assert_eq!(
+        turn_record["turnRecordIds"],
+        serde_json::json!(["turn/turn-1", "round/round-1", "item/item-1"])
+    );
+    assert!(records
+        .iter()
+        .skip(1)
+        .all(|record| record.get("turnRecordIds").is_none()));
+    assert_eq!(
+        images_of(turn_record),
+        vec![
+            format!("data:image/png;base64,{TINY_PNG_BASE64}"),
+            "data:image/png;base64,recorded".to_string(),
+        ]
+    );
+
+    // Round and item records repeat the turn only as a parent header. Inlining
+    // there would send the same image once per item, so they stay as recorded.
+    for record in records
+        .iter()
+        .filter(|record| record["id"] != "turn/turn-1")
+    {
+        assert_eq!(
+            images_of(record),
+            vec![String::new(), "data:image/png;base64,recorded".to_string()],
+            "header of {} should not carry recovered pixels",
+            record["id"]
+        );
+    }
 }
 
 #[test]
@@ -2108,6 +2275,7 @@ fn remote_connect_workspace_response_helpers_own_wire_shape() {
             "user_question_interaction_v1",
             "background_result_delivery_v1",
             REMOTE_CAPABILITY_HOST_STREAM_V1,
+            REMOTE_CAPABILITY_TURN_HISTORY_V1,
             REMOTE_CAPABILITY_DEVICE_MODEL_DEFAULTS_V1
         ])
     );
@@ -2282,6 +2450,7 @@ fn remote_connect_session_response_helpers_own_pagination_and_timestamps() {
             "user_question_interaction_v1",
             "background_result_delivery_v1",
             REMOTE_CAPABILITY_HOST_STREAM_V1,
+            REMOTE_CAPABILITY_TURN_HISTORY_V1,
             REMOTE_CAPABILITY_DEVICE_MODEL_DEFAULTS_V1
         ])
     );

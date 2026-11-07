@@ -17,10 +17,10 @@ import { getActiveSurfaceScope, isSurfaceChangedError, onSurfaceActivated } from
  *   deduped via `steeringId`.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ListEnd } from 'lucide-react';
-import { OverflowText, Tooltip } from '@bitfun/ui';
+import { GripVertical, ListEnd, Paperclip } from 'lucide-react';
+import { IconButton, OverflowText } from '@bitfun/ui';
 import { stateMachineManager } from '../state-machine';
 import { FlowChatStore } from '../store/FlowChatStore';
 import { pendingQueueManager } from '../services/flow-chat-manager/PendingQueueModule';
@@ -33,7 +33,10 @@ import type { QueuedMessage, SteeringImage } from '../types/flow-chat';
 import { isAcpFlowSession } from '../utils/acpSession';
 import { getQueuedMessageAttachmentCount } from '../utils/pendingQueuePresentation';
 import './PendingQueuePanel.scss';
-import { IconButton, Icon } from '@bitfun/ui';
+import { useQueueReorder } from '@bitfun/ui/flow-chat';
+import { PendingQueueMessageActions } from './PendingQueueMessageActions';
+import { usePendingQueueDisclosure } from './usePendingQueueDisclosure';
+import { Icon } from '@bitfun/ui';
 import {
   ChatComposerQueue,
   ChatComposerQueueAttachmentBadge,
@@ -41,8 +44,11 @@ import {
   ChatComposerQueueItem,
   ChatComposerQueueItemActions,
   ChatComposerQueueItemContent,
+  ChatComposerQueueItemMessage,
+  ChatComposerQueueItemStatus,
   ChatComposerQueueList,
   ChatComposerQueueTitle,
+  ChatComposerQueueToggle,
   type ChatComposerQueueItemState,
 } from '@bitfun/ui/flow-chat';
 
@@ -54,6 +60,16 @@ interface PendingQueuePanelProps {
   onRestoreToComposer: (item: QueuedMessage) => boolean;
 }
 
+function isSendingQueuedMessage(item: QueuedMessage): boolean {
+  return item.status === 'sending' || item.status === 'sending_now';
+}
+
+/** A send in progress outranks a failure from an earlier attempt. */
+function isFailedQueuedMessage(item: QueuedMessage): boolean {
+  return !isSendingQueuedMessage(item)
+    && (item.status === 'failed' || (item.retryCount ?? 0) > 0);
+}
+
 function LegacyPendingQueuePanel({
   sessionId,
   className,
@@ -61,6 +77,8 @@ function LegacyPendingQueuePanel({
 }: PendingQueuePanelProps): JSX.Element | null {
   const { t } = useTranslation('flow-chat');
   const sendNowInFlightIdsRef = useRef(new Set<string>());
+  const listId = useId();
+  const { expanded, setExpanded, toggle, toggleRef, listRef } = usePendingQueueDisclosure();
   useSyncExternalStore(
     interruptedTurnRecoveryGate.subscribe,
     interruptedTurnRecoveryGate.getSnapshot,
@@ -70,11 +88,18 @@ function LegacyPendingQueuePanel({
   const [items, setItems] = useState<QueuedMessage[]>(() =>
     sessionId ? pendingQueueManager.list(sessionId) : [],
   );
+  const reorderIds = items.map(item => item.id);
+  const reorderEnabled = !recoveryInFlight && !items.some(isSendingQueuedMessage);
+  const move = (id: string, before: string | null) => {
+    if (sessionId) pendingQueueManager.reorder(sessionId, id, before);
+  };
+  const reorder = useQueueReorder(reorderIds, reorderEnabled, sessionId ?? '', move);
   const [isAcpSession, setIsAcpSession] = useState<boolean>(() => {
     if (!sessionId) return false;
     return isAcpFlowSession(FlowChatStore.getInstance().getState().sessions.get(sessionId));
   });
   useEffect(() => {
+    setExpanded(true);
     if (!sessionId) {
       setItems([]);
       return;
@@ -84,7 +109,7 @@ function LegacyPendingQueuePanel({
       if (sid === sessionId) setItems(snapshot);
     });
     return unsubscribe;
-  }, [sessionId]);
+  }, [sessionId, setExpanded]);
 
   useEffect(() => {
     if (!sessionId) {
@@ -191,8 +216,113 @@ function LegacyPendingQueuePanel({
     return null;
   }
 
+  const renderItem = (item: QueuedMessage) => {
+    const isSendingNow = item.status === 'sending_now';
+    const isSending = isSendingQueuedMessage(item);
+    const isFailed = isFailedQueuedMessage(item);
+    const previewText = item.displayMessage ?? item.content;
+    const attachmentCount = getQueuedMessageAttachmentCount(item);
+    const itemState: ChatComposerQueueItemState = isSending
+      ? 'sending'
+      : isFailed
+        ? 'failed'
+        : 'default';
+    const itemClass = [
+      'bitfun-pending-queue-panel__item',
+      isSending && 'bitfun-pending-queue-panel__item--sending',
+      isFailed && 'bitfun-pending-queue-panel__item--failed',
+    ]
+      .filter(Boolean)
+      .join(' ');
+
+    return (
+      <ChatComposerQueueItem
+        className={itemClass}
+        data-bitfun-product-component="pending-queue-panel"
+        data-bitfun-product-part="item"
+        data-bitfun-state={itemState === 'default' ? undefined : itemState}
+        key={item.id}
+        {...reorder.rowProps(item.id)}
+        leadingControl={<IconButton variant="annotation" size="xs"
+          aria-label={t('pendingQueue.reorder')} icon={<Icon glyph={GripVertical} size="sm" />} {...reorder.handleProps(item.id)} />}
+        state={itemState}
+        leadingIcon={<Icon glyph={ListEnd} size="sm" />}
+      >
+        <ChatComposerQueueItemContent
+          data-bitfun-product-component="pending-queue-panel"
+          data-bitfun-product-part="content"
+        >
+          <ChatComposerQueueItemMessage>
+            {/* Focusable only so keyboard users can read a truncated preview;
+                it never starts editing. */}
+            <OverflowText
+              behavior="fade"
+              className="bitfun-pending-queue-panel__preview"
+              data-bitfun-product-component="pending-queue-panel"
+              data-bitfun-product-part="preview"
+              data-overflow-trigger
+              tabIndex={0}
+            >
+              {previewText || t('pendingQueue.emptyPlaceholder')}
+            </OverflowText>
+            <ChatComposerQueueAttachmentBadge
+              count={attachmentCount}
+              icon={<Icon glyph={Paperclip} size="sm" />}
+              label={t('pendingQueue.attachmentCount', { count: attachmentCount })}
+            />
+          </ChatComposerQueueItemMessage>
+          {isSending ? (
+            <ChatComposerQueueItemStatus
+              data-bitfun-product-component="pending-queue-panel"
+              data-bitfun-product-part="status"
+            >
+              {isSendingNow ? t('pendingQueue.statusSending') : t('pendingQueue.statusQueuedSending')}
+            </ChatComposerQueueItemStatus>
+          ) : isFailed ? (
+            <ChatComposerQueueItemStatus
+              data-bitfun-product-component="pending-queue-panel"
+              data-bitfun-product-part="status"
+              tone="danger"
+            >
+              {t('pendingQueue.statusFailed')}
+            </ChatComposerQueueItemStatus>
+          ) : null}
+        </ChatComposerQueueItemContent>
+
+        <ChatComposerQueueItemActions
+          data-bitfun-product-component="pending-queue-panel"
+          data-bitfun-product-part="actions"
+        >
+          <PendingQueueMessageActions
+            onMoveUp={() => move(item.id, reorderIds[reorderIds.indexOf(item.id) - 1])}
+            onMoveDown={() => move(item.id, reorderIds[reorderIds.indexOf(item.id) + 2] ?? null)}
+            moveUpDisabled={!reorderEnabled || reorderIds.indexOf(item.id) <= 0}
+            moveDownDisabled={!reorderEnabled || reorderIds.indexOf(item.id) === reorderIds.length - 1}
+            sendLabel={t('pendingQueue.actions.sendNowLabel')}
+            sendAriaLabel={t('pendingQueue.actions.sendNow')}
+            sendTooltip={t('pendingQueue.tooltip.sendNow')}
+            sendDisabled={isSending || recoveryInFlight}
+            sending={isSendingNow}
+            onSend={() => void handleSendNow(item)}
+            editLabel={t('pendingQueue.actions.edit')}
+            editDisabled={isSending}
+            onEdit={() => handleRestoreToComposer(item)}
+            removeLabel={t('pendingQueue.actions.delete')}
+            removeDisabled={isSending}
+            onRemove={() => handleDelete(item)}
+            onCollapse={expanded ? toggle : undefined}
+          />
+        </ChatComposerQueueItemActions>
+      </ChatComposerQueueItem>
+    );
+  };
+
+  // Collapsing hides the controlled list. Failed rows still need a decision,
+  // so they move to a recovery list outside the disclosure.
+  const recoveryItems = expanded ? [] : visibleItems.filter(isFailedQueuedMessage);
+
   return (
-    <ChatComposerQueue data-overflow-trigger
+    <ChatComposerQueue
       aria-label={t('pendingQueue.label', { count: visibleItems.length })}
       className={`bitfun-pending-queue-panel ${className ?? ''}`.trim()}
       data-bitfun-product-component="pending-queue-panel"
@@ -202,161 +332,42 @@ function LegacyPendingQueuePanel({
         e.stopPropagation();
       }}
     >
-      <ChatComposerQueueHeader
+      {!expanded && <ChatComposerQueueHeader
         data-bitfun-product-component="pending-queue-panel"
         data-bitfun-product-part="header"
       >
-        <Icon glyph={ListEnd} size="sm" aria-hidden="true" />
-        <ChatComposerQueueTitle
-          count={visibleItems.length}
-          data-bitfun-product-component="pending-queue-panel"
-          data-bitfun-product-part="title"
+        <ChatComposerQueueToggle
+          ref={toggleRef}
+          aria-controls={listId}
+          expanded={expanded}
+          onClick={toggle}
         >
-          {t('pendingQueue.title')}
-        </ChatComposerQueueTitle>
-      </ChatComposerQueueHeader>
+          <ChatComposerQueueTitle
+            count={visibleItems.length}
+            data-bitfun-product-component="pending-queue-panel"
+            data-bitfun-product-part="title"
+          >
+            {t('pendingQueue.title')}
+          </ChatComposerQueueTitle>
+        </ChatComposerQueueToggle>
+      </ChatComposerQueueHeader>}
       <ChatComposerQueueList
         data-bitfun-product-component="pending-queue-panel"
         data-bitfun-product-part="list"
+        ref={listRef}
+        hidden={!expanded}
+        id={listId}
       >
-        {visibleItems.map(item => {
-          const isSendingNow = item.status === 'sending_now';
-          const isSending = item.status === 'sending' || isSendingNow;
-          const isFailed = item.status === 'failed' || (item.retryCount ?? 0) > 0;
-          const previewText = item.displayMessage ?? item.content;
-          const attachmentCount = getQueuedMessageAttachmentCount(item);
-          const itemState: ChatComposerQueueItemState = isSending
-            ? 'sending'
-            : isFailed
-              ? 'failed'
-              : 'default';
-          const itemClass = [
-            'bitfun-pending-queue-panel__item',
-            isSending && 'bitfun-pending-queue-panel__item--sending',
-            isFailed && 'bitfun-pending-queue-panel__item--failed',
-          ]
-            .filter(Boolean)
-            .join(' ');
-
-          return (
-            <ChatComposerQueueItem
-              className={itemClass}
-              data-bitfun-product-component="pending-queue-panel"
-              data-bitfun-product-part="item"
-              data-bitfun-state={itemState === 'default' ? undefined : itemState}
-              key={item.id}
-              state={itemState}
-            >
-              <ChatComposerQueueItemContent
-                className="bitfun-pending-queue-panel__content"
-                data-bitfun-product-component="pending-queue-panel"
-                data-bitfun-product-part="content"
-              >
-                {isSendingNow ? (
-                  <>
-                    <div
-                      className="bitfun-pending-queue-panel__preview"
-                      data-bitfun-product-component="pending-queue-panel"
-                      data-bitfun-product-part="preview"
-                      title={previewText}
-                    ><OverflowText behavior="marquee">
-                      {previewText || (
-                        <span className="bitfun-pending-queue-panel__preview-empty">
-                          {t('pendingQueue.emptyPlaceholder')}
-                        </span>
-                      )}
-                    </OverflowText></div>
-                    <div
-                      className="bitfun-pending-queue-panel__sending-label"
-                      data-bitfun-product-component="pending-queue-panel"
-                      data-bitfun-product-part="status"
-                    >
-                      {t('pendingQueue.statusSending')}
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div
-                      className="bitfun-pending-queue-panel__preview"
-                      data-bitfun-product-component="pending-queue-panel"
-                      data-bitfun-product-part="preview"
-                      title={previewText}
-                    ><OverflowText behavior="marquee">
-                      {previewText || (
-                        <span className="bitfun-pending-queue-panel__preview-empty">
-                          {t('pendingQueue.emptyPlaceholder')}
-                        </span>
-                      )}
-                    </OverflowText></div>
-                    {isFailed && (
-                      <div
-                        className="bitfun-pending-queue-panel__failed-label"
-                        data-bitfun-product-component="pending-queue-panel"
-                        data-bitfun-product-part="status"
-                      >
-                        {t('pendingQueue.statusFailed')}
-                      </div>
-                    )}
-                  </>
-                )}
-              </ChatComposerQueueItemContent>
-
-              {attachmentCount > 0 ? (
-                <ChatComposerQueueAttachmentBadge
-                  count={attachmentCount}
-                  label={t('pendingQueue.attachmentCount', { count: attachmentCount })}
-                />
-              ) : null}
-
-              <ChatComposerQueueItemActions
-                className="bitfun-pending-queue-panel__actions"
-                data-bitfun-product-component="pending-queue-panel"
-                data-bitfun-product-part="actions"
-              >
-                <Tooltip content={t('pendingQueue.tooltip.sendNow')}>
-                  <IconButton
-                    aria-label={t('pendingQueue.actions.sendNow')}
-                    className="bitfun-pending-queue-panel__btn"
-                    data-bitfun-product-component="pending-queue-panel"
-                    data-bitfun-product-part="action"
-                    disabled={isSending || recoveryInFlight}
-                    icon={<Icon name="arrow-up" size="lg" />}
-                    loading={isSendingNow}
-                    size="xs"
-                    onClick={() => {
-                      void handleSendNow(item);
-                    }}
-                  />
-                </Tooltip>
-                <Tooltip content={t('pendingQueue.actions.delete')}>
-                  <IconButton
-                    aria-label={t('pendingQueue.actions.delete')}
-                    className="bitfun-pending-queue-panel__btn bitfun-pending-queue-panel__btn--danger"
-                    data-bitfun-product-component="pending-queue-panel"
-                    data-bitfun-product-part="action"
-                    disabled={isSending}
-                    icon={<Icon name="delete" size="lg" />}
-                    size="xs"
-                    onClick={() => handleDelete(item)}
-                  />
-                </Tooltip>
-                <Tooltip content={t('pendingQueue.actions.edit')}>
-                  <IconButton
-                    aria-label={t('pendingQueue.actions.edit')}
-                    className="bitfun-pending-queue-panel__btn"
-                    data-bitfun-product-component="pending-queue-panel"
-                    data-bitfun-product-part="action"
-                    disabled={isSending}
-                    icon={<Icon name="edit" size="lg" />}
-                    size="xs"
-                    onClick={() => handleRestoreToComposer(item)}
-                  />
-                </Tooltip>
-              </ChatComposerQueueItemActions>
-            </ChatComposerQueueItem>
-          );
-        })}
+        {expanded && visibleItems.map(renderItem)}
       </ChatComposerQueueList>
+      {recoveryItems.length > 0 && (
+        <ChatComposerQueueList
+          data-bitfun-product-component="pending-queue-panel"
+          data-bitfun-product-part="list"
+        >
+          {recoveryItems.map(renderItem)}
+        </ChatComposerQueueList>
+      )}
     </ChatComposerQueue>
   );
 }
@@ -371,7 +382,7 @@ export function PendingQueuePanel(props: PendingQueuePanelProps): JSX.Element | 
   const scope = getActiveSurfaceScope();
   const { t } = useTranslation('flow-chat');
   return <>
-    {supported && props.sessionId && pendingQueueManager.list(props.sessionId).length > 0 && <p>{t('hostQueue.legacy')}</p>}
+    {supported && props.sessionId && pendingQueueManager.list(props.sessionId).length > 0 && <p className="bitfun-pending-queue-panel__legacy-note" data-bitfun-product-component="pending-queue-panel" data-bitfun-product-part="status">{t('hostQueue.legacy')}</p>}
     {supported && props.sessionId && <HostPendingQueuePanel key={`${scope.surfaceId}:${scope.epoch}:${props.sessionId}`} queue={hostDialogQueue(props.sessionId)} onRestore={props.onRestoreToComposer} />}
     <LegacyPendingQueuePanel {...props} />
   </>;

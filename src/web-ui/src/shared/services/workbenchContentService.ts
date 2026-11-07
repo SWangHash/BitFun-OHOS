@@ -10,8 +10,22 @@ import { resolveLegacySessionWorkspace } from '@/infrastructure/api/service-api/
 import { workspaceManager } from '@/infrastructure/services/business/workspaceManager';
 import { getActiveSurfaceId, getActiveSurfaceScope } from '@/infrastructure/peer-device/deviceSurface';
 import type { PanelContent } from '@/app/components/panels/base/types';
+import { isHarmonyGenerativeWidgetContent } from '@/shared/types/panelContent';
 import type { ContentResourceScope, OpenContentOptions } from '@/shared/types/contentResource';
 import { closeAdoptedBrowserPage } from '@/app/scenes/browser/closeAdoptedBrowserPage';
+
+/** Remove resources created by the retired automatic OpenUI workbench route. */
+export function clearTransientGenerativeWidgetResources(): void {
+  const resourceStore = useContentResourceStore.getState();
+  const sceneStore = useSceneStore.getState();
+  for (const resource of Object.values(resourceStore.resources)) {
+    if (isHarmonyGenerativeWidgetContent(resource.content)) continue;
+    resourceStore.remove(resource.id);
+    if (sceneStore.openTabs.some(tab => tab.id === `content:${resource.id}`)) {
+      void sceneStore.closeScene(`content:${resource.id}`);
+    }
+  }
+}
 
 export function captureContentScope(data?: { workspaceId?: string; workspacePath?: string; remoteConnectionId?: string }): ContentResourceScope {
   const state = workspaceManager.getState();
@@ -47,6 +61,7 @@ export function captureContentScope(data?: { workspaceId?: string; workspacePath
 
 /** Content opens commit state directly, independently of any mounted view. */
 export function openWorkbenchContent(content: PanelContent, options: OpenContentOptions = {}): string {
+  if (!isHarmonyGenerativeWidgetContent(content)) return '';
   const scope = options.scope ?? captureContentScope(content.data);
   if (scope.surfaceId !== getActiveSurfaceId()) throw new Error('The resource belongs to another device surface.');
   const id = useContentResourceStore.getState().open(content, scope, options.resourceKey, options.replaceExisting, options.documentId);
@@ -58,6 +73,8 @@ export interface ContentOpenOptions extends Pick<OpenContentOptions, 'scope' | '
   isCurrent?: () => boolean;
   targetGroup?: EditorGroupId;
   splitView?: boolean;
+  /** Optional exact session owner for resources emitted by a live session. */
+  sessionId?: string;
 }
 
 /** Commit to an explicitly selected inline host; the host owns navigation and layout. */
@@ -134,23 +151,21 @@ function browserSessionResourceKey(
   return base.endsWith(suffix) ? base : `${base}${suffix}`;
 }
 
-function preferredOpenSessionTarget(
-  scope: ContentResourceScope,
-  ownerSessionId?: string,
-): SessionSceneTarget | undefined {
+function preferredOpenSessionTarget(scope: ContentResourceScope, sessionId?: string): SessionSceneTarget | undefined {
   const { sessions } = flowChatStore.getState();
   const { openTabs, activeTabId } = useSceneStore.getState();
   // Only the tab owner knows whether a session is open. FlowChat's selection and
   // cached history survive closing a tab and must never reopen it for content.
   const tabs = openTabs.filter(tab => tab.session?.surfaceId === scope.surfaceId)
     .sort((a, b) => Number(b.id === activeTabId) - Number(a.id === activeTabId) || b.lastUsed - a.lastUsed);
-  if (ownerSessionId) {
-    const owned = tabs.find(tab => tab.session?.sessionId === ownerSessionId)?.session;
+  if (sessionId) {
+    const owned = tabs.find(tab => tab.session?.sessionId === sessionId)?.session;
     const session = owned ? sessions.get(owned.sessionId) : undefined;
     return owned && session && sessionMatchesContentScope(session, scope) ? owned : undefined;
   }
   for (const tab of tabs) {
     const target = tab.session!;
+    if (sessionId && target.sessionId !== sessionId) continue;
     const session = sessions.get(target.sessionId);
     if (session && sessionMatchesContentScope(session, scope)) return target;
   }
@@ -159,11 +174,12 @@ function preferredOpenSessionTarget(
 
 /** Reuse a main view; new content prefers an already open session in its scope. */
 export function openContentInBestTarget(content: PanelContent, options: ContentOpenOptions = {}): void {
+  if (!isHarmonyGenerativeWidgetContent(content)) return;
   if (options.isCurrent && !options.isCurrent()) return;
   const scope = options.scope ?? captureContentScope(content.data);
   if (scope.surfaceId !== getActiveSurfaceId()) throw new Error('The resource belongs to another device surface.');
   const requestedOwnerSessionId = browserOwnerSessionId(content);
-  const target = preferredOpenSessionTarget(scope, requestedOwnerSessionId);
+  const target = preferredOpenSessionTarget(scope, requestedOwnerSessionId ?? options.sessionId);
   const ownerSessionId = requestedOwnerSessionId ?? (content.type === 'browser' ? target?.sessionId : undefined);
   const ownedContent = withBrowserSessionOwner(content, ownerSessionId);
   const resourceKey = browserSessionResourceKey(ownedContent, options.resourceKey, ownerSessionId);
@@ -210,6 +226,7 @@ export function openContentInBestTarget(content: PanelContent, options: ContentO
   useSceneStore.getState().activateSessionScene(target, {
     isCurrent,
     revealCanvas: true,
+    focus: options.focus,
     onActivated: () => {
       if (!isCurrent()) return;
       // Scope selection must precede the write, including before AuxPane's first

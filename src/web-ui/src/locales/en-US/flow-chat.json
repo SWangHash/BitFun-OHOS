@@ -88,6 +88,7 @@
     "waitingForModelResponse": "Waiting for model response..."
   },
   "historyState": {
+    "emptyWindow": "No visible messages in this history window.",
     "loadingTitle": "Loading saved session",
     "loadingDescription": "Preparing the conversation history.",
     "failedTitle": "Session history did not load",
@@ -145,6 +146,8 @@
       "tokenCapacity": "{{used}} / {{size}} Tokens",
       "loading": "Loading context usage…",
       "loadFailed": "Unable to load context usage. Close and reopen to try again.",
+      "unsupported": "Context usage is not available on this device.",
+      "updateRequired": "The BitFun version on this device cannot show context usage yet. Update BitFun on that device to see it.",
       "title": "Context composition",
       "label": "Context",
       "utilization": "Context usage",
@@ -713,7 +716,10 @@
       "deviceDisconnected": "The selected microphone was disconnected",
       "lowVolume": "No voice detected. Check the selected microphone.",
       "failed": "Voice input failed",
-      "recording": "Recording, click the stop button to finish"
+      "recording": "Recording, click the stop button to finish",
+      "empty": "No speech was recognized",
+      "transcribeOnly": "Insert transcription",
+      "transcribeAndSend": "Transcribe and send"
     },
     "nativeDropRemoteUnsupported": "Local files cannot be attached directly to a remote workspace. Upload them through the Files panel first.",
     "nativeDropFailed": "The dropped files could not be attached.",
@@ -841,7 +847,8 @@
         "compactRejected": "The target could not start compaction. Try again shortly.",
         "sessionNotReady": "The remote task is still being prepared. Try sending again shortly.",
         "submissionUnconfirmed": "BitFun cannot yet confirm whether the target received this task. Check the task status shortly."
-      }
+      },
+      "deviceIncompatible": "Incompatible client — this device cannot run tasks from here"
     },
     "harness": {
       "selectorTooltip": "Current execution: {{name}}",
@@ -1003,6 +1010,7 @@
     "compactAction": "Compact session",
     "compactNoSession": "No active session for /compact",
     "compactBusy": "Wait until the session is idle before using /compact.",
+    "compactPending": "Compaction is still running. Wait for it to finish before trying /compact again.",
     "compactUsage": "Use /compact without extra arguments.",
     "compactFailed": "Session compaction failed",
     "usageAction": "Session usage",
@@ -1124,6 +1132,12 @@
     "currentStatus": "Current status: {{status}}"
   },
   "contextPicker": {
+    "sessions": {
+      "label": "Sessions",
+      "empty": "No sessions available to reference",
+      "loadFailed": "Could not load sessions. Go back and try again.",
+      "unsupportedHost": "Session browsing is unavailable on this host."
+    },
     "mcp": {
       "label": "MCP",
       "server": "MCP server",
@@ -1882,6 +1896,16 @@
     "generativeUI": {
       "action": "Generate interface",
       "streamingPreview": "Streaming preview",
+      "state": {
+        "starting": "Preparing interface",
+        "streaming": "Building interface",
+        "data-pending": "Waiting for data",
+        "interactive": "Interactive preview",
+        "complete": "Completed and delivered",
+        "delivery-pending": "Usable UI; delivery is running in the background",
+        "degraded": "Usable UI; delivery needs attention",
+        "failed": "There was a problem generating the interface"
+      },
       "openSource": "Open source",
       "renderFailed": "Widget rendering failed.",
       "waitingForContent": "Waiting for widget content...",
@@ -1897,7 +1921,51 @@
       "workspaceUnavailable": "No workspace is available for this session, so the generated UI source cannot be saved",
       "openSourceFailed": "Failed to open the generated UI source editor",
       "ready": "Preview ready",
-      "finished": "Generation ended"
+      "finished": "Generation ended",
+      "readOnly": "Read-only preview",
+      "hostedState": "Host-managed state",
+      "retrySave": "Retry save",
+      "requiredField": "Enter {{label}}",
+      "recordsUnit": "records",
+      "selectPlaceholder": "Select",
+      "addRecord": "Add record",
+      "actions": "Actions",
+      "deleteRecord": "Delete",
+      "noRecords": "No records",
+      "savedSettings": "Application settings",
+      "catalogItemsUnit": "items",
+      "search": "$t(shared:tools.search)",
+      "noMatches": "No matches",
+      "planProgress": "{{completed}} / {{total}} completed",
+      "today": "Today",
+      "unregisteredPart": "Component unavailable: {{component}}",
+      "verification": "Runtime verification",
+      "repair": "Repair with diagnostics",
+      "repairFailed": "Could not submit repair request",
+      "hostEvidence": "Host rendering evidence sent to the agent",
+      "unverified": "Unverified",
+      "passed": "Passed",
+      "failed": "$t(shared:statuses.failed)",
+      "observed": "Observed",
+      "restored": "Restored",
+      "preflight": "Description",
+      "render": "Mounted content",
+      "interaction": "Interaction",
+      "persistence": "Persistence",
+      "reopen": "State restoration",
+      "saved": "Saved",
+      "verifyReload": "Verify saved state by reopening",
+      "checks": "Interaction checks",
+      "probeReopen": "Interaction state save and reopen",
+      "layout": "Delivery layout check",
+      "requirementCoverage": "Delivery requirement review",
+      "visual": "Delivery image review",
+      "preview": "Preview · changes are not saved",
+      "steps": {
+        "pending": "Pending",
+        "current": "Current",
+        "complete": "$t(shared:statuses.done)"
+      }
     },
     "generativeWidget": {
       "exportFileNamePrefix": "BitFun-Widget",
@@ -3687,6 +3755,21 @@
         "title": "Create a budget plan",
         "description": "Allocate by category + timeline with review rules.",
         "prompt": "Help me create a budget plan.\n\nContext:\n- Budget period (monthly / quarterly / project):\n- Total budget:\n- Fixed costs:\n- Variable costs:\n- Goal (save money / control spending / save for something):\n\nOutput:\n1) Suggested categories + ratios\n2) A category budget table (copy-paste friendly)\n3) Overrun rules + adjustment plan\n4) Weekly/monthly review checklist"
+      },
+      "reply_email": {
+        "title": "Reply to an email",
+        "description": "Generate a polite, clear email template (two tones).",
+        "prompt": "Help me write an email reply.\n\nOriginal email (paste here):\nMy goal (confirm / decline / push forward / clarify):\nTone (formal / friendly / firm but polite):\nKey points to include:\n\nOutput:\n1) Subject line suggestions\n2) Body (2 versions: more formal / more concise)\n3) Questions for the recipient to confirm (if any)"
+      },
+      "make_docx": {
+        "title": "Draft a document",
+        "description": "Turn source material into a structured, reusable document.",
+        "prompt": "Help me write a structured document.\n\nDocument type (PRD / proposal / meeting summary / report / SOP):\nAudience:\nTone (formal / friendly / concise):\nMust-include points:\nLength target:\n\nDeliverable:\n1) Suggested outline\n2) Full content\n3) Save the Markdown document under artifacts/"
+      },
+      "make_spreadsheet": {
+        "title": "Design a spreadsheet",
+        "description": "Define fields and formulas for reusable tracking.",
+        "prompt": "Design a spreadsheet schema (columns + example rows) for the following purpose.\n\nPurpose:\nData sources:\nMetrics / aggregation needs:\nPreferred output (weekly report / dashboard / checklist):\n\nOutput:\n1) Recommended columns (type + notes)\n2) Example data (3–5 rows)\n3) Useful formulas / pivot suggestions\n4) Data validation + filling guidelines"
       }
     }
   },
@@ -3695,15 +3778,19 @@
     "showAll": "Show all"
   },
   "pendingQueue": {
-    "title": "Wait for sending",
-    "label": "Wait for sending {{count}}",
+    "title": "Queued messages",
+    "label": "Queued messages {{count}}",
     "attachmentCount": "{{count}} image attachment(s)",
     "attachmentCount_one": "{{count}} image attachment",
     "attachmentCount_other": "{{count}} image attachments",
     "emptyPlaceholder": "(empty message)",
     "statusSending": "Steering…",
-    "statusFailed": "Send failed — edit / send now / delete to clear",
+    "statusQueuedSending": "Sending…",
+    "statusFailed": "Send failed",
     "actions": {
+      "more": "More message actions",
+      "collapse": "Collapse queue",
+      "sendNowLabel": "Send now",
       "edit": "Edit",
       "sendNow": "Send now (steer)",
       "delete": "Delete"
@@ -3714,7 +3801,12 @@
     "errors": {
       "composerNotEmpty": "Send or clear the current input and attachments before editing this queued message",
       "sendNowFailed": "Send now failed; please try again"
-    }
+    },
+    "reorder": "Drag to reorder",
+    "moveUp": "Move up",
+    "moveDown": "Move down",
+    "orderChanged": "The queue changed. Refresh it and try moving the message again.",
+    "reorderUnsupported": "Update the execution host to reorder queued messages."
   },
   "steering": {
     "title": "Steer",
@@ -3977,6 +4069,7 @@
     "cancel": "Remove from queue",
     "refresh": "Refresh",
     "unknown": "Delivery is unconfirmed. Check before sending again.",
+    "retry": "Retry",
     "checkRetry": "Check / retry",
     "copyDraft": "Copy draft to composer",
     "dismiss": "Dismiss local reminder",

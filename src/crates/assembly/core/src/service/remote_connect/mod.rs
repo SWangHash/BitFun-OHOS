@@ -64,21 +64,21 @@ pub mod session_store {
     pub use bitfun_services_integrations::remote_connect::session_store::*;
 }
 
+#[cfg(target_env = "ohos")]
+use crate::util::JS_THREADSAFE_FUNCTION;
 pub use account::{validate_relay_base_url, AccountClient, AccountSession, DelegateToken};
+use anyhow::Result;
 pub use device::DeviceIdentity;
+use embedded_relay_host::EmbeddedRelayHost;
 pub use encryption::{decrypt_from_base64, encrypt_to_base64, KeyPair};
+use log::{info, warn};
+#[cfg(target_env = "ohos")]
+use napi_ohos::threadsafe_function::ThreadsafeFunctionCallMode;
 pub use pairing::PairingState;
 pub use qr_generator::QrGenerator;
 pub use relay_client::ensure_rustls_crypto_provider;
 pub use relay_client::RelayClient;
 pub use remote_server::RemoteServer;
-#[cfg(target_env = "ohos")]
-use crate::util::JS_THREADSAFE_FUNCTION;
-#[cfg(target_env = "ohos")]
-use napi_ohos::threadsafe_function::ThreadsafeFunctionCallMode;
-use anyhow::Result;
-use embedded_relay_host::EmbeddedRelayHost;
-use log::{info, warn};
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
@@ -113,8 +113,7 @@ impl Default for RemoteConnectConfig {
     fn default() -> Self {
         Self {
             lan_port: 9700,
-            bitfun_server_url: bitfun_product_domains::account::DEFAULT_RELAY_URL
-                .to_string(),
+            bitfun_server_url: bitfun_product_domains::account::DEFAULT_RELAY_URL.to_string(),
             bot_feishu: None,
             bot_telegram: None,
             bot_weixin: None,
@@ -254,8 +253,7 @@ impl RemoteConnectService {
 
     pub async fn clear_bot_delegated_identities(&self) {
         self.set_bot_account(None).await;
-        bitfun_services_integrations::remote_connect::bot::clear_persisted_bot_account_contexts(
-        );
+        bitfun_services_integrations::remote_connect::bot::clear_persisted_bot_account_contexts();
     }
 
     /// Used to reject QR completions from a retired account without exposing credentials.
@@ -1028,7 +1026,7 @@ impl RemoteConnectService {
     pub async fn start_device_connection(
         &self,
         relay_url: &str,
-        token: &str,
+        session: &AccountSession,
         device_name: &str,
         priority: relay_client::DeviceRoutingPriority,
         notifier: Arc<dyn host_stream::HostStreamNotifier>,
@@ -1042,8 +1040,11 @@ impl RemoteConnectService {
         self.stop_device_connection_inner().await;
 
         let (client, mut event_rx) = RelayClient::new_device_host(priority);
+        let client = client.with_account_session(session);
         client.connect(relay_url).await?;
-        client.connect_authenticated(token, device_name).await?;
+        client
+            .connect_authenticated(&session.token, device_name)
+            .await?;
 
         // Wait for AuthOk (or AuthError) before proceeding so that the
         // device is registered as online on the relay before the caller
@@ -1206,6 +1207,26 @@ impl RemoteConnectService {
         encrypted_data: &str,
         nonce: &str,
     ) -> Result<bool> {
+        self.send_device_message_if_connection_guarded(
+            expected_connection_id,
+            target_device_id,
+            correlation_id,
+            encrypted_data,
+            nonce,
+            || Ok(()),
+        )
+        .await
+    }
+
+    pub async fn send_device_message_if_connection_guarded(
+        &self,
+        expected_connection_id: u64,
+        target_device_id: &str,
+        correlation_id: &str,
+        encrypted_data: &str,
+        nonce: &str,
+        before_send: impl Fn() -> Result<()>,
+    ) -> Result<bool> {
         let _lifecycle = self.device_relay_lifecycle.lock().await;
         if *self.active_device_connection_id.read().await != Some(expected_connection_id) {
             return Ok(false);
@@ -1218,7 +1239,13 @@ impl RemoteConnectService {
             .ok_or_else(|| anyhow::anyhow!("device routing not connected"))?;
         drop(_lifecycle);
         client
-            .send_device_message(target_device_id, correlation_id, encrypted_data, nonce)
+            .send_device_message_guarded(
+                target_device_id,
+                correlation_id,
+                encrypted_data,
+                nonce,
+                before_send,
+            )
             .await?;
         Ok(true)
     }
@@ -1266,13 +1293,15 @@ pub fn send_remote_dialog_status(is_open: bool) -> Result<String, String> {
     use parking_lot::Mutex;
     let args = if is_open {
         "is_open".to_owned()
-    }
-    else {
+    } else {
         String::new()
     };
     let result = Ok(args);
     let results = Arc::new(Mutex::new(String::default()));
-    match JS_THREADSAFE_FUNCTION.write().get("send_remote_dialog_status") {
+    match JS_THREADSAFE_FUNCTION
+        .write()
+        .get("send_remote_dialog_status")
+    {
         None => {
             log::error!("send_remote_dialog_status has not register");
             Err("The Arkts has not register the function".to_owned())

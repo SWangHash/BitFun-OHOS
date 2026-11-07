@@ -233,7 +233,7 @@
     --bitfun-layout-card-radius-sm: var(--bitfun-radius-base);
     --bitfun-layout-card-title-description-gap: var(--bitfun-space-1);
     --bitfun-layout-confirm-dialog-content-gap: var(--bitfun-space-4);
-    --bitfun-layout-confirm-dialog-icon-glyph-size: var(--bitfun-control-icon-size-md);
+    --bitfun-layout-confirm-dialog-icon-glyph-size: var(--bitfun-control-icon-size-lg);
     --bitfun-layout-confirm-dialog-icon-size: 32px;
     --bitfun-layout-confirm-dialog-message-gap: var(--bitfun-space-2);
     --bitfun-layout-confirm-dialog-preview-max-block-size: 240px;
@@ -693,6 +693,7 @@
     --bitfun-type-support-font-weight: var(--bitfun-font-weight-regular);
     --bitfun-type-support-letter-spacing: var(--bitfun-letter-spacing-normal);
     --bitfun-type-support-line-height: var(--bitfun-line-height-comfortable);
+    --bitfun-viewport-host-chrome-inset-block-start: 0px;
   }
 }
 
@@ -840,7 +841,7 @@
     --bitfun-color-field-background-hover: #ffffff;
     --bitfun-color-field-border: rgba(0, 0, 0, 0.08);
     --bitfun-color-field-border-active: rgba(0, 0, 0, 0.20);
-    --bitfun-color-field-border-focus: #858585;
+    --bitfun-color-field-border-focus: #101a27;
     --bitfun-color-field-border-hover: rgba(0, 0, 0, 0.20);
     --bitfun-color-field-group-background: rgba(0, 0, 0, 0.03);
     --bitfun-color-field-placeholder: rgba(0, 0, 0, 0.40);
@@ -1024,8 +1025,8 @@
     --bitfun-color-field-background: #1c1c1f;
     --bitfun-color-field-background-hover: rgba(255, 255, 255, 0.06);
     --bitfun-color-field-border: rgba(255, 255, 255, 0.18);
-    --bitfun-color-field-border-active: #858585;
-    --bitfun-color-field-border-focus: #858585;
+    --bitfun-color-field-border-active: #60a5fa;
+    --bitfun-color-field-border-focus: #60a5fa;
     --bitfun-color-field-border-hover: rgba(255, 255, 255, 0.24);
     --bitfun-color-field-group-background: #0e0e10;
     --bitfun-color-field-placeholder: #858585;

@@ -9,8 +9,6 @@ pub(crate) mod bootstrap; // Workspace persona bootstrap helpers
 #[cfg(feature = "canvas-runtime")]
 pub mod canvas; // Canvas service compatibility facade
 pub mod config; // Config management
-    #[cfg(feature = "local-model-runtime")]
-    pub mod local_model_client;
 #[cfg(feature = "agent-runtime")]
 pub(crate) mod coordination_persistence;
 #[cfg(all(feature = "agent-runtime", feature = "scheduled-jobs"))]
@@ -24,6 +22,8 @@ pub mod git; // Git service
 pub mod i18n; // I18n service
 #[cfg(feature = "agent-runtime")]
 pub(crate) mod instruction_context; // Workspace instruction file prompt helpers
+#[cfg(feature = "local-model-runtime")]
+pub mod local_model_client;
 #[cfg(feature = "mcp-runtime")]
 pub mod mcp; // MCP (Model Context Protocol) system
 #[cfg(feature = "remote-connect")]
@@ -66,6 +66,14 @@ pub mod worktree; // Managed Git worktree lifecycle and session bindings
 pub use terminal_core as terminal;
 
 // Re-export main components.
+#[cfg(feature = "diagnostics")]
+pub use bitfun_services_core::diagnostics;
+#[cfg(feature = "diff")]
+pub use bitfun_services_core::diff;
+#[cfg(feature = "process-runtime")]
+pub use bitfun_services_core::system;
+#[cfg(feature = "file-watch")]
+pub use bitfun_services_integrations::file_watch;
 #[cfg(feature = "workspace-runtime")]
 pub use bootstrap::reset_workspace_persona_files_to_default;
 #[cfg(feature = "canvas-runtime")]
@@ -96,14 +104,6 @@ pub use i18n::{get_global_i18n_service, I18nService};
 pub use i18n::{I18nConfig, LocaleId, LocaleMetadata};
 #[cfg(feature = "mcp-runtime")]
 pub use mcp::MCPService;
-#[cfg(feature = "diagnostics")]
-pub use bitfun_services_core::diagnostics;
-#[cfg(feature = "diff")]
-pub use bitfun_services_core::diff;
-#[cfg(feature = "process-runtime")]
-pub use bitfun_services_core::system;
-#[cfg(feature = "file-watch")]
-pub use bitfun_services_integrations::file_watch;
 #[cfg(feature = "review-platform")]
 pub use review_platform::{
     ReviewAuthSource, ReviewAuthState, ReviewChecks, ReviewDecision, ReviewEvidenceCompleteness,

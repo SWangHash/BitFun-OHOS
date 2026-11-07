@@ -21,8 +21,10 @@ import { useShortcut } from '@/infrastructure/hooks/useShortcut';
 import { useNavHistoryShortcuts } from '../hooks/useNavHistoryShortcuts';
 import { configManager } from '@/infrastructure/config/services/ConfigManager';
 import { FlowChatManager } from '../../flow_chat/services/FlowChatManager';
-import { getActiveSurfaceScope, onSurfaceActivated } from '@/infrastructure/peer-device/deviceSurface';
+import { getActiveSurfaceId, getActiveSurfaceScope, onSurfaceActivated } from '@/infrastructure/peer-device/deviceSurface';
+import { getDeviceOpenIntent, selectsDeviceSession } from '@/infrastructure/peer-device/deviceOpenIntent';
 import WorkspaceBody from './WorkspaceBody';
+import { WindowResizeLayout } from './WindowResizeLayout';
 import { useToolbarModeContext } from '../../flow_chat/components/toolbar-mode/ToolbarModeContext';
 import { MCPInteractionDialog } from '../components/MCPInteractionDialog/MCPInteractionDialog';
 import { FileCreationDialogHost } from '../components/FileCreationDialogHost';
@@ -30,6 +32,7 @@ import { systemAPI } from '@/infrastructure/api/service-api/SystemAPI';
 import type { CloseBehavior } from '@/infrastructure/api/service-api/SystemAPI';
 import { RetainedMountBoundary } from '@/shared/presence';
 import { confirmDialogChoice } from '@/infrastructure/confirm-dialog';
+import { notificationService } from '@/shared/notification-system';
 import {
   confirmCriticalOperationExit,
   setMainWindowCloseRequestInProgress,
@@ -45,8 +48,9 @@ import { TitleTooltipHost } from '@/app/components/TitleTooltipHost/TitleTooltip
 import { flowChatSessionConfigForWorkspace } from '../utils/projectSessionWorkspace';
 import { startSessionSceneLifecycle } from '../services/sessionSceneLifecycle';
 import { startFlowChatInitialization } from '../services/flowChatInitialization';
+import { clearTransientGenerativeWidgetResources } from '@/shared/services/workbenchContentService';
 import { openMainSession } from '@/flow_chat/services/sessionActivation';
-import { notificationService } from '@/shared/notification-system';
+import { AcpSessionNotifications } from './AcpSessionNotifications';
 import { api } from '@/infrastructure/api/service-api/ApiClient';
 import { AppearanceBackgroundMediaLayer, appearanceRuntime, useAppearance } from '@/infrastructure/appearance';
 import { PeerConnectionStatus } from '@/infrastructure/peer-device/PeerConnectionStatus';
@@ -75,14 +79,6 @@ interface AppLayoutProps {
   className?: string;
 }
 
-interface AcpSessionCreationEventDetail {
-  phase?: 'start' | 'finish';
-  clientId?: string;
-  action?: 'create' | 'restore';
-  requestId?: string;
-  succeeded?: boolean;
-}
-
 interface WindowModeHint {
   id: number;
   title: string;
@@ -91,6 +87,9 @@ interface WindowModeHint {
 
 const AppLayout: React.FC<AppLayoutProps> = ({ className = '' }) => {
   useLayoutEffect(startSessionSceneLifecycle, []);
+  useLayoutEffect(() => {
+    clearTransientGenerativeWidgetResources();
+  }, []);
   const { t } = useI18n('components');
   const { t: tCommon } = useI18n('common');
   const currentAppearance = useAppearance().current;
@@ -302,6 +301,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ className = '' }) => {
     const { currentWorkspace } = flowChatInitializationInputs.current;
     if (!currentWorkspace?.rootPath) return;
     let notified = false;
+    const explicitOpen = getDeviceOpenIntent();
     const explicitPreferredMode = sessionStorage.getItem('bitfun:flowchat:preferredMode') || undefined;
     if (explicitPreferredMode) {
       sessionStorage.removeItem('bitfun:flowchat:preferredMode');
@@ -321,6 +321,10 @@ const AppLayout: React.FC<AppLayoutProps> = ({ className = '' }) => {
         if (!isCurrent()) {
           return;
         }
+        // The explicit device action opens or creates its own session, even
+        // when this workspace's metadata page is empty.
+        if (selectsDeviceSession(explicitOpen, getActiveSurfaceId())
+          || selectsDeviceSession(getDeviceOpenIntent(), getActiveSurfaceId())) return;
         if (!hasHistoricalSessions) {
           const initialSessionMode =
             currentWorkspace.workspaceKind === WorkspaceKind.Assistant
@@ -619,35 +623,6 @@ const AppLayout: React.FC<AppLayoutProps> = ({ className = '' }) => {
     return () => window.removeEventListener('bitfun:create-acp-session', handler);
   }, [currentWorkspace]);
 
-  React.useEffect(() => {
-    const handler = (event: Event) => {
-      const detail = (event as CustomEvent<AcpSessionCreationEventDetail>).detail;
-      const clientId = detail?.clientId?.trim() || 'ACP';
-      const action = detail?.action === 'restore' ? 'restore' : 'create';
-      const id = detail?.requestId?.trim() || `${action}:${clientId}`;
-      if (detail?.phase === 'start') {
-        notificationService.silent({
-          title: clientId,
-          message: tCommon('nav.workspaces.startingAcpSession'),
-          type: 'info',
-          metadata: { source: 'acp-session', clientId, action, requestId: id, phase: 'start' },
-        });
-      } else if (detail?.phase === 'finish') {
-        const succeeded = detail.succeeded !== false;
-        notificationService.silent({
-          title: clientId,
-          message: succeeded
-            ? tCommon('nav.workspaces.acpSessionStarted')
-            : tCommon('nav.workspaces.acpSessionStartFailed'),
-          type: succeeded ? 'success' : 'error',
-          metadata: { source: 'acp-session', clientId, action, requestId: id, phase: 'finish', succeeded },
-        });
-      }
-    };
-    window.addEventListener('bitfun:acp-session-creation', handler);
-    return () => window.removeEventListener('bitfun:acp-session-creation', handler);
-  }, [tCommon]);
-
   // Global drag-and-drop
   React.useEffect(() => {
     const handleDragStart = (e: DragEvent) => {
@@ -700,6 +675,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ className = '' }) => {
     return (
       <>
         <DailyAppUpdateGate />
+        <AcpSessionNotifications />
         {aboutDialog}
         <div
           className={`${containerClassName} bitfun-app-layout--toolbar-mode`}
@@ -726,6 +702,8 @@ const AppLayout: React.FC<AppLayoutProps> = ({ className = '' }) => {
   return (
     <>
       <DailyAppUpdateGate />
+      <AcpSessionNotifications />
+      <WindowResizeLayout />
       <div
         className={containerClassName}
         data-testid="app-layout"

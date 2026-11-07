@@ -223,6 +223,27 @@
     }
   },
   "nav": {
+    "devices": {
+      "hideInSidebar": "Hide {{name}} from sidebar",
+      "showInSidebar": "Show {{name}} in sidebar",
+      "thisDevice": "This device",
+      "current": "Shown in this window",
+      "expand": "Expand {{name}}",
+      "collapse": "Collapse {{name}}",
+      "hostDesktop": "Desktop",
+      "hostCli": "CLI",
+      "platform": {
+        "mac": "Mac",
+        "windows": "Win",
+        "linux": "Linux"
+      },
+      "loadFailed": "Couldn't load this device's workspaces",
+      "sessionsLoadFailed": "Couldn't load sessions",
+      "noSessions": "No sessions yet",
+      "sessionUnavailable": "This session is no longer on that device.",
+      "sessionActionFailed": "Couldn't do that on the other device. Try again.",
+      "connecting": "Connecting to {{name}}…"
+    },
     "aria": {
       "navControl": "Navigation controls",
       "mainNav": "Main navigation"
@@ -800,7 +821,9 @@
       "revealFailed": "Failed to reveal workspace folder",
       "copyPathFailed": "Failed to copy path",
       "createSessionFailed": "Failed to create session",
-      "startingAcpSession": "Session starting",
+      "startingAcpSession": "Starting agent; the first start may need to prepare its adapter…",
+      "initializingAcpSession": "Initializing session and loading models and commands…",
+      "retryAcpSession": "Retry",
       "acpSessionStarted": "Session started",
       "acpSessionStartFailed": "Session failed to start",
       "initSessionFailed": "Failed to start AGENTS.md initialization session",
@@ -1512,7 +1535,10 @@
     "privacyStatement": "Privacy Statement",
     "userAgreement": "Privacy Agreement",
     "updateSectionTitle": "App updates",
-    "updateSectionHint": "Keep BitFun up to date for the latest fixes and features."
+    "updateSectionHint": "Keep BitFun up to date for the latest fixes and features.",
+    "githubStarTitle": "Enjoying OpenBitFun?",
+    "githubStarDescription": "Star us on GitHub to help more people discover it.",
+    "githubStarAction": "Star on GitHub"
   },
   "update": {
     "checkForUpdates": "Check for Updates",
@@ -1554,7 +1580,9 @@
       "noUpdateAvailable": "No update package is available right now. Try again later.",
       "notFound": "The update information was not found on the server. The release may still be publishing.",
       "tls": "A secure connection to the update server could not be established.",
-      "generic": "Update failed: {{detail}}"
+      "generic": "Update failed: {{detail}}",
+      "versionChanged": "The available version has changed. Check for updates and review the new version before downloading.",
+      "installMetadata": "The downloaded package is saved. Connect to the internet and retry installation."
     },
     "availableVersion": "Version {{version}} is available",
     "downloadUpdate": "Update",
@@ -1910,12 +1938,12 @@
     "panelView": "Panel View"
   },
   "sceneBar": {
-    "recentSessions": "Recently opened sessions",
     "tabsLabel": "Scene tabs",
     "scrollPrevious": "Scroll tabs left",
     "scrollNext": "Scroll tabs right",
     "closeTab": "Close {{label}}",
-    "workspaceUnavailable": "This session's workspace is not open. Reopen its workspace to switch to this session."
+    "workspaceUnavailable": "This session's workspace is not open. Reopen its workspace to switch to this session.",
+    "recentSessions": "Recently opened sessions"
   },
   "loading": {
     "app": "Starting BitFun...",
@@ -2426,7 +2454,6 @@
     "currentHostHint": "Files and commands stay on the current work host.",
     "otherHostHint": "Connect to a remote host or container over SSH. Native WSL is only available on the current Windows work host.",
     "wslHint": "Next, select a Linux distribution on the current Windows work host.",
-    "foldersLockedHint": "Remove folders to switch.",
     "connectionChoice": "Connection setup",
     "availableOptions": "Available connections and environments",
     "refreshOptions": "Refresh available options",
@@ -2461,7 +2488,8 @@
     "existingHostRequired": "Choose an existing SSH host.",
     "sshHost": "SSH host",
     "sourceUnsupported": "This host does not support this environment.",
-    "checkingWsl": "Checking WSL availability on this host…"
+    "checkingWsl": "Checking WSL availability on this host…",
+    "foldersLockedHint": "Remove folders to switch."
   },
   "computerControl": {
     "title": "Computer control",
@@ -2541,8 +2569,19 @@
     "modifiedDragUnavailable": "Dragging with modifier keys is not supported in this preview."
   },
   "newWorkspace": {
+    "localProjectTitle": "Project on this device",
+    "localProjectDescription": "Link existing folders or start a new project.",
+    "deviceProjectTitle": "Project on another device",
+    "deviceProjectDescription": "Create on another of your online devices.",
+    "createDeviceProject": "Create a project on another device",
+    "chooseDevice": "Choose a device",
+    "noOtherDevices": "No other devices are online. Sign in to the same account in BitFun on another device to choose it here.",
+    "signInForDevices": "Sign in to create projects on your other online devices.",
+    "createProjectOn": "Create a project on {{name}}",
+    "deviceCurrent": "Shown now",
+    "connecting": "Connecting…",
+    "deviceError": "Couldn't connect to this device. Try again later.",
     "title": "Create",
-    "description": "Choose what you want to create.",
     "assistantTitle": "Personal assistant",
     "assistantDescription": "An ongoing collaborator with its own memory.",
     "projectTitle": "Project",
@@ -2550,9 +2589,11 @@
     "createAssistant": "Create assistant",
     "createProject": "Create project",
     "assistantError": "Unable to create the assistant. Please try again.",
-    "back": "Back to selection"
+    "back": "Back to selection",
+    "description": "Choose what you want to create."
   },
   "peerHost": {
+    "connectionInterrupted": "The connection to the device was interrupted. Try again.",
     "unavailable": "This feature is not available on that device.",
     "updateRequired": "The BitFun version on that device does not support this feature. Try updating BitFun on that device.",
     "withDetail": "{{message}} ({{detail}})"

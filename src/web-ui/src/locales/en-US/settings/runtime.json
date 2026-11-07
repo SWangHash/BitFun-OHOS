@@ -189,6 +189,14 @@
       "generic": "Full desktop control is not available on this system."
     }
   },
+  "browserLinks": {
+    "sectionTitle": "Web links",
+    "defaultTarget": "Open links by default in",
+    "description": "Choose the browser for web links clicked in conversations. Applies only to this device; the context menu still lets you choose for each link.",
+    "builtin": "Built-in browser",
+    "external": "System default browser",
+    "browserTab": "Current browser (new tab)"
+  },
   "browserControl": {
     "sectionTitle": "Browser control",
     "sectionDescription": "Choose the browser sessions use for web actions.",
@@ -267,5 +275,25 @@
     "ptcTooltip": "PTC executes TypeScript through RunCode.",
     "ptcPython": "PTC (Python)",
     "ptcPythonTooltip": "PTC executes Python through RunCode."
+  },
+  "genui": {
+    "title": "Generative UI",
+    "description": "Choose the component library used by new Generative UI applications. Existing applications keep their saved library and revision.",
+    "collection": "Generative UI profile",
+    "loading": "Loading component settings",
+    "retry": "Retry",
+    "unknown": "This collection is unavailable. Its selection is preserved; choose an installed collection to continue.",
+    "collections": {
+      "openui": "Open Intelligent UI: streamed OpenUI Lang answers with local state and actions in FlowChat.",
+      "openbitfun": "BitFun: the current BitFun component library and desktop styling."
+    },
+    "specification": "UI specification",
+    "viewport": "Target viewport",
+    "responsiveViewport": "Responsive to available host width",
+    "componentLibraries": "Available component libraries",
+    "styleResources": "Style resources",
+    "hostShell": "Host shell",
+    "designRules": "Design rules",
+    "acceptance": "Acceptance checks"
   }
 }

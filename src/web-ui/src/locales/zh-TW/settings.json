@@ -130,6 +130,7 @@
     "sections": {
       "text-selection": "文字選取",
       "message-sending": "訊息傳送",
+      "btw-close-confirmation": "側問關閉",
       "voice": "語音",
       "shortcuts": "快捷鍵",
       "session": "工作階段預設行為",
@@ -325,7 +326,8 @@
         "focusMergedHint": "錄製一次修飾鍵 + 任意數字 1–3；數字 1–3 對應從左到右的場景。",
         "openSession": "開啟智能體會話",
         "openSettings": "開啟設置",
-        "openTerminal": "開啟終端"
+        "openTerminal": "開啟終端",
+        "openGit": "開啟 Git"
       },
       "canvas": {
         "missionControl": "全景模式",

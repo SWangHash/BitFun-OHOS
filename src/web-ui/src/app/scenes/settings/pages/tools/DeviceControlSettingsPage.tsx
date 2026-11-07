@@ -35,6 +35,7 @@ import {
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { SettingsPage } from '../shared/SettingsPage';
+import BrowserLinkSettingsSection from './BrowserLinkSettingsSection';
 const log = createLogger('DeviceControlSettingsPage');
 
 const IS_TAURI_DESKTOP = typeof window !== 'undefined' && '__TAURI__' in window;
@@ -558,6 +559,7 @@ const DeviceControlSettingsPage: React.FC = () => {
 
   return (
     <SettingsPage pageId="tools.desktop-control" className="bitfun-runtime-settings" data-bitfun-component="runtime-settings" data-bitfun-part="root" data-bitfun-view="browser-desktop-control">
+      <BrowserLinkSettingsSection />
       {loadError ? (
         <ConfigRetryState message={t('loading.failed')} retryLabel={t('loading.retry')} onRetry={() => void loadPageData()} />
       ) : isLoading ? (

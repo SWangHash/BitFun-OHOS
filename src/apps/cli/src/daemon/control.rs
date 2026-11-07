@@ -3,8 +3,8 @@
 
 use crate::{remote_control::CliRemoteControlHost, runtime::CliRuntimeContext};
 use anyhow::{anyhow, Context, Result};
-use fs2::FileExt;
 use bitfun_product_domains::remote_control::{RemoteControlRequest, REMOTE_CONTROL_CAPABILITY};
+use fs2::FileExt;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::{
@@ -277,8 +277,7 @@ pub(crate) async fn invoke(
                 runtime.account_runtime().read_account_context().await?;
                 runtime.account_routing().stop_device_routing().await;
                 let executable = std::env::current_exe()?;
-                let mut process =
-                    bitfun_services_core::process_manager::create_command(executable);
+                let mut process = bitfun_services_core::process_manager::create_command(executable);
                 process
                     .arg("daemon")
                     .arg("run")
@@ -445,7 +444,19 @@ mod tests {
             "A replacement daemon must wait for bot and account cleanup, even after discovery is withdrawn"
         );
         drop(cleanup_owner);
-        assert!(Server::reserve_in(root.path().to_path_buf()).await.is_ok());
+        // Other tests in this binary spawn processes. A child forked while the
+        // lock file is open shares its open file description until it execs,
+        // so the release can land a moment after the last lease is dropped.
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        loop {
+            match Server::reserve_in(root.path().to_path_buf()).await {
+                Ok(_) => break,
+                Err(error) if std::time::Instant::now() >= deadline => {
+                    panic!("The owner lock must be free once every lease is dropped: {error:#}")
+                }
+                Err(_) => tokio::time::sleep(std::time::Duration::from_millis(20)).await,
+            }
+        }
     }
 
     #[tokio::test]

@@ -1384,6 +1384,11 @@ pub struct AIConfig {
     #[serde(default = "default_true")]
     pub allow_tool_json_repair: bool,
 
+    /// Component collection advertised for subsequent GenUI generation.
+    /// String preserves unknown future selections without resetting user data.
+    #[serde(default = "default_generative_ui_library")]
+    pub generative_ui_library: String,
+
     /// Allow Computer Use when the executing host has a native provider.
     /// System consent and tool approval remain independent; persisted opt-outs win.
     #[serde(default = "default_true")]
@@ -1427,6 +1432,10 @@ fn default_deepseek_credential_id() -> String {
     "deepseek-search-api".to_string()
 }
 
+fn default_keenable_credential_id() -> String {
+    "keenable-search-api".to_string()
+}
+
 fn default_bitfun_search_http_credential_id() -> String {
     "bitfun-search-http".to_string()
 }
@@ -1461,6 +1470,7 @@ pub struct WebSearchProviderConfigs {
     pub exa_search_api: WebSearchCredentialProviderConfig,
     pub tavily: WebSearchCredentialProviderConfig,
     pub deepseek: WebSearchCredentialProviderConfig,
+    pub keenable: WebSearchCredentialProviderConfig,
     pub bitfun_search_http: BitFunSearchHttpConfig,
     #[serde(flatten)]
     pub unknown: serde_json::Map<String, serde_json::Value>,
@@ -1479,6 +1489,10 @@ impl Default for WebSearchProviderConfigs {
             },
             deepseek: WebSearchCredentialProviderConfig {
                 credential_id: default_deepseek_credential_id(),
+                unknown: serde_json::Map::new(),
+            },
+            keenable: WebSearchCredentialProviderConfig {
+                credential_id: default_keenable_credential_id(),
                 unknown: serde_json::Map::new(),
             },
             bitfun_search_http: BitFunSearchHttpConfig::default(),
@@ -1741,6 +1755,10 @@ pub struct AgentProfileView {
     pub disabled_user_skills: Vec<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub enabled_user_skills: Vec<String>,
+}
+
+fn default_generative_ui_library() -> String {
+    "openui".to_string()
 }
 
 fn default_true() -> bool {
@@ -2347,6 +2365,7 @@ impl Default for AIConfig {
             enable_context_compression_prefetch: true,
             enable_edit_constraint_guard: false,
             allow_tool_json_repair: true,
+            generative_ui_library: default_generative_ui_library(),
             computer_use_enabled: true,
             browser_control_preferred_browser: String::new(),
             web_search: WebSearchConfig::default(),
@@ -2570,6 +2589,20 @@ mod tests {
         // The default document omits the key entirely (no empty noise).
         let default_json = serde_json::to_value(super::GlobalConfig::default()).unwrap();
         assert!(default_json.get("remote_connect_disclaimer").is_none());
+    }
+
+    #[test]
+    fn generative_ui_library_legacy_and_future_roundtrip() {
+        let legacy: super::AIConfig = serde_json::from_value(serde_json::json!({})).unwrap();
+        assert_eq!(legacy.generative_ui_library, "openui");
+        for value in ["openbitfun", "openui", "harmony", "future.collection"] {
+            let config: super::AIConfig =
+                serde_json::from_value(serde_json::json!({"generative_ui_library":value})).unwrap();
+            assert_eq!(
+                serde_json::to_value(config).unwrap()["generative_ui_library"],
+                value
+            );
+        }
     }
 
     #[test]
@@ -4661,6 +4694,10 @@ mod tests {
             "deepseek-search-api"
         );
         assert_eq!(
+            config.web_search.providers.keenable.credential_id,
+            "keenable-search-api"
+        );
+        assert_eq!(
             config.web_search.providers.exa_search_api.credential_id,
             "exa-search-api"
         );
@@ -4691,6 +4728,38 @@ mod tests {
         config
             .providers
             .deepseek
+            .unknown
+            .insert("futureOption".to_string(), serde_json::json!(true));
+        let restored: WebSearchConfig =
+            serde_json::from_value(serde_json::to_value(&config).unwrap()).unwrap();
+        assert_eq!(restored, config);
+    }
+
+    #[test]
+    fn web_search_keenable_config_preserves_legacy_payload_and_unknown_options() {
+        let legacy = serde_json::json!({
+            "provider": "deepseek",
+            "providers": {"deepseek": {"credentialId": "existing-deepseek"}},
+            "selectionRevision": 3
+        });
+        let mut config: WebSearchConfig = serde_json::from_value(legacy.clone()).unwrap();
+        assert_eq!(
+            config.providers.keenable.credential_id,
+            "keenable-search-api"
+        );
+        let round_trip = serde_json::to_value(&config).unwrap();
+        assert_eq!(round_trip["provider"], legacy["provider"]);
+        assert_eq!(
+            round_trip["providers"]["deepseek"],
+            legacy["providers"]["deepseek"]
+        );
+        assert_eq!(round_trip["selectionRevision"], legacy["selectionRevision"]);
+
+        config.provider = "keenable".to_string();
+        config.providers.keenable.credential_id = "custom-keenable-ref".to_string();
+        config
+            .providers
+            .keenable
             .unknown
             .insert("futureOption".to_string(), serde_json::json!(true));
         let restored: WebSearchConfig =

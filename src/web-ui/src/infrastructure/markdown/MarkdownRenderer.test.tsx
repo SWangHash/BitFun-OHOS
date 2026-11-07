@@ -1,13 +1,15 @@
 // @vitest-environment jsdom
 
 import React, { act } from 'react';
+import { resolve } from 'node:path';
+import { compile } from 'sass';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { MenuItem } from '@/shared/context-menu-system/types';
 import { MarkdownRenderer, ThinkingMarkdownRenderer } from './MarkdownRenderer';
 import { useAgentCanvasStore } from '@/app/components/panels/content-canvas/stores/canvasStore';
-import { useSceneStore } from '@/app/stores/sceneStore';
+import { useSceneStore, resetSceneStoreForTest } from '@/app/stores/sceneStore';
 import { selectSessionPaneMode, sessionPaneLayoutStore } from '@/app/scenes/session/sessionPaneLayoutStore';
 import { useContentResourceStore } from '@/app/workbench/contentResourceStore';
 import { appManager } from '@/app/services/AppManager';
@@ -17,6 +19,17 @@ import { activateSurface, getActiveSurfaceId } from '@/infrastructure/peer-devic
 import { PeerDeviceContext, type PeerDeviceContextValue } from '@/infrastructure/peer-device/peerDeviceContextState';
 import type { PeerHostCapabilities } from '@/infrastructure/peer-device/PeerConnectionManager';
 import { useFlowChatHttpLinkClick } from '@/flow_chat/components/modern/useFlowChatHttpLinkClick';
+import { FlowTextBlock } from '@/flow_chat/components/FlowTextBlock';
+import { captureFlowChatSelection } from '@/flow_chat/selection/flowChatSelection';
+import { browserLinkPreferenceStore, BROWSER_LINK_TARGET_STORAGE_KEY } from '@/infrastructure/config/services/browserLinkPreference';
+
+/** The chat session's workspace record; content opened from chat links is routed by its ID. */
+const SESSION_WORKSPACE = vi.hoisted(() => ({
+  id: 'workspace-1',
+  rootPath: '/srv/project',
+  workspaceKind: 'remote' as const,
+  connectionId: 'remote-connection-1',
+}));
 
 const mocks = vi.hoisted(() => ({
   getCurrentWorkspacePath: vi.fn(),
@@ -71,7 +84,7 @@ vi.mock('./MarkdownMathRenderer', () => ({
 vi.mock('./AsyncPrismSyntaxHighlighter', () => ({
   AsyncPrismSyntaxHighlighter: ({ children, preferFallback }: { children: React.ReactNode; preferFallback?: boolean }) => {
     mocks.renderHighlighter();
-    return <pre data-fallback={String(preferFallback)}>{children}</pre>;
+    return <pre data-fallback={String(preferFallback)}><code>{children}</code></pre>;
   },
 }));
 
@@ -108,7 +121,11 @@ vi.mock('@/shared/utils/startupTrace', () => ({
 
 vi.mock('@/infrastructure/services/business/workspaceManager', () => ({
   workspaceManager: {
-    getState: vi.fn(() => ({ currentWorkspace: null, openedWorkspaces: new Map() })),
+    getState: vi.fn(() => ({
+      currentWorkspace: SESSION_WORKSPACE,
+      openedWorkspaces: new Map([[SESSION_WORKSPACE.id, SESSION_WORKSPACE]]),
+      recentWorkspaces: [],
+    })),
   },
 }));
 
@@ -156,6 +173,7 @@ describe('Markdown file links', () => {
       status: 'idle',
       config: {},
       sessionKind: 'normal',
+      workspaceId: SESSION_WORKSPACE.id,
       createdAt: 1,
       lastActiveAt: 1,
       error: null,
@@ -168,7 +186,7 @@ describe('Markdown file links', () => {
     }));
     useSceneStore.getState().openSessionScene({
       surfaceId: getActiveSurfaceId(),
-      workspaceKey: session.workspacePath ?? 'workspace-less',
+      workspaceKey: session.workspaceId ?? session.workspacePath ?? 'workspace-less',
       sessionId: session.sessionId,
     });
   }
@@ -177,9 +195,10 @@ describe('Markdown file links', () => {
     (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
     activateSurface('local');
+    browserLinkPreferenceStore.setState({ target: 'builtin' });
     flowChatStore.setState(state => ({ ...state, sessions: new Map(), activeSessionId: null }));
     useContentResourceStore.setState({ resources: {} });
-    useSceneStore.getState().resetForPeerSwitch();
+    resetSceneStoreForTest();
     appManager.updateLayout({ chatCollapsed: false, rightPanelCollapsed: true });
 
     container = document.createElement('div');
@@ -208,10 +227,145 @@ describe('Markdown file links', () => {
     });
     activateSurface('local');
     container.remove();
+    browserLinkPreferenceStore.setState({ target: 'builtin' });
+    localStorage.removeItem(BROWSER_LINK_TARGET_STORAGE_KEY);
     flowChatStore.setState(state => ({ ...state, sessions: new Map(), activeSessionId: null }));
     useContentResourceStore.setState({ resources: {} });
-    useSceneStore.getState().resetForPeerSwitch();
+    resetSceneStoreForTest();
     vi.clearAllMocks();
+  });
+
+  it('isolates a mixed reply at its text leaf while retaining hidden bodies and native cross-message ranges', async () => {
+    const styles = document.createElement('style');
+    styles.textContent = compile(resolve('src/flow_chat/components/FlowTextBlock.scss')).css
+      + compile(resolve('src/infrastructure/markdown/Markdown.scss')).css;
+    document.head.append(styles);
+    const textItem = {
+      id: 'reply', type: 'text' as const, timestamp: 1, status: 'completed' as const,
+      isStreaming: false, isMarkdown: true,
+      content: 'Intro **bold**.\n\n- First item\n  - Nested item\n- Second item\n\nAfter.',
+    };
+    try {
+      await act(async () => root.render(<div data-flowchat-selection-root="selection">
+        <div data-turn-id="reply-turn"><FlowTextBlock textItem={textItem} /></div>
+        <div data-turn-id="user-turn"><div className="user-message-item__content">Question</div></div>
+        <FlowTextBlock textItem={{ ...textItem, id: 'hidden' }} hidden />
+        <FlowTextBlock textItem={{ ...textItem, id: 'runtime', isMarkdown: false, content: 'Working' }} className="flow-text-block--runtime-status" />
+      </div>));
+      const leaf = container.querySelector<HTMLElement>('[data-flow-item-id="reply"]')!;
+      const markdown = leaf.querySelector<HTMLElement>('.markdown-renderer')!;
+      expect(markdown.parentElement).toBe(leaf);
+      expect(getComputedStyle(leaf).display).toBe('flex');
+      expect(getComputedStyle(leaf).flexDirection).toBe('column');
+      expect(getComputedStyle(markdown).display).toBe('block');
+      expect(getComputedStyle(markdown.querySelector('li')!).display).toBe('list-item');
+      expect(markdown.querySelector('ul ul')).not.toBeNull();
+      expect(getComputedStyle(container.querySelector('[data-flow-item-id="hidden"]')!).display).toBe('none');
+      expect(getComputedStyle(container.querySelector('[data-flow-item-id="runtime"]')!).flexDirection).not.toBe('column');
+
+      const start = markdown.querySelector('p')!.firstChild!;
+      const end = container.querySelector('.user-message-item__content')!.firstChild!;
+      const selection = window.getSelection()!;
+      selection.setBaseAndExtent(start, 0, end, end.textContent!.length);
+      const selectedText = selection.toString();
+      const snapshot = captureFlowChatSelection(container.firstElementChild as HTMLElement, selection,
+        { surfaceId: 'local', sessionId: 'selection', sessionName: 'Selection' })!;
+      expect(snapshot.excerpt.fragments.map(fragment => fragment.turnId)).toEqual(['reply-turn', 'user-turn']);
+      expect(snapshot.excerpt.fragments[0].text).toContain('Intro bold.');
+      expect(snapshot.excerpt.fragments[0].text).toContain('Nested item');
+      expect(snapshot.excerpt.fragments[0].text).toMatch(/After\.$/);
+      expect(snapshot.excerpt.fragments[1].text).toBe('Question');
+      expect(selection.toString()).toBe(selectedText);
+      expect(selection.anchorNode).toBe(start);
+      expect(selection.focusNode).toBe(end);
+    } finally {
+      styles.remove();
+      window.getSelection()?.removeAllRanges();
+    }
+  });
+
+  it.each([
+    { name: 'response', Renderer: MarkdownRenderer },
+    { name: 'thinking', Renderer: ThinkingMarkdownRenderer },
+  ])('keeps $name table semantics and inline runs inside the cell selection boundary', async ({ Renderer }) => {
+    await import('./ThinkingMarkdown');
+    const styles = document.createElement('style');
+    styles.textContent = compile(resolve('src/infrastructure/markdown/Markdown.scss')).css;
+    document.head.append(styles);
+    try {
+      await act(async () => root.render(<Renderer content={'| Name | Value |\n| :--- | ---: |\n| Short **bold** and `code` | 12 |\n| A longer description | 345 |'} />));
+      const table = container.querySelector('table')!;
+      expect(table.rows).toHaveLength(3);
+      const cells = [...table.querySelectorAll<HTMLElement>('th, td')];
+      expect(cells).toHaveLength(6);
+      for (const cell of cells) {
+        expect(getComputedStyle(cell).display).toBe('table-cell');
+        const boundary = cell.firstElementChild as HTMLElement;
+        const body = boundary.firstElementChild as HTMLElement;
+        expect(getComputedStyle(boundary).display).toBe('flex');
+        expect(getComputedStyle(boundary).flexDirection).toBe('column');
+        expect(getComputedStyle(body).display).toBe('block');
+        expect(body.textContent).toBe(cell.textContent);
+      }
+      expect(table.querySelector('td strong')?.textContent).toBe('bold');
+      expect(table.querySelector('td code')?.textContent).toBe('code');
+      expect(getComputedStyle(table.rows[1].cells[1]).textAlign).toBe('right');
+      expect(getComputedStyle(container.querySelector('.table-wrapper')!).overflowX).toBe('auto');
+      // CSSOM proves the exact cell-owner rule; jsdom cannot establish paint.
+      const paintRule = [...styles.sheet!.cssRules].find(rule => 'selectorText' in rule
+        && (rule as CSSStyleRule).selectorText.includes('.markdown-header-cell::selection')) as CSSStyleRule;
+      expect(paintRule.style.getPropertyValue('background-color')).toBe('transparent');
+    } finally {
+      styles.remove();
+    }
+  });
+
+  it.each([
+    { name: 'response', Renderer: MarkdownRenderer, language: 'rust' },
+    { name: 'thinking', Renderer: ThinkingMarkdownRenderer, language: 'rust' },
+    { name: 'unlabelled response', Renderer: MarkdownRenderer, language: '' },
+  ])('isolates every $name code-fence boundary while preserving cross-paragraph source text', async ({ Renderer, language }) => {
+    await import('./ThinkingMarkdown');
+    const styles = document.createElement('style');
+    styles.textContent = compile(resolve('src/infrastructure/markdown/Markdown.scss')).css;
+    document.head.append(styles);
+    const code = 'Some(model.id.as_str()) == resolved_model_id';
+    try {
+      await act(async () => root.render(<div data-flowchat-selection-root="selection">
+        <div data-turn-id="turn"><div data-flow-item-id="reply">
+          <Renderer content={`Before.\n\n\`\`\`${language}\n${code}\n\`\`\`\n\nAfter.`} />
+        </div></div>
+      </div>));
+      const markdown = container.querySelector('.markdown-renderer')!;
+      const pres = [...markdown.querySelectorAll('pre')];
+      expect(pres.length).toBeGreaterThan(0);
+      for (const pre of pres) {
+        expect(getComputedStyle(pre).display).toBe('flex');
+        expect(getComputedStyle(pre).flexDirection).toBe('column');
+      }
+      for (const body of markdown.querySelectorAll('.code-block-body')) {
+        expect(getComputedStyle(body).display).toBe('flex');
+        expect(getComputedStyle(body).overflowX).toBe('auto');
+      }
+      const codeElement = markdown.querySelector('pre code')!;
+      expect(codeElement.textContent?.trimEnd()).toBe(code);
+      expect(getComputedStyle(codeElement).whiteSpace).toBe('pre');
+      const paragraphs = markdown.querySelectorAll('p');
+      const start = paragraphs[0].firstChild!;
+      const end = paragraphs[1].firstChild!;
+      const selection = window.getSelection()!;
+      selection.setBaseAndExtent(start, 0, end, end.textContent!.length);
+      const nativeText = selection.toString();
+      const snapshot = captureFlowChatSelection(container.firstElementChild as HTMLElement, selection,
+        { surfaceId: 'local', sessionId: 'selection', sessionName: 'Selection' })!;
+      expect(snapshot.excerpt.fragments).toHaveLength(1);
+      expect(snapshot.excerpt.fragments[0].text).toContain(code);
+      expect(snapshot.excerpt.fragments[0].text).toMatch(/^Before\.[\s\S]*After\.$/);
+      expect(selection.toString()).toBe(nativeText);
+    } finally {
+      styles.remove();
+      window.getSelection()?.removeAllRanges();
+    }
   });
 
   it.each([
@@ -219,6 +373,8 @@ describe('Markdown file links', () => {
     { name: 'response', Renderer: MarkdownRenderer, scans: true },
   ])('runs arrival DOM scanning only for response Markdown: $name', async ({ Renderer, scans }) => {
     await import('./ThinkingMarkdown');
+    vi.stubGlobal('CSS', { highlights: new Map() });
+    vi.stubGlobal('Highlight', Set);
     const scan = vi.spyOn(document, 'createTreeWalker');
     try {
       await act(async () => root.render(<Renderer content="First" isStreaming />));
@@ -229,6 +385,7 @@ describe('Markdown file links', () => {
       expect(scan.mock.calls.some(([node]) => node === markdownRoot)).toBe(scans);
     } finally {
       scan.mockRestore();
+      vi.unstubAllGlobals();
     }
   });
 
@@ -286,6 +443,26 @@ describe('Markdown file links', () => {
     await act(async () => root.render(<MarkdownRenderer content={content} />));
     expect(container.querySelector('pre[data-fallback]')?.getAttribute('data-fallback')).toBe('false');
     expect(mocks.renderHighlighter).toHaveBeenCalled();
+  });
+
+  it('keeps an indivisible large chat fence selectable without building its token DOM', async () => {
+    const code = 'const value = 1;\n'.repeat(6500).trimEnd();
+    await act(async () => root.render(<MarkdownRenderer content={`\`\`\`ts\n${code}\n\`\`\``} deferCodeHighlighting />));
+    expect(container.querySelector('pre[data-fallback]')?.getAttribute('data-fallback')).toBe('true');
+    expect(container.querySelector('pre code')?.textContent).toBe(code);
+  });
+
+  it('keeps bounded chat decoration under the outer row lifetime without intersection remounts', async () => {
+    const observe = vi.fn();
+    vi.stubGlobal('IntersectionObserver', class { observe = observe; unobserve() {} disconnect() {} });
+    try {
+      await act(async () => root.render(<MarkdownRenderer content={'```ts\nconst value = 1;\n```'} deferCodeHighlighting />));
+      const pre = container.querySelector('pre[data-fallback="false"]');
+      expect(pre).not.toBeNull();
+      expect(observe).not.toHaveBeenCalled();
+      await act(async () => root.render(<MarkdownRenderer content={'```ts\nconst value = 1;\n```'} deferCodeHighlighting />));
+      expect(container.querySelector('pre[data-fallback="false"]')).toBe(pre);
+    } finally { vi.unstubAllGlobals(); }
   });
 
   it('copies the original code with the public named control and success feedback', async () => {
@@ -435,6 +612,7 @@ Second paragraph.
     'bitfun-canvas://session/session_1/canvas/canvas_1',
   ])('opens Canvas artifact links in the Canvas panel: %s', async (content) => {
     openSessionHost({
+      workspaceId: SESSION_WORKSPACE.id,
       workspacePath: '/srv/project',
       remoteConnectionId: 'remote-connection-1',
       remoteSshHost: 'workspace.example',
@@ -445,6 +623,7 @@ Second paragraph.
         root.render(
           <MarkdownRenderer
             content={content}
+            workspaceId={SESSION_WORKSPACE.id}
             basePath="/srv/project"
             remoteConnectionId="remote-connection-1"
             remoteSshHost="workspace.example"
@@ -456,7 +635,10 @@ Second paragraph.
       const link = container.querySelector<HTMLButtonElement>('button.canvas-link');
       expect(link).not.toBeNull();
 
-      act(() => link?.click());
+      await act(async () => {
+        link?.click();
+        await Promise.resolve();
+      });
 
       expect(useAgentCanvasStore.getState().primaryGroup.tabs).toHaveLength(1);
       expect(useAgentCanvasStore.getState().primaryGroup.tabs[0].content).toMatchObject({
@@ -464,6 +646,7 @@ Second paragraph.
         title: 'BitFun Canvas',
         data: {
           artifactReference: 'bitfun-canvas://session/session_1/canvas/canvas_1',
+          workspaceId: SESSION_WORKSPACE.id,
           workspacePath: '/srv/project',
           remoteConnectionId: 'remote-connection-1',
           remoteSshHost: 'workspace.example',
@@ -479,6 +662,24 @@ Second paragraph.
     } finally {
       useAgentCanvasStore.getState().reset();
     }
+  });
+
+  it('renders separate footnote regions and follows their shared anchors', async () => {
+    const reference = 'Text[^a].';
+    const definition = '[^a]: Definition';
+    const content = `${reference}\n\n${definition}`;
+    await act(async () => root.render(<>
+      <MarkdownRenderer content={content} sourceRange={{ start: 0, end: reference.length, idPrefix: 'test-editor-' }} />
+      <MarkdownRenderer content={content} sourceRange={{ start: reference.length + 2, end: content.length, idPrefix: 'test-editor-' }} />
+    </>));
+    const link = container.querySelector<HTMLAnchorElement>('[data-footnote-ref]')!;
+    const target = document.getElementById(link.hash.slice(1))!;
+    const scrollIntoView = vi.fn();
+    target.scrollIntoView = scrollIntoView;
+    expect(container.querySelectorAll('section[data-footnotes] li')).toHaveLength(1);
+    expect(target.textContent).toContain('Definition');
+    act(() => link.click());
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: 'nearest' });
   });
 
   it.each([
@@ -586,11 +787,74 @@ Second paragraph.
       expect(useAgentCanvasStore.getState().primaryGroup.tabs[0].content).toMatchObject({
         type: 'browser',
         data: { url: 'https://example.com/docs' },
-        metadata: { duplicateCheckKey: 'browser-panel:https://example.com/docs' },
+        metadata: { duplicateCheckKey: 'browser-panel:https://example.com/docs:session:session_1' },
       });
     } finally {
       useAgentCanvasStore.getState().reset();
     }
+  });
+
+  it.each(['local', 'linux-peer'])('uses the current browser preference without remounting links on %s', async surface => {
+    container.className = 'bitfun-session-scene modern-flowchat-container';
+    activateSurface(surface);
+    openSessionHost();
+    const url = 'https://example.com/docs';
+    await act(async () => root.render(<MarkdownRenderer content={`[Example](${url})`} />));
+    const link = container.querySelector<HTMLAnchorElement>('a')!;
+
+    act(() => browserLinkPreferenceStore.getState().setTarget('external'));
+    await act(async () => link.click());
+    expect(mocks.openExternal).toHaveBeenCalledExactlyOnceWith(url);
+    expect(useAgentCanvasStore.getState().primaryGroup.tabs).toHaveLength(0);
+
+    act(() => browserLinkPreferenceStore.getState().setTarget('builtin'));
+    expect(container.querySelector('a')).toBe(link);
+    await act(async () => link.click());
+    expect(mocks.openExternal).toHaveBeenCalledTimes(1);
+    expect(useAgentCanvasStore.getState().primaryGroup.tabs[0].content).toMatchObject({
+      type: 'browser', data: { url },
+    });
+  });
+
+  it('retains the controller preference across selected device changes', async () => {
+    container.className = 'bitfun-session-scene modern-flowchat-container';
+    browserLinkPreferenceStore.getState().setTarget('external');
+    const url = 'https://example.com/docs';
+    await act(async () => root.render(<MarkdownRenderer content={`[Example](${url})`} />));
+    for (const surface of ['local', 'linux-peer', 'local']) {
+      await act(async () => activateSurface(surface));
+      await act(async () => container.querySelector<HTMLAnchorElement>('a')!.click());
+    }
+    expect(mocks.openExternal.mock.calls).toEqual([[url], [url], [url]]);
+    expect(useAgentCanvasStore.getState().primaryGroup.tabs).toHaveLength(0);
+  });
+
+  it.each(['builtin', 'external'] as const)('keeps both explicit context menu choices with the %s default', async target => {
+    container.className = 'bitfun-session-scene modern-flowchat-container';
+    openSessionHost();
+    browserLinkPreferenceStore.getState().setTarget(target);
+    const url = 'https://example.com/docs';
+    await act(async () => root.render(<MarkdownRenderer content={`[Example](${url})`} />));
+    act(() => container.querySelector('a')!.dispatchEvent(new MouseEvent('contextmenu', {
+      bubbles: true, cancelable: true,
+    })));
+    const items = mocks.showContextMenu.mock.calls[0][1] as MenuItem[];
+    const context = mocks.showContextMenu.mock.calls[0][2];
+    await act(async () => items.find(item => item.id === 'markdown-open-in-browser')!.onClick?.(context));
+    expect(mocks.openExternal).toHaveBeenCalledExactlyOnceWith(url);
+    act(() => items.find(item => item.id === 'markdown-open-in-built-in-browser')!.onClick?.(context));
+    expect(useAgentCanvasStore.getState().primaryGroup.tabs[0].content).toMatchObject({
+      type: 'browser', data: { url },
+    });
+    expect(browserLinkPreferenceStore.getState().target).toBe(target);
+  });
+
+  it('opens links outside conversations externally even with the built-in default', async () => {
+    const url = 'https://example.com/docs';
+    await act(async () => root.render(<MarkdownRenderer content={`[Example](${url})`} />));
+    await act(async () => container.querySelector<HTMLAnchorElement>('a')!.click());
+    expect(mocks.openExternal).toHaveBeenCalledExactlyOnceWith(url);
+    expect(useAgentCanvasStore.getState().primaryGroup.tabs).toHaveLength(0);
   });
 
   it('commits a browser view and explicitly reveals its inline host', async () => {
@@ -908,6 +1172,28 @@ Second paragraph.
 
     expect(mocks.revealInExplorer).toHaveBeenNthCalledWith(1, `${EXAMPLE_WORKSPACE}\\deck.pptx`);
     expect(onFileViewRequest).toHaveBeenCalledTimes(4);
+  });
+
+  it('routes PDF links through the integrated file viewer instead of the file manager', async () => {
+    const pdfPath = 'D:\\SampleDocs\\Report.PDF';
+
+    await act(async () => {
+      root.render(
+        <MarkdownRenderer
+          content={`[Report.pdf](${pdfPath})`}
+          onFileViewRequest={onFileViewRequest}
+        />,
+      );
+      await Promise.resolve();
+    });
+
+    const link = container.querySelector<HTMLButtonElement>('button.file-link');
+    expect(link).not.toBeNull();
+
+    act(() => link?.click());
+
+    expect(onFileViewRequest).toHaveBeenCalledWith(pdfPath, 'Report.PDF', undefined);
+    expect(mocks.revealInExplorer).not.toHaveBeenCalled();
   });
 
   it('does not load the math renderer for ordinary markdown', async () => {

@@ -21,6 +21,7 @@ import type { SessionDriverId } from './resolve';
 import type { SurfaceScope } from '@/infrastructure/peer-device/deviceSurface';
 import type { LineRange } from '@/shared/editor/LineRange';
 import type { SessionUsageReport } from '@/infrastructure/api/service-api/SessionAPI';
+import type { ProjectDefaultsConfig } from '@/infrastructure/config/types';
 
 export type { SessionDriverId } from './resolve';
 
@@ -209,6 +210,11 @@ export interface SessionCreationSeed {
   workspaceId?: string;
   remoteConnectionId?: string;
   remoteSshHost?: string;
+  /**
+   * Shared read of the owning project's defaults for this creation. The mode
+   * resolver may already have issued it; reuse it instead of reading again.
+   */
+  readProjectDefaults?: () => Promise<{ supported: boolean; defaults: ProjectDefaultsConfig }>;
 }
 
 /** Cascade facts computed once by the shared caller before removal. */
@@ -303,7 +309,7 @@ export interface SessionDriver {
    * Manually compact the session's context. Local sessions call the runtime
    * directly; dispatch sessions queue a compact turn on the target.
    */
-  compactSession(context: FlowChatContext, sessionId: string): Promise<void>;
+  compactSession(context: FlowChatContext, sessionId: string, turnId?: string): Promise<CompactSessionResult>;
 
   /**
    * Produce the session usage report and show it. `uiParams` carries the
@@ -338,4 +344,9 @@ export interface SessionDriver {
     reply: PermissionReplyKindLike,
     feedback?: string,
   ): Promise<string[]>;
+}
+
+export interface CompactSessionResult {
+  accepted: boolean;
+  turnId?: string;
 }

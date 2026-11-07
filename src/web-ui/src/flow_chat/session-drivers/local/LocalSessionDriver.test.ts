@@ -4,6 +4,7 @@ import { WorktreeCommandError } from '@/infrastructure/api/service-api/WorktreeA
 import { localSessionDriver } from './LocalSessionDriver';
 import type { DialogTurn } from '../../types/flow-chat';
 import { getActiveSurfaceScope } from '@/infrastructure/peer-device/deviceSurface';
+import { syncSessionModelSelection } from '../../utils/modelSync';
 import { consumeSubmittedMessageArrival } from '../../services/submittedMessagePresentation';
 
 const { mockCreateSession, mockBindWorktree, mockTrust, mockStartAcpDialogTurn, mockStartAgenticDialogTurn, mockEnsureCoordinatorSession, mockTransition, mockUpdateSessionMetadata, mockGetMode, mockUpdateMode } = vi.hoisted(() => ({
@@ -136,6 +137,40 @@ describe('localSessionDriver conversation creation', () => {
     expect(projectDefaults.read).toHaveBeenCalledWith('project');
     expect(createSession.mock.calls[0][1].modelName).toBe('project-model');
     expect(poolMocks.read).not.toHaveBeenCalled();
+  });
+
+  it('reuses the creation-scoped project defaults read instead of reading again', async () => {
+    const shared = vi.fn(async () => ({ supported: true, defaults: { primary_model: 'shared-model' } }));
+    const createSession = vi.fn();
+    await localSessionDriver.createSession({ flowChatStore: { createSession } } as any, {
+      ...seed(), config: {}, readProjectDefaults: shared,
+    });
+    expect(shared).toHaveBeenCalledTimes(1);
+    expect(projectDefaults.read).not.toHaveBeenCalled();
+    expect(createSession.mock.calls[0][1].modelName).toBe('shared-model');
+  });
+
+  it('opens an assistant session before its title metadata is synchronized', async () => {
+    const { initializeSessionTitleMetadata } = await import('../../services/sessionTitleMetadata');
+    let finishTitle!: (descriptor: unknown) => void;
+    vi.mocked(initializeSessionTitleMetadata).mockImplementationOnce(() => new Promise(resolve => {
+      finishTitle = resolve as (descriptor: unknown) => void;
+    }));
+    const descriptor = { text: 'New chat', source: 'i18n' as const, key: 'flow-chat:session.new' };
+    let state = { sessions: new Map<string, any>() };
+    const createSession = vi.fn((id: string) => {
+      state = { sessions: new Map(state.sessions).set(id, { sessionId: id, titleSource: 'i18n' }) };
+    });
+    const setState = vi.fn((update: (current: typeof state) => typeof state) => { state = update(state); });
+    await expect(localSessionDriver.createSession(
+      { flowChatStore: { createSession, setState } } as any,
+      { ...seed('Claw'), titleDescriptor: descriptor },
+    )).resolves.toBe('host-session');
+    expect(createSession).toHaveBeenCalledTimes(1);
+    expect(createSession.mock.calls[0].at(-1)).toBe(descriptor);
+
+    finishTitle({ ...descriptor, workspaceSessionNumber: 3 });
+    await vi.waitFor(() => expect(state.sessions.get('host-session')?.workspaceSessionNumber).toBe(3));
   });
 
   it('preserves an explicit single-model choice even when a default pool exists', async () => {
@@ -379,10 +414,11 @@ describe('localSessionDriver review repair permissions', () => {
 });
 
 
-const queueMocks = vi.hoisted(() => ({ supported: vi.fn(() => false), submit: vi.fn() }));
+const queueMocks = vi.hoisted(() => ({ supported: vi.fn(() => false), submit: vi.fn(),
+  refresh: vi.fn(async () => ({ sessionId: 'acp_dsh_session', queueEpoch: 'host-epoch' })) }));
 vi.mock('../../services/hostDialogQueue', () => ({
   hostQueueSupported: queueMocks.supported,
-  hostDialogQueue: () => ({ submit: queueMocks.submit }),
+  hostDialogQueue: () => ({ submit: queueMocks.submit, refresh: queueMocks.refresh }),
   queueImageAttachments: () => [],
 }));
 
@@ -397,13 +433,49 @@ describe('host queue submissions', () => {
       options: { turnId: 'stable-request-id' } };
     const tracker = { createdLocalTurnId: null, hostAcceptedTurn: false };
     await localSessionDriver.startTurn(context, input, tracker);
-    expect(queueMocks.submit).toHaveBeenCalledWith(expect.objectContaining({ content: 'hello' }), expect.any(Object), 'stable-request-id');
+    expect(queueMocks.submit).toHaveBeenCalledWith(expect.objectContaining({ content: 'hello' }), expect.any(Object), 'stable-request-id', expect.objectContaining({ queueEpoch: 'host-epoch' }));
     expect(mockTransition).not.toHaveBeenCalled();
     expect(mockStartAgenticDialogTurn).not.toHaveBeenCalled();
     expect(context.contentBuffers.get(SESSION_ID)).toBe('active output');
     expect(context.activeTextItems.get(SESSION_ID)).toBe('active item');
     expect(addedTurns).toHaveLength(0);
     expect(tracker.hostAcceptedTurn).toBe(true);
+  });
+
+  it('prepares the queue while model synchronization is pending and submits only after both finish', async () => {
+    let finishModel!: () => void;
+    vi.mocked(syncSessionModelSelection).mockImplementationOnce(() => new Promise(resolve => { finishModel = resolve; }));
+    const { context, session } = createHarness([]);
+    session.mode = 'Standard';
+    const input = { ...startTurnInput(session), acpClientId: undefined, currentAgentType: 'Standard', isFirstMessage: false };
+    const pending = localSessionDriver.startTurn(context, input, { createdLocalTurnId: null, hostAcceptedTurn: false });
+    await Promise.resolve();
+    expect(queueMocks.refresh).toHaveBeenCalledOnce();
+    expect(queueMocks.submit).not.toHaveBeenCalled();
+    finishModel();
+    await pending;
+    expect(queueMocks.submit).toHaveBeenCalledOnce();
+  });
+
+  it('binds a requested worktree before preparing the host queue and model', async () => {
+    const { context, session } = createHarness([]);
+    session.mode = 'Standard';
+    session.config.worktreeIsolationRequested = true;
+    context.flowChatStore.updateSessionExecutionTarget = vi.fn();
+    let finishBinding!: (value: unknown) => void;
+    mockBindWorktree.mockImplementationOnce(() => new Promise(resolve => { finishBinding = resolve; }));
+    const pending = localSessionDriver.startTurn(context, {
+      ...startTurnInput(session), acpClientId: undefined, currentAgentType: 'Standard', isFirstMessage: false,
+    }, { createdLocalTurnId: null, hostAcceptedTurn: false });
+    await Promise.resolve();
+    expect(mockBindWorktree).toHaveBeenCalledOnce();
+    expect(queueMocks.refresh).not.toHaveBeenCalled();
+    expect(syncSessionModelSelection).not.toHaveBeenCalled();
+    finishBinding({ workspaceId: 'worktree', workspacePath: '/worktrees/new', projectWorkspacePath: WORKSPACE_PATH,
+      projectWorkspaceId: 'project-workspace', executionTarget: { kind: 'managedWorktree', worktreeId: 'worktree-1' } });
+    await pending;
+    expect(queueMocks.refresh).toHaveBeenCalledOnce();
+    expect(queueMocks.submit).toHaveBeenCalledOnce();
   });
 });
 
@@ -443,7 +515,7 @@ describe('worktree follow-up submissions', () => {
     });
     if (supportsQueue) {
       expect(queueMocks.submit).toHaveBeenCalledWith(
-        expect.objectContaining({ content: 'hello' }), expect.any(Object), undefined,
+        expect.objectContaining({ content: 'hello' }), expect.any(Object), undefined, expect.objectContaining({ queueEpoch: 'host-epoch' }),
       );
       expect(mockStartAgenticDialogTurn).not.toHaveBeenCalled();
     } else {

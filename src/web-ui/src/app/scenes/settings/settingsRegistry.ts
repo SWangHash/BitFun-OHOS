@@ -189,6 +189,12 @@ export const SETTINGS_PAGE_MANIFESTS: readonly SettingsPageManifest[] = [
         searchPhrases: [phrase('settings/application', 'messageSending.title'), phrase('settings/application', 'messageSending.duringTurn'), phrase('settings/application', 'messageSending.description')],
       },
       {
+        id: 'btw-close-confirmation',
+        labelKey: 'navigation.sections.btw-close-confirmation',
+        keywords: ['btw', 'side conversation', 'close', 'confirmation', 'prompt'],
+        searchPhrases: [phrase('settings/application', 'btwCloseConfirmation.title'), phrase('settings/application', 'btwCloseConfirmation.label')],
+      },
+      {
         id: 'text-selection',
         labelKey: 'navigation.sections.text-selection',
         keywords: ['selection', 'annotation', 'excerpt', 'toolbar', 'popup', 'flowchat'],
@@ -279,7 +285,7 @@ export const SETTINGS_PAGE_MANIFESTS: readonly SettingsPageManifest[] = [
     labelKey: 'navigation.pages.execution.label',
     descriptionKey: 'navigation.pages.execution.description',
     keywords: ['tool', 'presentation', 'ptc', 'timeout', 'parallel', 'review', 'json repair'],
-    namespaces: ['settings', 'settings/runtime', 'settings/agentic-tools', 'settings/review-capacity', 'settings/models'],
+    namespaces: ['settings', 'settings/runtime', 'settings/agentic-tools', 'settings/review-capacity', 'settings/models', 'flow-chat'],
     searchPhrases: [
       phrase('settings/runtime', 'toolExecution.sectionTitle'),
       phrase('settings/runtime', 'deferredToolLoading.sectionTitle'),
@@ -287,6 +293,7 @@ export const SETTINGS_PAGE_MANIFESTS: readonly SettingsPageManifest[] = [
       phrase('settings/agentic-tools', 'subagentModels.default.label'),
       phrase('settings/review-capacity', 'capacity.title'),
       phrase('settings/models', 'toolArgumentJsonRepair.title'),
+      phrase('settings/runtime', 'genui.title'),
     ],
     load: () => import('./pages/ai/ExecutionSettingsPage'),
   }),
@@ -388,7 +395,7 @@ export const SETTINGS_PAGE_MANIFESTS: readonly SettingsPageManifest[] = [
     icon: Globe,
     labelKey: 'navigation.pages.webSearch.label',
     descriptionKey: 'navigation.pages.webSearch.description',
-    keywords: ['web search', 'exa', 'tavily', 'deepseek', 'http', 'provider', 'api key'],
+    keywords: ['web search', 'exa', 'tavily', 'deepseek', 'keenable', 'http', 'provider', 'api key'],
     namespaces: ['settings/web-search'],
     searchPhrases: [
       phrase('settings/web-search', 'title'),
@@ -406,6 +413,7 @@ export const SETTINGS_PAGE_MANIFESTS: readonly SettingsPageManifest[] = [
     descriptionKey: 'navigation.pages.browserDesktopControl.description',
     keywords: [
       'browser', 'cdp', 'chrome', 'edge', 'remote debugging', 'connection',
+      'links', 'built-in browser', 'external browser',
       'desktop', 'computer use', 'accessibility', 'screen capture', 'mouse', 'keyboard',
     ],
     namespaces: ['settings', 'settings/runtime'],
@@ -413,6 +421,11 @@ export const SETTINGS_PAGE_MANIFESTS: readonly SettingsPageManifest[] = [
       phrase('settings/runtime', 'computerUse.sectionTitle'),
       phrase('settings/runtime', 'computerUse.accessibility'),
       phrase('settings/runtime', 'computerUse.screenCapture'),
+      phrase('settings/runtime', 'browserLinks.sectionTitle'),
+      phrase('settings/runtime', 'browserLinks.defaultTarget'),
+      phrase('settings/runtime', 'browserLinks.builtin'),
+      phrase('settings/runtime', 'browserLinks.external'),
+      phrase('settings/runtime', 'browserLinks.browserTab'),
       phrase('settings/runtime', 'browserControl.sectionTitle'),
       phrase('settings/runtime', 'browserControl.preferredBrowser'),
       phrase('settings/runtime', 'browserControl.autoConnectOnStartup'),

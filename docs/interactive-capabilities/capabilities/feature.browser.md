@@ -17,7 +17,7 @@ Open webpages and local services inside BitFun, where an agent can inspect the p
 
 ## 完整功能清单 / Everything included
 
-- **由专用智能体工具控制 / Delegated Agent tool** · `ControlHub` · 输入完整网址、本地域名或开发服务端口并在 BitFun 内打开
+- **由专用智能体工具控制 / Delegated Agent tool** · `OpenUrl` / `ControlHub` · 输入完整网址、本地域名或开发服务端口并在 BitFun 内打开
   - Open full URLs, local hostnames, or development-service ports inside BitFun
 - **由专用智能体工具控制 / Delegated Agent tool** · `WebSearch` / `WebFetch` · 让智能体搜索网页并按需读取指定页面正文
   - Let an agent search the web and fetch selected page content on demand

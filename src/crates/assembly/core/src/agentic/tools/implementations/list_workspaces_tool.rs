@@ -340,9 +340,7 @@ mod tests {
     use crate::service::workspace::{
         WorkspaceActivityMode, WorkspaceCreateOptions, WorkspaceService,
     };
-    use bitfun_runtime_ports::{
-        AgentWorkspaceRemoteInfo, PortError, PortErrorKind, PortResult,
-    };
+    use bitfun_runtime_ports::{AgentWorkspaceRemoteInfo, PortError, PortErrorKind, PortResult};
     use std::collections::HashMap;
     use std::path::PathBuf;
 
@@ -373,6 +371,7 @@ mod tests {
                 PathBuf::from("/caller"),
             )),
             loaded_deferred_tool_specs: Vec::new(),
+            model_client: None,
             primary_model_facts: Default::default(),
             custom_data: HashMap::new(),
             computer_use_host: None,

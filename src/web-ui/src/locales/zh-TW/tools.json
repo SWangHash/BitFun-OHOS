@@ -104,7 +104,19 @@
         "sourcePreviewFallback": "該文檔包含無法在可視化模式中安全編輯的語法。請在源碼模式中編輯，或切換到預覽模式查看。",
         "largeFileSourceOnly": "檔案過大，已切換為原始碼模式以保持流暢。",
         "linkTargetMissing": "未找到連結指向的檔案。"
-      }
+      },
+      "blockTypes": {
+        "math": "公式",
+        "code": "程式碼區塊",
+        "reference": "連結參照",
+        "footnote": "註腳"
+      },
+      "finishBlockEdit": "完成編輯",
+      "editImage": "編輯圖片",
+      "imageAddress": "圖片位址",
+      "imageAltText": "替代文字",
+      "imageTitle": "圖片標題",
+      "editBlockSource": "編輯此區塊原始碼"
     },
     "planViewer": {
       "loadingPlan": "正在載入計劃...",

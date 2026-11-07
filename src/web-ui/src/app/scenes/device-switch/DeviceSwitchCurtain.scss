@@ -1,0 +1,46 @@
+.bitfun-device-switch-curtain {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  background: var(--bitfun-color-surface-scene);
+  animation: bitfun-device-switch-curtain-in var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard) both;
+
+  &[data-phase='leaving'] {
+    pointer-events: none;
+    animation: bitfun-device-switch-curtain-out 220ms var(--bitfun-motion-easing-standard) both;
+  }
+
+  // Fast switches finish before the spinner would appear: no flicker.
+  &__spinner {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    animation: bitfun-device-switch-curtain-spinner 200ms var(--bitfun-motion-easing-standard) 300ms forwards;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+
+    &[data-phase='leaving'] {
+      animation: none;
+      opacity: 0;
+    }
+  }
+}
+
+@keyframes bitfun-device-switch-curtain-spinner {
+  to { opacity: var(--bitfun-opacity-muted); }
+}
+
+@keyframes bitfun-device-switch-curtain-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes bitfun-device-switch-curtain-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}

@@ -35,6 +35,7 @@ import com.bitfun.mobile.app.platform.LogcatCoreLog
 import com.bitfun.mobile.app.ui.shell.MobileScreen
 import com.bitfun.mobile.app.platform.StartupRevealPreference
 import com.bitfun.mobile.app.platform.AppLocaleController
+import com.bitfun.mobile.app.ui.preview.MessageQueuePreview
 import com.bitfun.mobile.app.ui.preview.MobileDesignGallery
 import com.bitfun.mobile.app.ui.preview.mobileDesignScenario
 import com.bitfun.mobile.app.ui.theme.BitFunTheme
@@ -63,6 +64,10 @@ class MainActivity : ComponentActivity() {
         if (android.os.Build.VERSION.SDK_INT >= 29) window.isNavigationBarContrastEnforced = false
         setContent {
             if (intent.getBooleanExtra(DESIGN_PREVIEW_EXTRA, false)) {
+                if (intent.getStringExtra(DESIGN_SCENARIO_EXTRA) == "message-queue") {
+                    MessageQueuePreview()
+                    return@setContent
+                }
                 val scenario = mobileDesignScenario(intent.getStringExtra(DESIGN_SCENARIO_EXTRA))
                 MobileDesignGallery(scenario = scenario, dark = scenario.appearance == "dark")
                 return@setContent

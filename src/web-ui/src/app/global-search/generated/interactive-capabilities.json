@@ -4,9 +4,21 @@
   "title": "BitFun Playbook",
   "origin": "https://playbook.bitfun.com",
   "source": "src/shared/interactive-capabilities/catalog.json",
-  "digest": "6ae2eeaa19e6342f9dcf7ff33b7c0fa94547ee1c02fc1835f6f4471caab6fbb3",
-  "ownerDigest": "3cc6d7d869b2c90c2161494a854b5ff7eb72ea69a1a28e40ccd42065fb3382e2",
+  "digest": "0617ead8833592fbb40380d0056d16957906c755980920aad24d2269fd302369",
+  "ownerDigest": "57d167be6eca3389a99862b33166a957ea2cb26093a32cdc526e6fdf37475fd7",
   "searchAcceptance": [
+    {
+      "id": "native-office-generation",
+      "query": "GenOfficeFile",
+      "expectedFirstCapabilityId": "feature.ai-assistant",
+      "expectedCapabilityIds": [
+        "feature.ai-assistant"
+      ],
+      "expectedItem": {
+        "capabilityId": "feature.ai-assistant",
+        "itemId": "office-document-generation"
+      }
+    },
     {
       "id": "native-image-generation",
       "query": "generate_image",
@@ -172,13 +184,13 @@
     }
   ],
   "counts": {
-    "features": 22,
+    "features": 24,
     "settings": 22,
-    "userFacing": 44,
-    "documentedItems": 339,
+    "userFacing": 46,
+    "documentedItems": 347,
     "controlCoverage": {
-      "direct": 62,
-      "delegated": 72,
+      "direct": 63,
+      "delegated": 79,
       "interactive": 205,
       "unsupported": 0
     }
@@ -231,6 +243,7 @@
         "model-mode-permissions",
         "creative-frontend-authoring",
         "image-generation",
+        "office-document-generation",
         "turn-control",
         "permission-mailbox",
         "history-search",
@@ -511,6 +524,51 @@
       },
       "delegateTools": [
         "generate_image"
+      ],
+      "presentationTarget": {
+        "kind": "scene",
+        "sceneId": "session"
+      }
+    },
+    {
+      "id": "feature.ai-assistant:delegate:office-document-generation",
+      "capabilityId": "feature.ai-assistant",
+      "itemIds": [
+        "office-document-generation"
+      ],
+      "kind": "delegate",
+      "risk": "execute",
+      "executionHost": "workspaceHost",
+      "availability": {
+        "desktop": {
+          "available": true
+        },
+        "cli": {
+          "available": true
+        },
+        "peer": {
+          "available": true,
+          "requiredCapabilities": [
+            "product_control_v1"
+          ]
+        },
+        "remoteControl": {
+          "available": true
+        },
+        "detachedDispatch": {
+          "available": true
+        }
+      },
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "outputSchema": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "delegateTools": [
+        "GenOfficeFile"
       ],
       "presentationTarget": {
         "kind": "scene",
@@ -4295,6 +4353,7 @@
         "additionalProperties": true
       },
       "delegateTools": [
+        "OpenUrl",
         "ControlHub"
       ],
       "presentationTarget": {
@@ -11841,6 +11900,283 @@
       }
     },
     {
+      "id": "feature.openharmony-devtooling:query",
+      "capabilityId": "feature.openharmony-devtooling",
+      "itemIds": [
+        "build-and-checks",
+        "run-and-logs",
+        "qt-migration-intake",
+        "ui-verification",
+        "knowledge-and-cwd"
+      ],
+      "kind": "query",
+      "risk": "read",
+      "executionHost": "productHost",
+      "availability": {
+        "desktop": {
+          "available": true
+        },
+        "cli": {
+          "available": true
+        },
+        "peer": {
+          "available": true,
+          "requiredCapabilities": [
+            "product_control_v1"
+          ]
+        },
+        "remoteControl": {
+          "available": true
+        },
+        "detachedDispatch": {
+          "available": true
+        }
+      },
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "valueSource": {
+        "kind": "static"
+      },
+      "presentationTarget": {
+        "kind": "scene",
+        "sceneId": "terminal"
+      }
+    },
+    {
+      "id": "feature.openharmony-devtooling:delegate:build-and-checks",
+      "capabilityId": "feature.openharmony-devtooling",
+      "itemIds": [
+        "build-and-checks"
+      ],
+      "kind": "delegate",
+      "risk": "execute",
+      "executionHost": "workspaceHost",
+      "availability": {
+        "desktop": {
+          "available": true
+        },
+        "cli": {
+          "available": true
+        },
+        "peer": {
+          "available": true,
+          "requiredCapabilities": [
+            "product_control_v1"
+          ]
+        },
+        "remoteControl": {
+          "available": true
+        },
+        "detachedDispatch": {
+          "available": true
+        }
+      },
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "outputSchema": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "delegateTools": [
+        "arkts_check"
+      ],
+      "presentationTarget": {
+        "kind": "scene",
+        "sceneId": "terminal"
+      }
+    },
+    {
+      "id": "feature.openharmony-devtooling:delegate:run-and-logs",
+      "capabilityId": "feature.openharmony-devtooling",
+      "itemIds": [
+        "run-and-logs"
+      ],
+      "kind": "delegate",
+      "risk": "execute",
+      "executionHost": "workspaceHost",
+      "availability": {
+        "desktop": {
+          "available": true
+        },
+        "cli": {
+          "available": true
+        },
+        "peer": {
+          "available": true,
+          "requiredCapabilities": [
+            "product_control_v1"
+          ]
+        },
+        "remoteControl": {
+          "available": true
+        },
+        "detachedDispatch": {
+          "available": true
+        }
+      },
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "outputSchema": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "delegateTools": [
+        "start_app",
+        "hdc_log"
+      ],
+      "presentationTarget": {
+        "kind": "scene",
+        "sceneId": "terminal"
+      }
+    },
+    {
+      "id": "feature.openharmony-devtooling:delegate:qt-migration-intake",
+      "capabilityId": "feature.openharmony-devtooling",
+      "itemIds": [
+        "qt-migration-intake"
+      ],
+      "kind": "delegate",
+      "risk": "execute",
+      "executionHost": "workspaceHost",
+      "availability": {
+        "desktop": {
+          "available": true
+        },
+        "cli": {
+          "available": true
+        },
+        "peer": {
+          "available": true,
+          "requiredCapabilities": [
+            "product_control_v1"
+          ]
+        },
+        "remoteControl": {
+          "available": true
+        },
+        "detachedDispatch": {
+          "available": true
+        }
+      },
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "outputSchema": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "delegateTools": [
+        "QtMigrationIntake"
+      ],
+      "presentationTarget": {
+        "kind": "scene",
+        "sceneId": "terminal"
+      }
+    },
+    {
+      "id": "feature.openharmony-devtooling:delegate:ui-verification",
+      "capabilityId": "feature.openharmony-devtooling",
+      "itemIds": [
+        "ui-verification"
+      ],
+      "kind": "delegate",
+      "risk": "execute",
+      "executionHost": "workspaceHost",
+      "availability": {
+        "desktop": {
+          "available": true
+        },
+        "cli": {
+          "available": true
+        },
+        "peer": {
+          "available": true,
+          "requiredCapabilities": [
+            "product_control_v1"
+          ]
+        },
+        "remoteControl": {
+          "available": true
+        },
+        "detachedDispatch": {
+          "available": true
+        }
+      },
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "outputSchema": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "delegateTools": [
+        "verify_ui",
+        "get_ui_verification_log",
+        "save_ui_screenshot"
+      ],
+      "presentationTarget": {
+        "kind": "scene",
+        "sceneId": "terminal"
+      }
+    },
+    {
+      "id": "feature.openharmony-devtooling:delegate:knowledge-and-cwd",
+      "capabilityId": "feature.openharmony-devtooling",
+      "itemIds": [
+        "knowledge-and-cwd"
+      ],
+      "kind": "delegate",
+      "risk": "execute",
+      "executionHost": "workspaceHost",
+      "availability": {
+        "desktop": {
+          "available": true
+        },
+        "cli": {
+          "available": true
+        },
+        "peer": {
+          "available": true,
+          "requiredCapabilities": [
+            "product_control_v1"
+          ]
+        },
+        "remoteControl": {
+          "available": true
+        },
+        "detachedDispatch": {
+          "available": true
+        }
+      },
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "outputSchema": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "delegateTools": [
+        "switch_cwd"
+      ],
+      "presentationTarget": {
+        "kind": "scene",
+        "sceneId": "terminal"
+      }
+    },
+    {
       "id": "setting.application.general:query",
       "capabilityId": "setting.application.general",
       "itemIds": [
@@ -16809,7 +17145,8 @@
         "computer-use-permissions",
         "browser-auto-connect",
         "browser-setup",
-        "json-repair"
+        "json-repair",
+        "genui-library"
       ],
       "kind": "query",
       "risk": "read",
@@ -17294,6 +17631,54 @@
       },
       "inputSchema": {
         "type": "boolean"
+      },
+      "outputSchema": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "valueSource": {
+        "kind": "static"
+      },
+      "presentationTarget": {
+        "kind": "settings",
+        "pageId": "tools.execution"
+      }
+    },
+    {
+      "id": "setting.tools.execution:option:genui-library",
+      "capabilityId": "setting.tools.execution",
+      "itemIds": [
+        "genui-library"
+      ],
+      "kind": "option",
+      "risk": "write",
+      "executionHost": "productHost",
+      "availability": {
+        "desktop": {
+          "available": true
+        },
+        "cli": {
+          "available": true
+        },
+        "peer": {
+          "available": true,
+          "requiredCapabilities": [
+            "product_control_v1"
+          ]
+        },
+        "remoteControl": {
+          "available": true
+        },
+        "detachedDispatch": {
+          "available": true
+        }
+      },
+      "inputSchema": {
+        "type": "string",
+        "enum": [
+          "openbitfun",
+          "openui"
+        ]
       },
       "outputSchema": {
         "type": "object",
@@ -20749,6 +21134,96 @@
         "kind": "settings",
         "pageId": "data.diagnostics"
       }
+    },
+    {
+      "id": "feature.generative-ui:query",
+      "capabilityId": "feature.generative-ui",
+      "itemIds": [
+        "app-generation"
+      ],
+      "kind": "query",
+      "risk": "read",
+      "executionHost": "productHost",
+      "availability": {
+        "desktop": {
+          "available": true
+        },
+        "cli": {
+          "available": true
+        },
+        "peer": {
+          "available": true,
+          "requiredCapabilities": [
+            "product_control_v1"
+          ]
+        },
+        "remoteControl": {
+          "available": true
+        },
+        "detachedDispatch": {
+          "available": true
+        }
+      },
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "valueSource": {
+        "kind": "static"
+      },
+      "presentationTarget": {
+        "kind": "scene",
+        "sceneId": "session"
+      }
+    },
+    {
+      "id": "feature.generative-ui:delegate:app-generation",
+      "capabilityId": "feature.generative-ui",
+      "itemIds": [
+        "app-generation"
+      ],
+      "kind": "delegate",
+      "risk": "execute",
+      "executionHost": "workspaceHost",
+      "availability": {
+        "desktop": {
+          "available": true
+        },
+        "cli": {
+          "available": true
+        },
+        "peer": {
+          "available": true,
+          "requiredCapabilities": [
+            "product_control_v1"
+          ]
+        },
+        "remoteControl": {
+          "available": true
+        },
+        "detachedDispatch": {
+          "available": true
+        }
+      },
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "outputSchema": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "delegateTools": [
+        "GenerativeUI"
+      ],
+      "presentationTarget": {
+        "kind": "scene",
+        "sceneId": "session"
+      }
     }
   ],
   "capabilities": [
@@ -20871,6 +21346,27 @@
               "Use generate_image to create images from the user's description; omit service_id to use the configured default image model",
               "Specify count and size when needed and deliver the returned file paths; access remote workspace files through the active workspace data plane",
               "Report missing configuration, authentication failures, or quota limits explicitly without automatically switching services"
+            ]
+          }
+        },
+        {
+          "id": "office-document-generation",
+          "titleZh": "用 GenOfficeFile 创建并编辑 Word、Excel 和 PowerPoint 文件",
+          "titleEn": "Create and edit Word, Excel, and PowerPoint files with GenOfficeFile",
+          "control": {
+            "kind": "delegate",
+            "tools": [
+              "GenOfficeFile"
+            ],
+            "workflowZh": [
+              "先用 GenOfficeFile guide 读取格式指南，再通过 create 和 edit 分批生成或修改 .docx、.xlsx、.pptx 文件，无需安装 Office",
+              "用 read 分页查看文档结构；文件和引用图片通过当前工作区文件系统读写，支持本地或远程工作区",
+              "仅能继续编辑由该工具生成的文件；其他程序改过的内容默认拒绝覆盖，需要用户明确同意丢弃外部修改"
+            ],
+            "workflowEn": [
+              "Read the format guide with GenOfficeFile guide, then use create and edit to build or revise .docx, .xlsx, and .pptx files in batches without installing Office",
+              "Use read to page through document structure; documents and referenced images use the active local or remote workspace filesystem",
+              "Only files generated by this tool can be reopened for editing; external changes are rejected by default and may be discarded only with the user's explicit agreement"
             ]
           }
         },
@@ -21138,6 +21634,8 @@
         "Extend client UI and runtime capabilities in Creative mode",
         "通过已配置的默认图像模型生成图片",
         "Generate images with the configured default image model",
+        "用 GenOfficeFile 创建并编辑 Word、Excel 和 PowerPoint 文件",
+        "Create and edit Word, Excel, and PowerPoint files with GenOfficeFile",
         "开始、引导、打断、取消或恢复一次智能体运行",
         "Start, steer, interrupt, cancel, or recover an agent turn",
         "查看并逐个或批量回答等待中的权限请求",
@@ -21185,6 +21683,13 @@
         "Use generate_image to create images from the user's description; omit service_id to use the configured default image model",
         "Specify count and size when needed and deliver the returned file paths; access remote workspace files through the active workspace data plane",
         "Report missing configuration, authentication failures, or quota limits explicitly without automatically switching services",
+        "GenOfficeFile",
+        "先用 GenOfficeFile guide 读取格式指南，再通过 create 和 edit 分批生成或修改 .docx、.xlsx、.pptx 文件，无需安装 Office",
+        "用 read 分页查看文档结构；文件和引用图片通过当前工作区文件系统读写，支持本地或远程工作区",
+        "仅能继续编辑由该工具生成的文件；其他程序改过的内容默认拒绝覆盖，需要用户明确同意丢弃外部修改",
+        "Read the format guide with GenOfficeFile guide, then use create and edit to build or revise .docx, .xlsx, and .pptx files in batches without installing Office",
+        "Use read to page through document structure; documents and referenced images use the active local or remote workspace filesystem",
+        "Only files generated by this tool can be reopened for editing; external changes are rejected by default and may be discarded only with the user's explicit agreement",
         "ListWorkspaces",
         "SessionControl",
         "SessionHistory",
@@ -22982,17 +23487,16 @@
           "control": {
             "kind": "delegate",
             "tools": [
+              "OpenUrl",
               "ControlHub"
             ],
             "workflowZh": [
-              "用户给出网址时，用 browser.navigate（target=builtin）直接打开，缺少页面时自动创建；需要读取或交互时附带 observe=article 或 snapshot，并复用返回的 session_id；用户只要求显示内置浏览器且没有网址时，改用 BitFunControl 打开 feature.browser 能力根入口，不得臆造 about:blank",
-              "对同一个 session_id 指定 target 为 builtin；选择已打开页面时，用 browser.connect 和唯一匹配的 target_url 或 target_title；快照、点击、填写、滚动和截图等动作与外部 CDP 浏览器共用同一套契约",
-              "复用 navigate 返回的观察结果，只在下一步需要新页面状态时重新快照；涉及用户账号登录态时，优先使用用户在设置中已授权连接的 external 浏览器，未授权时请用户连接，不得自行开启权限；CDP 协议扩展同样需要可用的外接连接"
+              "用户给出链接且只需要打开页面时用 OpenUrl 打开；需要读取页面、定位元素、截图或交互时改用 ControlHub",
+              "打开后如需继续操作页面，先取得内置页面的 session_id，再按浏览器动作契约执行"
             ],
             "workflowEn": [
-              "When the user supplies a URL, use browser.navigate with target=builtin (creates a page when needed), add observe=article or snapshot for reading/interaction, and keep the returned session_id; when they only want the built-in browser surface, open the feature.browser capability root with BitFunControl and never invent about:blank",
-              "Address that session_id with target set to builtin; to select an existing page, use browser.connect with a unique target_url or target_title match. Portable actions share the external CDP contract",
-              "Reuse the observation returned by navigate; refresh only when the next decision needs new page state. For account/login-dependent work, prefer the external browser the user authorized in Settings; if unavailable, ask the user to connect it and never enable permissions yourself. CDP extensions also require an available external connection"
+              "Use OpenUrl when the user supplies a link and only needs the page opened; switch to ControlHub when reading, locating elements, capturing screenshots, or interacting",
+              "When further page work is needed, keep the built-in session_id and follow the shared browser-action contract"
             ]
           }
         },
@@ -23335,6 +23839,11 @@
         "Address that session_id with target set to builtin; to select an existing page, use browser.connect with a unique target_url or target_title match. Portable actions share the external CDP contract",
         "Reuse the observation returned by navigate; refresh only when the next decision needs new page state. For account/login-dependent work, prefer the external browser the user authorized in Settings; if unavailable, ask the user to connect it and never enable permissions yourself. CDP extensions also require an available external connection",
         "ControlHub",
+        "OpenUrl",
+        "用户给出链接且只需要打开页面时用 OpenUrl 打开；需要读取页面、定位元素、截图或交互时改用 ControlHub",
+        "打开后如需继续操作页面，先取得内置页面的 session_id，再按浏览器动作契约执行",
+        "Use OpenUrl when the user supplies a link and only needs the page opened; switch to ControlHub when reading, locating elements, capturing screenshots, or interacting",
+        "When further page work is needed, keep the built-in session_id and follow the shared browser-action contract",
         "WebSearch",
         "WebFetch",
         "先用 WebSearch 找到候选来源并保留标题与 URL，再只对需要核实的页面调用 WebFetch",
@@ -25571,8 +26080,8 @@
       "categoryId": "connect",
       "titleZh": "Remote Connect 与多设备",
       "titleEn": "Remote Connect & devices",
-      "summaryZh": "从手机、Bot 或另一台 BitFun 设备连接当前主机，远程查看会话、回答权限并继续工作。",
-      "summaryEn": "Connect to this host from mobile, a bot, or another BitFun device to inspect sessions, answer permissions, and continue work remotely.",
+      "summaryZh": "从手机、Bot 或另一台 BitFun 设备远程查看会话、回答权限并继续工作。手机与同账号设备互控默认使用官方 Relay，无需部署服务器；官方与局域网模式登录时均需联网。",
+      "summaryEn": "Inspect sessions, answer permissions, and continue work from mobile, a bot, or another BitFun device. Mobile and same-account device control use the official Relay by default, with no server deployment; both official and LAN modes need internet access for sign-in.",
       "keywordsZh": [
         "Remote Connect",
         "远程控制",
@@ -25582,7 +26091,8 @@
         "微信",
         "多设备",
         "Peer Device",
-        "GitHub"
+        "GitHub",
+        "邮箱登录"
       ],
       "keywordsEn": [
         "remote connect",
@@ -25593,28 +26103,29 @@
         "WeChat",
         "multi-device",
         "peer device",
-        "GitHub"
+        "GitHub",
+        "email sign-in"
       ],
       "highlightsZh": [
-        "通过局域网或官方 Relay 连接",
+        "官方 Relay 无需部署；桌面端可同时运行局域网 Relay",
         "接入飞书、Telegram 或微信 Bot",
-        "使用 GitHub 身份管理设备并进入 Peer Device Mode"
+        "使用同一种登录方式与同一账号管理设备并进入 Peer Device Mode"
       ],
       "highlightsEn": [
-        "Connect through LAN or the official Relay",
+        "Use the official Relay without deployment; Desktop can also run a LAN Relay concurrently",
         "Use Feishu, Telegram, or WeChat bots",
-        "Use GitHub identity to manage devices and enter Peer Device Mode"
+        "Use the same login method and account to manage devices and enter Peer Device Mode"
       ],
       "items": [
         {
           "id": "connection-methods",
-          "titleZh": "选择局域网或官方 Relay",
-          "titleEn": "Choose LAN or the official Relay",
+          "titleZh": "使用官方 Relay 或桌面内置局域网 Relay；两者可同时运行，登录均需联网",
+          "titleEn": "Use the official or Desktop-hosted LAN Relay; both can run together and need internet for sign-in",
           "control": {
             "kind": "open",
             "reasonCode": "unstructuredInteraction",
-            "reasonZh": "“选择局域网或官方 Relay”需要结合当前网络与设备状态，确认目标主机后才能连接；智能体打开连接入口，由用户完成选择。",
-            "reasonEn": "“Choose LAN or the official Relay” depends on the current network and device state and requires the user to confirm the target host; the Agent opens the connection entry for that choice."
+            "reasonZh": "“使用官方 Relay 或桌面内置局域网 Relay；两者可同时运行，登录均需联网”需要结合当前网络与设备状态，由用户确认目标主机。官方 Relay 无需部署；私有 Relay 需配套客户端构建，界面没有自定义服务器地址或部署向导。",
+            "reasonEn": "“Use the official or Desktop-hosted LAN Relay; both can run together and need internet for sign-in” depends on network and device state and requires target confirmation. The official Relay needs no deployment; a private Relay requires matching client builds, with no custom-server field or deployment wizard in the UI."
           }
         },
         {
@@ -25662,13 +26173,13 @@
         },
         {
           "id": "account",
-          "titleZh": "使用 GitHub 登录、退出并查看身份状态",
-          "titleEn": "Sign in with GitHub, sign out, and inspect identity status",
+          "titleZh": "通过共享登录页使用 GitHub 或邮箱验证码登录、退出并查看身份状态",
+          "titleEn": "Sign in through the shared page with GitHub or an email code, sign out, and inspect identity status",
           "control": {
             "kind": "open",
             "reasonCode": "externalAuth",
-            "reasonZh": "GitHub 账户登录必须由用户在外部认证页面确认；智能体可以打开入口并读取非秘密状态，但不能冒充账户持有人。",
-            "reasonEn": "GitHub account sign-in requires confirmation on an external authentication page; the Agent may open the entry and read non-secret status but cannot impersonate the account holder."
+            "reasonZh": "登录必须由用户在外部认证页面完成。GitHub 与邮箱是独立账号，各设备需使用同一种方式和同一账号；旧客户端或服务可能仅支持 GitHub。智能体可打开入口并读取非秘密状态，不能代替用户认证。",
+            "reasonEn": "The user must complete sign-in on the external authentication page. GitHub and email are independent accounts; devices need the same method and account. Older clients or services may support GitHub only. The Agent may open the entry and read non-secret status, but cannot authenticate for the user."
           }
         },
         {
@@ -25695,14 +26206,16 @@
         }
       ],
       "stepsZh": [
-        "打开 Remote Connect",
-        "选择网络、Bot 或账户",
-        "按向导连接并确认安全提示"
+        "打开 Remote Connect，选择网络、Bot 或账户入口",
+        "手机或设备互控：宿主与控制端以相同方式登录同一账号，官方 Relay 无需部署",
+        "手机可扫描官方或桌面局域网邀请，确认目标设备；二维码不授予访问权，目标宿主须保持在线",
+        "Bot 远控：在对应平台完成机器人配置与配对，检查监听状态"
       ],
       "stepsEn": [
-        "Open Remote Connect",
-        "Choose Network, Bot, or Account",
-        "Follow the connection flow and review its security notice"
+        "Open Remote Connect and choose Network, Bot, or Account",
+        "For mobile or device control, sign in on the host and controller with the same method and account; the official Relay needs no deployment",
+        "On mobile, scan an official or Desktop LAN invitation and confirm the target; the QR code grants no access and the host must stay online",
+        "For bot control, configure and pair the bot on its platform, then check listener status"
       ],
       "agentExamplesZh": [
         "打开 Remote Connect",
@@ -25904,6 +26417,7 @@
         "多设备",
         "Peer Device",
         "GitHub",
+        "邮箱登录",
         "remote connect",
         "remote control",
         "mobile",
@@ -25911,22 +26425,23 @@
         "WeChat",
         "multi-device",
         "peer device",
-        "通过局域网或官方 Relay 连接",
+        "email sign-in",
+        "官方 Relay 无需部署；桌面端可同时运行局域网 Relay",
         "接入飞书、Telegram 或微信 Bot",
-        "使用 GitHub 身份管理设备并进入 Peer Device Mode",
-        "Connect through LAN or the official Relay",
+        "使用同一种登录方式与同一账号管理设备并进入 Peer Device Mode",
+        "Use the official Relay without deployment; Desktop can also run a LAN Relay concurrently",
         "Use Feishu, Telegram, or WeChat bots",
-        "Use GitHub identity to manage devices and enter Peer Device Mode",
-        "选择局域网或官方 Relay",
-        "Choose LAN or the official Relay",
+        "Use the same login method and account to manage devices and enter Peer Device Mode",
+        "使用官方 Relay 或桌面内置局域网 Relay；两者可同时运行，登录均需联网",
+        "Use the official or Desktop-hosted LAN Relay; both can run together and need internet for sign-in",
         "启动、停止 Remote Connect 并查看实时连接状态和设备信息",
         "Start or stop Remote Connect and inspect live status and device information",
         "查看局域网 IP、网络信息与可分享的连接配置",
         "Inspect LAN IP, network details, and shareable connection configuration",
         "配置飞书、Telegram、微信等 Bot 并单独停止 Bot",
         "Configure Feishu, Telegram, WeChat, and other bots, and stop a bot independently",
-        "使用 GitHub 登录、退出并查看身份状态",
-        "Sign in with GitHub, sign out, and inspect identity status",
+        "通过共享登录页使用 GitHub 或邮箱验证码登录、退出并查看身份状态",
+        "Sign in through the shared page with GitHub or an email code, sign out, and inspect identity status",
         "列出、连接、查看设备型号与系统、设置别名和删除同账户设备",
         "List, connect, inspect model and OS, set aliases, and remove same-account devices",
         "进入 Peer Device Mode，把另一台 BitFun 设备作为命令与事件数据面",
@@ -26465,12 +26980,12 @@
         }
       ],
       "stepsZh": [
-        "使用 GitHub 登录",
+        "登录 BitFun 账号（GitHub 或服务支持的邮箱验证码）",
         "打开 Pages",
         "选择页面并确认发布与可见性"
       ],
       "stepsEn": [
-        "Sign in to a GitHub account",
+        "Sign in to BitFun with GitHub or an email code supported by the service",
         "Open Pages",
         "Choose a page and confirm publishing and visibility"
       ],
@@ -27189,6 +27704,233 @@
         "DesktopCard"
       ],
       "docsUrl": "https://playbook.bitfun.com/capabilities/feature.desktop-cards/"
+    },
+    {
+      "id": "feature.openharmony-devtooling",
+      "kind": "feature",
+      "categoryId": "workspace",
+      "titleZh": "鸿蒙开发工具链",
+      "titleEn": "HarmonyOS dev tooling",
+      "summaryZh": "让智能体构建鸿蒙工程、检查 ArkTS 与 C++ 源码、安装启动应用到真机、抓取 hdc 日志并验证 UI，覆盖真机调试闭环。",
+      "summaryEn": "Let agents build HarmonyOS projects, check ArkTS and C++ sources, install and launch on a device, capture hdc logs, and verify UI through the on-device loop.",
+      "keywordsZh": [
+        "鸿蒙",
+        "HarmonyOS",
+        "OpenHarmony",
+        "ArkTS",
+        "hdc",
+        "真机调试",
+        "设备日志",
+        "UI 验证"
+      ],
+      "keywordsEn": [
+        "HarmonyOS",
+        "OpenHarmony",
+        "ArkTS",
+        "hdc",
+        "on-device debugging",
+        "device log",
+        "UI verification",
+        "Qt migration"
+      ],
+      "highlightsZh": [
+        "ArkTS 源码静态检查",
+        "hdc 安装、启动与设备日志抓取",
+        "UI 验证留痕：截图与验证日志",
+        "Qt 迁移请求的源码、产物与工具链收集"
+      ],
+      "highlightsEn": [
+        "ArkTS source static checks",
+        "hdc install, launch, and log capture",
+        "Traceable UI verification with screenshots and logs",
+        "Qt migration intake for source, output, and toolchain details"
+      ],
+      "items": [
+        {
+          "id": "build-and-checks",
+          "titleZh": "检查 ArkTS 源码",
+          "titleEn": "Check ArkTS sources",
+          "control": {
+            "kind": "delegate",
+            "tools": [
+              "arkts_check"
+            ],
+            "workflowZh": [
+              "提交前用 arkts_check 做静态检查，把问题按文件与行号汇报"
+            ],
+            "workflowEn": [
+              "Run arkts_check before commits and report findings by file and line"
+            ]
+          }
+        },
+        {
+          "id": "run-and-logs",
+          "titleZh": "安装启动应用到真机并抓取 hdc 设备日志",
+          "titleEn": "Install and launch on a device and capture hdc logs",
+          "control": {
+            "kind": "delegate",
+            "tools": [
+              "start_app",
+              "hdc_log"
+            ],
+            "workflowZh": [
+              "用 start_app 把应用安装并启动到目标设备，失败时报告设备与包状态",
+              "用 hdc_log 过滤并跟踪设备日志，把与本次改动相关的错误摘出来"
+            ],
+            "workflowEn": [
+              "Use start_app to install and launch on the target device and report device or package failures",
+              "Use hdc_log to filter and follow device logs, extracting errors relevant to the change"
+            ]
+          }
+        },
+        {
+          "id": "qt-migration-intake",
+          "titleZh": "分析 Qt 迁移请求并收集源码、产物、工具链与模板信息",
+          "titleEn": "Analyze Qt migration requests and collect source, output, toolchain, and template details",
+          "control": {
+            "kind": "delegate",
+            "tools": [
+              "QtMigrationIntake"
+            ],
+            "workflowZh": [
+              "在 Qt 迁移入口先用 QtMigrationIntake 判定任务类型与四个必填字段，缺少路径时用 AskUserQuestion 补齐",
+              "用户在策略问题中给出新的 Qt kit bin 目录时，用 toolchain 参数重新绑定工具链，不再要求二次确认"
+            ],
+            "workflowEn": [
+              "Start Qt migration intake with QtMigrationIntake to classify the task and the four required fields, and use AskUserQuestion for missing paths",
+              "When the user names a different Qt kit bin directory in the strategy answer, rebind it through the toolchain argument instead of asking again"
+            ]
+          }
+        },
+        {
+          "id": "ui-verification",
+          "titleZh": "验证界面表现并保存截图与验证日志",
+          "titleEn": "Verify UI behavior and keep screenshots and verification logs",
+          "control": {
+            "kind": "delegate",
+            "tools": [
+              "verify_ui",
+              "get_ui_verification_log",
+              "save_ui_screenshot"
+            ],
+            "workflowZh": [
+              "用 verify_ui 对目标页面执行验证，读取判定结果而不是凭截图猜测",
+              "用 get_ui_verification_log 与 save_ui_screenshot 留存证据，便于用户复核"
+            ],
+            "workflowEn": [
+              "Run verify_ui against the target page and read the verdict instead of guessing from screenshots",
+              "Keep verification records with get_ui_verification_log and save_ui_screenshot so users can review it"
+            ]
+          }
+        },
+        {
+          "id": "knowledge-and-cwd",
+          "titleZh": "切换会话工作目录",
+          "titleEn": "Switch the session working directory",
+          "control": {
+            "kind": "delegate",
+            "tools": [
+              "switch_cwd"
+            ],
+            "workflowZh": [
+              "需要在不同模块间连续操作时用 switch_cwd 切换工作目录，并说明当前目录"
+            ],
+            "workflowEn": [
+              "Use switch_cwd when work spans modules and always state the current directory"
+            ]
+          }
+        }
+      ],
+      "stepsZh": [
+        "在鸿蒙工作区打开智能体会话",
+        "让智能体检查并安装应用到设备",
+        "查看设备日志与 UI 验证结果"
+      ],
+      "stepsEn": [
+        "Open an agent session on a HarmonyOS workspace",
+        "Ask the agent to check sources and install to the device",
+        "Review device logs and UI verification results"
+      ],
+      "agentExamplesZh": [
+        "检查这个鸿蒙工程的 ArkTS 源码",
+        "把应用装到真机上，看看崩溃日志"
+      ],
+      "agentExamplesEn": [
+        "Check the ArkTS sources in this HarmonyOS project",
+        "Install the app on the device and check the crash logs"
+      ],
+      "destination": {
+        "kind": "scene",
+        "sceneId": "terminal"
+      },
+      "operations": [],
+      "options": [],
+      "searchTerms": [
+        "feature.openharmony-devtooling",
+        "鸿蒙开发工具链",
+        "HarmonyOS dev tooling",
+        "项目与开发",
+        "Projects & development",
+        "鸿蒙",
+        "HarmonyOS",
+        "OpenHarmony",
+        "ArkTS",
+        "hdc",
+        "真机调试",
+        "设备日志",
+        "UI 验证",
+        "on-device debugging",
+        "device log",
+        "UI verification",
+        "Qt migration",
+        "ArkTS 源码静态检查",
+        "hdc 安装、启动与设备日志抓取",
+        "UI 验证留痕：截图与验证日志",
+        "Qt 迁移请求的源码、产物与工具链收集",
+        "ArkTS source static checks",
+        "hdc install, launch, and log capture",
+        "Traceable UI verification with screenshots and logs",
+        "Qt migration intake for source, output, and toolchain details",
+        "检查 ArkTS 源码",
+        "Check ArkTS sources",
+        "安装启动应用到真机并抓取 hdc 设备日志",
+        "Install and launch on a device and capture hdc logs",
+        "分析 Qt 迁移请求并收集源码、产物、工具链与模板信息",
+        "Analyze Qt migration requests and collect source, output, toolchain, and template details",
+        "验证界面表现并保存截图与验证日志",
+        "Verify UI behavior and keep screenshots and verification logs",
+        "切换会话工作目录",
+        "Switch the session working directory",
+        "检查这个鸿蒙工程的 ArkTS 源码",
+        "把应用装到真机上，看看崩溃日志",
+        "Check the ArkTS sources in this HarmonyOS project",
+        "Install the app on the device and check the crash logs",
+        "arkts_check",
+        "提交前用 arkts_check 做静态检查，把问题按文件与行号汇报",
+        "Run arkts_check before commits and report findings by file and line",
+        "start_app",
+        "hdc_log",
+        "用 start_app 把应用安装并启动到目标设备，失败时报告设备与包状态",
+        "用 hdc_log 过滤并跟踪设备日志，把与本次改动相关的错误摘出来",
+        "Use start_app to install and launch on the target device and report device or package failures",
+        "Use hdc_log to filter and follow device logs, extracting errors relevant to the change",
+        "QtMigrationIntake",
+        "在 Qt 迁移入口先用 QtMigrationIntake 判定任务类型与四个必填字段，缺少路径时用 AskUserQuestion 补齐",
+        "用户在策略问题中给出新的 Qt kit bin 目录时，用 toolchain 参数重新绑定工具链，不再要求二次确认",
+        "Start Qt migration intake with QtMigrationIntake to classify the task and the four required fields, and use AskUserQuestion for missing paths",
+        "When the user names a different Qt kit bin directory in the strategy answer, rebind it through the toolchain argument instead of asking again",
+        "verify_ui",
+        "get_ui_verification_log",
+        "save_ui_screenshot",
+        "用 verify_ui 对目标页面执行验证，读取判定结果而不是凭截图猜测",
+        "用 get_ui_verification_log 与 save_ui_screenshot 留存证据，便于用户复核",
+        "Run verify_ui against the target page and read the verdict instead of guessing from screenshots",
+        "Keep verification records with get_ui_verification_log and save_ui_screenshot so users can review it",
+        "switch_cwd",
+        "需要在不同模块间连续操作时用 switch_cwd 切换工作目录，并说明当前目录",
+        "Use switch_cwd when work spans modules and always state the current directory"
+      ],
+      "docsUrl": "https://playbook.bitfun.com/capabilities/feature.openharmony-devtooling/"
     },
     {
       "id": "setting.application.general",
@@ -30375,6 +31117,25 @@
               }
             ]
           }
+        },
+        {
+          "id": "genui-library",
+          "titleZh": "选择生成式 UI 组件库及关联 UI 规范并操作预览",
+          "titleEn": "Select a GenUI component library, its UI specification and preview",
+          "destination": {
+            "kind": "settings",
+            "pageId": "tools.execution",
+            "viewId": "advanced"
+          },
+          "control": {
+            "kind": "direct",
+            "operations": [],
+            "options": [
+              {
+                "id": "genui-library"
+              }
+            ]
+          }
         }
       ],
       "stepsZh": [
@@ -30519,6 +31280,20 @@
           "valueSchema": {
             "type": "boolean"
           }
+        },
+        {
+          "id": "genui-library",
+          "titleZh": "生成式 UI 组件库及 UI 规范",
+          "titleEn": "GenUI component library and UI specification",
+          "descriptionZh": "选择后续生成使用的组件库及其关联的设计规则、资源、视口、宿主外壳和验收检查；已有应用保留自己的目标身份。",
+          "descriptionEn": "Choose the component library and its bound design rules, resources, viewport, host shell and acceptance checks. Existing apps retain their target identity.",
+          "valueSchema": {
+            "type": "string",
+            "enum": [
+              "openbitfun",
+              "openui"
+            ]
+          }
         }
       ],
       "searchTerms": [
@@ -30583,6 +31358,8 @@
         "Discover and choose a browser, configure default CDP, or restart it when needed",
         "控制是否在安全边界内修复模型生成的非法工具参数 JSON",
         "Choose whether malformed model-generated tool-argument JSON may be repaired within safety boundaries",
+        "选择生成式 UI 组件库及关联 UI 规范并操作预览",
+        "Select a GenUI component library, its UI specification and preview",
         "启用 Computer Use",
         "把子智能体最大并发改为 8",
         "打开权限设置",
@@ -31228,6 +32005,7 @@
         "Exa",
         "Tavily",
         "DeepSeek",
+        "Keenable",
         "搜索服务",
         "API Key",
         "自定义端点"
@@ -31238,6 +32016,7 @@
         "Exa",
         "Tavily",
         "DeepSeek",
+        "Keenable",
         "search provider",
         "API key",
         "custom endpoint"
@@ -31255,13 +32034,13 @@
       "items": [
         {
           "id": "provider",
-          "titleZh": "在免费 Exa MCP、Exa Search API、Tavily、DeepSeek 与 BitFun Search HTTP Protocol 之间选择运行时服务",
-          "titleEn": "Choose free Exa MCP, Exa Search API, Tavily, DeepSeek, or BitFun Search HTTP Protocol as the runtime provider",
+          "titleZh": "在免费 Exa MCP、Exa Search API、Tavily、DeepSeek、Keenable 与 BitFun Search HTTP Protocol 之间选择运行时服务",
+          "titleEn": "Choose free Exa MCP, Exa Search API, Tavily, DeepSeek, Keenable, or BitFun Search HTTP Protocol as the runtime provider",
           "control": {
             "kind": "open",
             "reasonCode": "unstructuredInteraction",
-            "reasonZh": "“在免费 Exa MCP、Exa Search API、Tavily、DeepSeek 与 BitFun Search HTTP Protocol 之间选择运行时服务”与各服务的配置状态相关，目前没有一个能安全完成选择、检查和保存整个流程的单一结构化 Command；智能体会打开精确设置入口，由用户确认配置。",
-            "reasonEn": "“Choose free Exa MCP, Exa Search API, Tavily, DeepSeek, or BitFun Search HTTP Protocol as the runtime provider” depends on provider-specific configuration state, and no single structured Command can safely complete selection, validation, and saving; the Agent opens the exact settings entry for user confirmation."
+            "reasonZh": "“在免费 Exa MCP、Exa Search API、Tavily、DeepSeek、Keenable 与 BitFun Search HTTP Protocol 之间选择运行时服务”与各服务的配置状态相关，目前没有一个能安全完成选择、检查和保存整个流程的单一结构化 Command；智能体会打开精确设置入口，由用户确认配置。",
+            "reasonEn": "“Choose free Exa MCP, Exa Search API, Tavily, DeepSeek, Keenable, or BitFun Search HTTP Protocol as the runtime provider” depends on provider-specific configuration state, and no single structured Command can safely complete selection, validation, and saving; the Agent opens the exact settings entry for user confirmation."
           }
         },
         {
@@ -31332,6 +32111,7 @@
         "Exa",
         "Tavily",
         "DeepSeek",
+        "Keenable",
         "搜索服务",
         "API Key",
         "自定义端点",
@@ -31345,8 +32125,8 @@
         "Switch the WebSearch runtime provider",
         "Store device credentials encrypted on the execution host",
         "Configure and inspect BitFun Search HTTP Protocol v1",
-        "在免费 Exa MCP、Exa Search API、Tavily、DeepSeek 与 BitFun Search HTTP Protocol 之间选择运行时服务",
-        "Choose free Exa MCP, Exa Search API, Tavily, DeepSeek, or BitFun Search HTTP Protocol as the runtime provider",
+        "在免费 Exa MCP、Exa Search API、Tavily、DeepSeek、Keenable 与 BitFun Search HTTP Protocol 之间选择运行时服务",
+        "Choose free Exa MCP, Exa Search API, Tavily, DeepSeek, Keenable, or BitFun Search HTTP Protocol as the runtime provider",
         "为 BitFun Search HTTP Protocol 配置端点、认证方式和受限凭据 Header",
         "Configure the endpoint, authentication mode, and restricted credential header for BitFun Search HTTP Protocol",
         "查看当前执行主机的凭据状态，并保存、替换或清除 API Key/Secret",
@@ -32607,6 +33387,130 @@
         "Take me to export a diagnostic bundle"
       ],
       "docsUrl": "https://playbook.bitfun.com/capabilities/setting.data.diagnostics/"
+    },
+    {
+      "id": "feature.generative-ui",
+      "kind": "feature",
+      "categoryId": "automation",
+      "titleZh": "Generative UI 生成式界面",
+      "titleEn": "Generative UI",
+      "summaryZh": "由智能体按组件库及关联 UI 规范生成 OpenUI 组件应用或 HTML/CSS/SVG 自由文档，经目标视口实际渲染、宿主验收与需求复核后接受并保存。",
+      "summaryEn": "Generate OpenUI component apps or free HTML/CSS/SVG documents under a bound UI specification; accept and persist only after target-viewport rendering, host checks and requirement review.",
+      "keywordsZh": [
+        "Generative UI",
+        "生成式界面",
+        "交互应用",
+        "宿主组件",
+        "应用状态"
+      ],
+      "keywordsEn": [
+        "generative UI",
+        "interactive app",
+        "component contracts",
+        "application state",
+        "structured widget"
+      ],
+      "highlightsZh": [
+        "按组件库及其 UI 规范的设计规则、资源、视口和宿主外壳约束生成结果",
+        "组件路径使用 OpenUI 描述和可信 renderer；自由路径保留 HTML/CSS/SVG",
+        "支持生成、交互、保存和重开",
+        "可注册自定义宿主组件"
+      ],
+      "highlightsEn": [
+        "Constrain generated results with the selected library's UI rules, resources, viewport and host shell",
+        "Use OpenUI descriptions and trusted renderers for components; retain HTML/CSS/SVG for free documents",
+        "Support generation, interaction, save and reopen",
+        "Register custom host components"
+      ],
+      "items": [
+        {
+          "id": "app-generation",
+          "titleZh": "生成可交互的 GenUI 应用并由宿主渲染",
+          "titleEn": "Generate interactive GenUI applications rendered by the host",
+          "control": {
+            "kind": "delegate",
+            "tools": [
+              "GenerativeUI"
+            ],
+            "workflowZh": [
+              "按所选 UI 规范选择 OpenUI 组件描述或 HTML/CSS/SVG 自由文档；规范身份随候选固定。",
+              "宿主按所选 UI 规范渲染 OpenUI 描述或 HTML/CSS/SVG 自由文档，并支持本地交互。"
+            ],
+            "workflowEn": [
+              "Use OpenUI descriptions or free HTML/CSS/SVG under the selected UI specification; pin that identity to the candidate.",
+              "Render OpenUI descriptions or free HTML/CSS/SVG under the selected UI specification and support local interaction."
+            ]
+          }
+        }
+      ],
+      "stepsZh": [
+        "打开 AI 会话",
+        "让智能体生成一个 GenUI 应用",
+        "在宿主中完成交互并保存，随后重开应用"
+      ],
+      "stepsEn": [
+        "Open an AI session",
+        "Ask the agent to generate a GenUI application",
+        "Interact and save it in the host, then reopen the application"
+      ],
+      "agentExamplesZh": [
+        "生成一个可保存的记账应用",
+        "生成一个带预算设置和支出汇总的 dashboard 应用",
+        "生成一个阅读目录并支持收藏",
+        "生成一个带完成状态的日计划"
+      ],
+      "agentExamplesEn": [
+        "Generate a saveable accounting app",
+        "Generate a dashboard with budget settings and an expense summary",
+        "Generate a reading catalog with favorites",
+        "Generate a daily plan with completion state"
+      ],
+      "destination": {
+        "kind": "scene",
+        "sceneId": "session"
+      },
+      "operations": [],
+      "options": [],
+      "searchTerms": [
+        "feature.generative-ui",
+        "Generative UI 生成式界面",
+        "Generative UI",
+        "扩展与自动化",
+        "Extensions & automation",
+        "生成式界面",
+        "交互应用",
+        "宿主组件",
+        "应用状态",
+        "generative UI",
+        "interactive app",
+        "component contracts",
+        "application state",
+        "structured widget",
+        "按组件库及其 UI 规范的设计规则、资源、视口和宿主外壳约束生成结果",
+        "组件路径使用 OpenUI 描述和可信 renderer；自由路径保留 HTML/CSS/SVG",
+        "支持生成、交互、保存和重开",
+        "可注册自定义宿主组件",
+        "Constrain generated results with the selected library's UI rules, resources, viewport and host shell",
+        "Use OpenUI descriptions and trusted renderers for components; retain HTML/CSS/SVG for free documents",
+        "Support generation, interaction, save and reopen",
+        "Register custom host components",
+        "生成可交互的 GenUI 应用并由宿主渲染",
+        "Generate interactive GenUI applications rendered by the host",
+        "生成一个可保存的记账应用",
+        "生成一个带预算设置和支出汇总的 dashboard 应用",
+        "生成一个阅读目录并支持收藏",
+        "生成一个带完成状态的日计划",
+        "Generate a saveable accounting app",
+        "Generate a dashboard with budget settings and an expense summary",
+        "Generate a reading catalog with favorites",
+        "Generate a daily plan with completion state",
+        "GenerativeUI",
+        "按所选 UI 规范选择 OpenUI 组件描述或 HTML/CSS/SVG 自由文档；规范身份随候选固定。",
+        "宿主按所选 UI 规范渲染 OpenUI 描述或 HTML/CSS/SVG 自由文档，并支持本地交互。",
+        "Use OpenUI descriptions or free HTML/CSS/SVG under the selected UI specification; pin that identity to the candidate.",
+        "Render OpenUI descriptions or free HTML/CSS/SVG under the selected UI specification and support local interaction."
+      ],
+      "docsUrl": "https://playbook.bitfun.com/capabilities/feature.generative-ui/"
     }
   ]
 }

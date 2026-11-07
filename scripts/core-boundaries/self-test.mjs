@@ -635,6 +635,7 @@ export function runManifestParserSelfTest({
         'bitfun-core/tools-computer-use',
         'bitfun-core/tools-image-analysis',
         'bitfun-core/tools-image-generation',
+        'bitfun-core/tools-office-documents',
         'bitfun-core/tools-agent-control',
       ],
     ],
@@ -2762,16 +2763,6 @@ export function runManifestParserSelfTest({
     {
       path: 'src/crates/execution/agent-runtime/Cargo.toml',
       contracts: ['[features]', 'default = []'],
-    },
-    {
-      path: 'src/crates/execution/agent-runtime/src/context_profile.rs',
-      contracts: [
-        'ContextProfile',
-        'ModelCapabilityProfile',
-        'ContextProfilePolicy',
-        'for_subagent_context_and_models',
-        'model_capability_weak_for_mini',
-      ],
     },
     {
       path: 'src/crates/execution/agent-runtime/src/session_state.rs',

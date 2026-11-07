@@ -91,7 +91,7 @@ $hello-launcher-corner-clearance: calc(
 
     .virtual-item-wrapper {
       width: 100%;
-      // Preserve the shared flow-root: virtual padding must include child margins.
+      // Preserve the shared flex context: virtual padding must include child margins.
     }
   }
 

@@ -6,32 +6,36 @@ use crate::runtime::run_script;
 use crate::server::response::WebDriverErrorResponse;
 use crate::server::AppState;
 
+// The bridge and its element store belong to the native top-level document.
+// Command scripts still execute in the selected frame, so unqualified window
+// and document keep that frame's DOM semantics.
+
 pub(crate) fn perform_actions() -> &'static str {
-    "async (actions) => { await window.__bitfunWd.performActions(actions); return null; }"
+    "async (actions) => { await window.top.__bitfunWd.performActions(actions); return null; }"
 }
 
 pub(crate) fn release_actions() -> &'static str {
-    "async (pressedKeys, pressedButtons) => { await window.__bitfunWd.releaseActions(pressedKeys, pressedButtons); return null; }"
+    "async (pressedKeys, pressedButtons) => { await window.top.__bitfunWd.releaseActions(pressedKeys, pressedButtons); return null; }"
 }
 
 pub(crate) fn dismiss_alert() -> &'static str {
-    "() => window.__bitfunWd.closeAlert(false)"
+    "() => window.top.__bitfunWd.closeAlert(false)"
 }
 
 pub(crate) fn accept_alert() -> &'static str {
-    "() => window.__bitfunWd.closeAlert(true)"
+    "() => window.top.__bitfunWd.closeAlert(true)"
 }
 
 pub(crate) fn alert_text() -> &'static str {
-    "() => window.__bitfunWd.getAlertText()"
+    "() => window.top.__bitfunWd.getAlertText()"
 }
 
 pub(crate) fn send_alert_text() -> &'static str {
-    "(text) => window.__bitfunWd.sendAlertText(text)"
+    "(text) => window.top.__bitfunWd.sendAlertText(text)"
 }
 
 pub(crate) fn take_logs() -> &'static str {
-    "() => window.__bitfunWd.takeLogs()"
+    "() => window.top.__bitfunWd.takeLogs()"
 }
 
 pub(crate) async fn exec_perform_actions(

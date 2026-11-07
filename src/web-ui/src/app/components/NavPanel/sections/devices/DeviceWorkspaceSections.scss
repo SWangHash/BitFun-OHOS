@@ -1,0 +1,112 @@
+/**
+ * Device sections of the session list. Rows inside a section reuse the
+ * workspace and session row styles; only the device header is new.
+ */
+
+.bitfun-nav-panel {
+  &__device-sections {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  &__device-section {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+
+    & + & {
+      margin-top: var(--bitfun-space-4);
+    }
+  }
+
+  // A group title: same size as workspace names but muted and semibold, with
+  // air above it. Workspace rows stay the brightest text in the list.
+  &__device-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    height: 28px;
+    // The name starts where the assistant avatar does: the assistant row's
+    // padding (space-1), its border (1px) and the open button's inset (4px).
+    margin: 0 var(--bitfun-space-1) 0 calc(var(--bitfun-space-1) + 1px);
+    padding: 0 var(--bitfun-space-2) 0 4px;
+    border: none;
+    border-radius: var(--bitfun-radius-base);
+    background: transparent;
+    color: var(--bitfun-color-content-muted);
+    font-size: var(--bitfun-type-label-sm-font-size);
+    font-weight: var(--bitfun-type-label-selected-font-weight);
+    text-align: start;
+    cursor: pointer;
+    transition: color var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
+
+    &:hover {
+      color: var(--bitfun-color-content-primary);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--bitfun-color-accent-default);
+      outline-offset: -2px;
+    }
+
+    .bitfun-nav-panel__device-section:not(.is-expanded) > & {
+      opacity: 0.7;
+    }
+  }
+
+  &__device-name {
+    flex: 0 1 auto;
+    min-width: 0;
+  }
+
+  // A quiet capsule: muted fill with text in the sidebar's own color, so it
+  // reads below the device name in every theme.
+  &__device-pill {
+    flex: 0 0 auto;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--bitfun-color-content-muted) 55%, transparent);
+    color: var(--bitfun-color-surface-chrome);
+    font-size: var(--bitfun-type-meta-font-size);
+    font-weight: var(--bitfun-type-label-selected-font-weight);
+    line-height: var(--bitfun-type-meta-line-height);
+    letter-spacing: var(--bitfun-type-meta-letter-spacing);
+  }
+
+  // The rendered-device mark matches the capsule's weight, not the accent.
+  &__device-current {
+    flex: 0 0 auto;
+    inline-size: 5px;
+    block-size: 5px;
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--bitfun-color-content-muted) 75%, transparent);
+  }
+
+  &__device-spinner-wrap {
+    display: inline-flex;
+    flex: 0 0 auto;
+    margin-inline-start: auto;
+  }
+
+  &__device-spinner {
+    flex: 0 0 auto;
+    color: var(--bitfun-color-content-secondary);
+    opacity: var(--bitfun-opacity-muted);
+    animation: bitfun-nav-session-spin 1s linear infinite;
+  }
+
+  &__device-body {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  &__device-note {
+    margin: 0 var(--bitfun-space-1);
+    padding: var(--bitfun-space-1) var(--bitfun-space-2);
+    color: var(--bitfun-color-content-muted);
+    font-size: var(--bitfun-type-meta-font-size);
+  }
+}

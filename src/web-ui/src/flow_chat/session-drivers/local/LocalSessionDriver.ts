@@ -30,6 +30,7 @@ import type {
   SessionCascadeRemoval,
   SessionCreationSeed,
   SessionDriver,
+  CompactSessionResult,
   StartTurnInput,
   StartTurnResult,
   SubmissionPlan,
@@ -60,6 +61,31 @@ import { insertSteeringItemIfAbsent } from '../../services/flow-chat-manager/Eve
 
 const log = createLogger('LocalSessionDriver');
 
+async function syncCreatedSessionTitle(
+  context: FlowChatContext,
+  sessionId: string,
+  descriptor: SessionCreationSeed['titleDescriptor'],
+  workspaceId: string,
+  surfaceScope: SessionCreationSeed['surfaceScope'],
+): Promise<void> {
+  try {
+    const title = await initializeSessionTitleMetadata(sessionId, descriptor, workspaceId, surfaceScope);
+    if (title.workspaceSessionNumber === undefined) return;
+    context.flowChatStore.setState(state => {
+      const current = state.sessions.get(sessionId);
+      // A title generated or edited meanwhile owns the display; keep it.
+      if (!current || current.titleSource !== 'i18n') return state;
+      return { ...state, sessions: new Map(state.sessions).set(sessionId, {
+        ...current, workspaceSessionNumber: title.workspaceSessionNumber,
+      }) };
+    });
+  } catch (error) {
+    // A surface change abandons this projection; the session itself was
+    // created and the next catalog read carries the host-owned number.
+    log.debug('Skipped created session title synchronization', { sessionId, error });
+  }
+}
+
 export const localSessionDriver: SessionDriver = {
   id: 'local',
 
@@ -84,11 +110,17 @@ export const localSessionDriver: SessionDriver = {
         ?? catalog.recentWorkspaces.find(item => item.id === workspaceId);
       const projectId = workspace?.worktree && !workspace.worktree.isMain && workspace.workspaceKind !== 'remote'
         ? workspace.worktree.mainWorkspaceId : workspaceId;
-      const projectPrimary = projectId ? (await readProjectDefaults(projectId)).defaults.primary_model : undefined;
+      // Reuse the creation's project defaults read: the mode resolver usually
+      // issued it already, so this costs no second host round trip.
+      const readDefaults = seed.readProjectDefaults
+        ?? (projectId ? () => readProjectDefaults(projectId) : undefined);
+      const projectPrimary = readDefaults ? (await readDefaults()).defaults.primary_model : undefined;
       surfaceScope.assertCurrent('resolve project default model');
       if (projectPrimary) config = { ...config, modelName: projectPrimary };
     }
     if (!config.modelName && !config.modelPoolId && !acpClientIdFromAgentType(agentType)) {
+      // Served from the config manager cache when warm; read only when no
+      // project model applies.
       const { mode: selection } = await readModelSelections();
       surfaceScope.assertCurrent('resolve default model target');
       if (selection.kind === 'pool') {
@@ -103,13 +135,20 @@ export const localSessionDriver: SessionDriver = {
 
 
     const explicitModelName = config.modelName?.trim() || undefined;
-    const reasoningPreset = config.modelPoolId ? undefined : config.reasoningPreset
-      ?? await resolveReasoningPresetForSessionCreation(explicitModelName);
-    surfaceScope.assertCurrent('resolve session creation reasoning preset');
+    const requestedReasoningPreset = config.modelPoolId ? undefined : config.reasoningPreset;
+    const readReasoningPreset = (): Promise<string | undefined> => (
+      config.modelPoolId || requestedReasoningPreset != null
+        ? Promise.resolve(requestedReasoningPreset ?? undefined)
+        : resolveReasoningPresetForSessionCreation(explicitModelName)
+    );
 
     if (seed.draftId && agentType !== 'Claw' && !config.executionTargetRequest) {
       if (!workspaceId) throw new Error('Draft workspace ID is unavailable');
-      const maxContextTokens = await getModelMaxTokens(explicitModelName, agentType);
+      // Both reads only depend on the model already resolved above.
+      const [reasoningPreset, maxContextTokens] = await Promise.all([
+        readReasoningPreset(),
+        getModelMaxTokens(explicitModelName, agentType),
+      ]);
       surfaceScope.assertCurrent('prepare conversation draft');
       context.flowChatStore.createSession(seed.draftId, {
         ...config, workspaceId, workspacePath, projectWorkspacePath, reasoningPreset,
@@ -119,6 +158,9 @@ export const localSessionDriver: SessionDriver = {
       });
       return seed.draftId;
     }
+
+    const reasoningPreset = await readReasoningPreset();
+    surfaceScope.assertCurrent('resolve session creation reasoning preset');
 
     const response = await agentAPI.createSession({
       sessionName,
@@ -165,11 +207,11 @@ export const localSessionDriver: SessionDriver = {
       executionTarget: response.executionTarget,
     };
 
-    const createdTitleDescriptor = await initializeSessionTitleMetadata(
-      response.sessionId, titleDescriptor, requireSessionOwningWorkspaceId({ config: resolvedConfig }),
-      surfaceScope,
-    );
-
+    // The session exists on the host already; its default title renders from
+    // the descriptor at once. Synchronize the host-owned title identity and
+    // workspace session number off the creation critical path (three metadata
+    // round trips, each a relay round trip in Peer Device Mode), the same way
+    // a materialized draft does.
     context.flowChatStore.createSession(
       response.sessionId,
       resolvedConfig,
@@ -180,7 +222,11 @@ export const localSessionDriver: SessionDriver = {
       effectiveWorkspacePath,
       remoteConnectionId,
       remoteSshHost,
-      createdTitleDescriptor,
+      titleDescriptor,
+    );
+    void syncCreatedSessionTitle(
+      context, response.sessionId, titleDescriptor,
+      requireSessionOwningWorkspaceId({ config: resolvedConfig }), surfaceScope,
     );
 
     return response.sessionId;
@@ -314,18 +360,20 @@ export const localSessionDriver: SessionDriver = {
     return { kind: 'queue' };
   },
 
-  async compactSession(context: FlowChatContext, sessionId: string): Promise<void> {
+  async compactSession(context: FlowChatContext, sessionId: string, turnId?: string): Promise<CompactSessionResult> {
     const session = context.flowChatStore.getState().sessions.get(sessionId);
     if (!session) {
       throw new Error(`Session does not exist: ${sessionId}`);
     }
-    await agentAPI.compactSession({
+    const response = await agentAPI.compactSession({
       sessionId,
+      turnId,
       workspaceId: sessionOwningWorkspaceId(session),
       workspacePath: sessionProjectWorkspacePath(session),
       remoteConnectionId: session.remoteConnectionId,
       remoteSshHost: session.remoteSshHost,
     });
+    return { accepted: response.success, turnId: response.turnId };
   },
 
   async runUsageReport(
@@ -461,23 +509,27 @@ export const localSessionDriver: SessionDriver = {
         applyGeneratingTitlePlaceholder(context, sessionId, message);
       }
 
-      if (!acpClientId) {
-        await syncSessionModelSelection(context, sessionId, currentAgentType, surfaceScope);
-      }
     };
     if (!acpClientId && hostQueueSupported(sessionId) && (!options?.execution || options.execution.kind === 'standard')) {
       if (readySession.isHistorical || context.pendingHistoryLoads.has(surfaceScope.key('history-load', surfaceScope.epoch, sessionId))) {
         throw new Error('Session history is still restoring, please retry once loading finishes');
       }
       await prepareSubmission();
+      const queue = hostDialogQueue(sessionId);
+      // Worktree binding above may change the host's session storage scope.
+      // Its completion fences both independent preparation reads below.
+      const [, queueSnapshot] = await Promise.all([
+        syncSessionModelSelection(context, sessionId, currentAgentType, surfaceScope),
+        queue.refresh(),
+      ]);
+      surfaceScope.assertCurrent('prepare host message');
       await inheritReviewPermissionMode(readySession, context.flowChatStore.getState().sessions,
         () => surfaceScope.assertCurrent('inherit review session permission mode'));
       tracker.hostSubmitStarted = true;
-      const queue = hostDialogQueue(sessionId);
       const accepted = await queue.submit({ content: message, displayContent: displayMessage,
         agentType: currentAgentType, attachments: queueImageAttachments(options?.imageContexts),
         metadata: options?.userMessageMetadata ?? {} },
-        { composerDraft: options?.pendingQueueDraft, imageContexts: options?.imageContexts, imageDisplayData: options?.imageDisplayData }, options?.turnId);
+        { composerDraft: options?.pendingQueueDraft, imageContexts: options?.imageContexts, imageDisplayData: options?.imageDisplayData }, options?.turnId, queueSnapshot);
       tracker.hostAcceptedTurn = true;
       surfaceScope.assertCurrent('accept host message');
       if (options?.turnId && accepted.receipt?.turnId && accepted.receipt.turnId !== options.turnId) {
@@ -562,6 +614,9 @@ export const localSessionDriver: SessionDriver = {
     });
 
     await prepareSubmission();
+    if (!acpClientId) {
+      await syncSessionModelSelection(context, sessionId, currentAgentType, surfaceScope);
+    }
 
     const updatedSession = context.flowChatStore.getState().sessions.get(sessionId);
     if (!updatedSession) {

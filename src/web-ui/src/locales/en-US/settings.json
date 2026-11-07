@@ -130,6 +130,7 @@
     "sections": {
       "text-selection": "Text selection",
       "message-sending": "Message sending",
+      "btw-close-confirmation": "Side conversation closing",
       "voice": "Voice",
       "shortcuts": "Keyboard Shortcuts",
       "session": "Session Defaults",
@@ -325,7 +326,8 @@
         "focusMergedHint": "Record Alt (or your chosen modifiers) + any digit 1–3 once; keys 1–3 map to scenes left to right.",
         "openSession": "Open Agent Session",
         "openSettings": "Open Settings",
-        "openTerminal": "Open Terminal"
+        "openTerminal": "Open Terminal",
+        "openGit": "Open Git"
       },
       "canvas": {
         "missionControl": "Mission Control",

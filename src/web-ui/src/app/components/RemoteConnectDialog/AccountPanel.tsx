@@ -1,14 +1,17 @@
 import { refreshDeviceDirectory, isDeviceControllable, deviceClientVersion } from '@/infrastructure/account/deviceDirectory';
-/** Account login and authenticated device connections. */
+/** Account login and linked-device management. */
 
-import { OverflowText, Alert, Avatar, Button, Icon, IconButton, Input, ScrollArea, StatusPill } from '@bitfun/ui';
+import { OverflowText, Alert, Avatar, Button, Icon, IconButton, Input, ScrollArea } from '@bitfun/ui';
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useI18n } from '@/infrastructure/i18n';
 import {
   confirmDanger,
 } from '@/infrastructure/confirm-dialog';
-import { LogOut, Pencil, Check, X } from 'lucide-react';
+import { LogOut, Pencil, Check, X, House, GripVertical } from 'lucide-react';
 import { DeviceSystemGlyph } from '../NavPanel/components/DeviceSystemGlyph';
+import { DeviceVisibilityButton } from '../NavPanel/components/DeviceVisibilityButton';
+import { LOCAL_SURFACE_ID, surfaceIdForDevice } from '@/infrastructure/peer-device/deviceSurface';
+import { sortAccountDevices, useDeviceOrderPreferences } from '@/app/navigation/deviceOrderPreferences';
 import { reportedHostKind } from '../NavPanel/deviceInterconnectionOverview';
 import { remoteConnectAPI, deviceDisplayName, deviceMetadataLabel } from '@/infrastructure/api/service-api/RemoteConnectAPI';
 import type {
@@ -17,7 +20,6 @@ import type {
 } from '@/infrastructure/api/service-api/RemoteConnectAPI';
 import { accountIdentityService, useAccountIdentity } from '@/infrastructure/account-identity';
 import { api } from '@/infrastructure/api/service-api/ApiClient';
-import { usePeerDeviceMode } from '@/infrastructure/peer-device/peerDeviceContextState';
 import {
   isAccountAuthFailure,
   isRelayUnreachable,
@@ -100,11 +102,6 @@ async function connectDevicesWithRetry(
   throw lastError;
 }
 
-interface AccountPanelProps {
-  /** Close the whole Remote Connect dialog (used when entering peer mode). */
-  onCloseDialog: () => void;
-}
-
 /**
  * Merge one presence entry into a known device. Absent keys mean "this relay
  * cannot report the field", so they must never erase metadata that came from
@@ -177,12 +174,9 @@ const FailureBanner: React.FC<FailureBannerProps> = ({ failure, t, busy, onClose
   );
 };
 
-export const AccountPanel: React.FC<AccountPanelProps> = ({
-  onCloseDialog,
-}) => {
+export const AccountPanel: React.FC = () => {
   const { t, formatRelativeTime } = useI18n('common');
   const { success } = useNotification();
-  const { peerMode, switchToDevice, switchToLocal } = usePeerDeviceMode();
   const identity = useAccountIdentity();
   const githubId = (identity.me?.user.accountId ?? identity.me?.user.githubId);
   const username = identity.me?.email ?? identity.me?.user.login ?? '';
@@ -264,13 +258,16 @@ export const AccountPanel: React.FC<AccountPanelProps> = ({
     }).catch(error => { log.warn('getDeviceInfo failed', error); });
   }, [isAccountEpochCurrent]);
 
-  const sortedDevices = useMemo(() => [...devices].sort((left, right) => {
-    const leftLocal = left.device_id === localDeviceId;
-    const rightLocal = right.device_id === localDeviceId;
-    if (leftLocal !== rightLocal) return leftLocal ? -1 : 1;
-    if (left.online !== right.online) return left.online ? -1 : 1;
-    return deviceDisplayName(left).localeCompare(deviceDisplayName(right));
-  }), [devices, localDeviceId]);
+  const deviceOrder = useDeviceOrderPreferences(state => state.order);
+  const sortedDevices = useMemo(() => sortAccountDevices(devices, localDeviceId, deviceOrder),
+    [devices, localDeviceId, deviceOrder]);
+  const draggingDevice = useRef<string | null>(null);
+  const [dropTarget, setDropTarget] = useState<{ id: string; placement: 'before' | 'after' } | null>(null);
+  const clearDeviceDrag = () => { draggingDevice.current = null; setDropTarget(null); };
+  const moveDevice = (deviceId: string, targetId: string, placement: 'before' | 'after') => {
+    useDeviceOrderPreferences.getState().move(deviceId, targetId, placement, sortedDevices.map(device => device.device_id));
+  };
+  useEffect(() => { draggingDevice.current = null; setDropTarget(null); }, [activeAccountEpoch]);
 
   const resetState = useCallback(() => {
     setActiveAccountEpoch(null);
@@ -790,46 +787,6 @@ export const AccountPanel: React.FC<AccountPanelProps> = ({
     setEditingDeviceId(device.device_id);
     setAliasDraft(device.device_alias ?? '');
   }, []);
-  const selectDevice = useCallback(async (device: AccountDeviceInfo) => {
-    if (!device.online) return;
-    // Picking this machine is a normal surface switch back, not a no-op: the
-    // window may currently be rendering a peer.
-    const isLocalDevice = Boolean(localDeviceId) && device.device_id === localDeviceId;
-    // A confirmed-incompatible peer is never a control target. Renaming stays a
-    // plain directory operation and is handled by its own row action.
-    if (!isLocalDevice && !isDeviceControllable(device)) return;
-    setLoading(true);
-    setError(null);
-    try {
-      let outcome: 'activated' | 'superseded';
-      if (isLocalDevice) {
-        outcome = await switchToLocal();
-        if (outcome === 'activated') {
-          success(t('accountLogin.deviceSwitcher.switchedLocal'));
-        }
-      } else {
-        outcome = await switchToDevice(device.device_id, deviceDisplayName(device));
-        if (outcome === 'activated') {
-          success(t('accountLogin.enteredPeerMode', { name: deviceDisplayName(device) }));
-        }
-      }
-      if (outcome === 'activated') {
-        onCloseDialog();
-      }
-    } catch (e: unknown) {
-      setError(reportAccountFailure('switch device failed', e));
-    } finally {
-      setLoading(false);
-    }
-  }, [
-    localDeviceId,
-    onCloseDialog,
-    reportAccountFailure,
-    success,
-    switchToDevice,
-    switchToLocal,
-    t,
-  ]);
 
   /** Run the next step a banner offers; sign-in keeps its existing flow. */
   const runFailureAction = useCallback((action: RelayFailureAction) => {
@@ -897,14 +854,14 @@ export const AccountPanel: React.FC<AccountPanelProps> = ({
             <section className="account-panel__section" aria-labelledby="account-panel-account-title">
               {renderSectionHeading('account-panel-account-title', t('accountLogin.accountSectionTitle'))}
               <div className="account-panel__card account-panel__identity-line">
-                <Avatar key={username} size="md" src={identity.me?.user.avatarUrl} alt={username} aria-label={username}>
+                <Avatar key={username} className="account-panel__avatar" size="md" src={identity.me?.user.avatarUrl} alt={username} aria-label={username}>
                   {username.trim().charAt(0).toUpperCase() || <Icon name="user" />}
                 </Avatar>
                 <span className="account-panel__identity-copy">
                   <OverflowText className="account-panel__identity-name" title={username}>{username.trim()}</OverflowText>
                   <span className="account-panel__identity-label">{t('accountLogin.signedInAccount')}</span>
                 </span>
-                <Button variant="outline" size="sm" leadingIcon={<LogOut size={14} />} onClick={handleLogout} disabled={loading}>
+                <Button variant="quiet" size="sm" leadingIcon={<LogOut size={14} />} onClick={handleLogout} disabled={loading}>
                   {t('accountLogin.logout')}
                 </Button>
               </div>
@@ -912,7 +869,7 @@ export const AccountPanel: React.FC<AccountPanelProps> = ({
             <section className="account-panel__section" aria-labelledby="account-panel-devices-title">
               {renderSectionHeading('account-panel-devices-title', t('accountLogin.linkedDevices'), (
                 relayFailure && failureBannerAction(relayFailure) ? null : (
-                  <Button variant="text" size="xs" leadingIcon={<Icon name="refresh" size="sm" />}
+                  <Button className="account-panel__refresh" variant="text" size="xs" leadingIcon={<Icon name="refresh" size="sm" />}
                     onClick={relayFailure ? handleRetryConnect : refreshDevices} disabled={loading}>
                     {t(relayFailure ? 'accountLogin.retryConnect' : 'accountLogin.refreshDevices')}
                   </Button>
@@ -935,12 +892,6 @@ export const AccountPanel: React.FC<AccountPanelProps> = ({
                   )}
                   {sortedDevices.map((d) => {
                   const isLocal = localDeviceId === d.device_id;
-                  // This machine is selectable while the window renders a peer,
-                  // so the dialog can bring the UI back without disconnecting.
-                  // A confirmed-incompatible peer stays listed but is never a
-                  // control target; this machine is never gated by its own flag.
-                  const deviceControllable = isLocal || isDeviceControllable(d);
-                  const isSelectable = (isLocal ? peerMode.active : d.online) && deviceControllable;
                   const incompatible = isLocal ? false : !isDeviceControllable(d);
                   const incompatibleVersion = deviceClientVersion(d);
                   const incompatibleNotice = incompatibleVersion
@@ -963,23 +914,46 @@ export const AccountPanel: React.FC<AccountPanelProps> = ({
                     os: d.device_os,
                     hostKind: reportedHostKind(d.device_kind),
                   };
-                  const DeviceEntry = isSelectable && editingDeviceId !== d.device_id ? 'button' : 'div';
                   return (
                   <div data-bitfun-component="remote-account-panel" data-bitfun-part="deviceCard" key={d.device_id}
                     data-bitfun-state={[
                       !d.online && 'offline',
                       isLocal && 'current',
                     ].filter(Boolean).join(' ') || undefined}
-                    className={`account-panel__device-card ${isSelectable ? 'selectable' : ''} ${d.online ? '' : 'offline'} ${isLocal ? 'current' : ''}`}>
-                    <DeviceEntry
-                      className="account-panel__device-select"
-                      {...(isSelectable && editingDeviceId !== d.device_id ? {
-                        type: 'button' as const,
-                        onClick: () => void selectDevice(d),
-                        disabled: loading,
-                        'aria-label': t('accountLogin.openDevice', { name: displayName }),
-                      } : {})}
-                    >
+                    data-device-id={d.device_id}
+                    data-drop-position={dropTarget?.id === d.device_id ? dropTarget.placement : undefined}
+                    draggable={editingDeviceId === null && sortedDevices.length > 1}
+                    onDragStart={event => {
+                      if ((event.target as HTMLElement).closest('button, input')) {
+                        event.preventDefault(); return;
+                      }
+                      draggingDevice.current = d.device_id;
+                      event.dataTransfer.effectAllowed = 'move';
+                      event.dataTransfer.setData('application/x-bitfun-device-order', d.device_id);
+                    }}
+                    onDragOver={event => {
+                      if (!draggingDevice.current || draggingDevice.current === d.device_id) return;
+                      event.preventDefault();
+                      event.dataTransfer.dropEffect = 'move';
+                      const bounds = event.currentTarget.getBoundingClientRect();
+                      const placement = event.clientY < bounds.top + bounds.height / 2 ? 'before' : 'after';
+                      setDropTarget(previous => previous?.id === d.device_id && previous.placement === placement
+                        ? previous : { id: d.device_id, placement });
+                    }}
+                    onDrop={event => {
+                      if (!draggingDevice.current) return;
+                      event.preventDefault(); event.stopPropagation();
+                      const bounds = event.currentTarget.getBoundingClientRect();
+                      moveDevice(draggingDevice.current, d.device_id,
+                        event.clientY < bounds.top + bounds.height / 2 ? 'before' : 'after');
+                      clearDeviceDrag();
+                    }}
+                    onDragEnd={clearDeviceDrag}
+                    className={`account-panel__device-card ${d.online ? '' : 'offline'} ${isLocal ? 'current' : ''}`}>
+                    <span className="account-panel__device-drag-handle" aria-hidden="true">
+                      <GripVertical size={14} />
+                    </span>
+                    <div className="account-panel__device-summary">
                       <span className="account-panel__device-glyph" aria-hidden="true">
                         <DeviceSystemGlyph device={systemFacts} size={18} />
                       </span>
@@ -988,40 +962,52 @@ export const AccountPanel: React.FC<AccountPanelProps> = ({
                             name next to an editor reads as two device names. */}
                         {editingDeviceId === d.device_id ? (
                           <span className="account-panel__device-alias-editor">
+                            {/* The name itself becomes editable, as on the device card. */}
                             <Input
                               className="account-panel__device-alias-input"
+                              size="sm"
                               value={aliasDraft}
                               onChange={e => setAliasDraft(e.target.value)}
                               onKeyDown={event => {
                                 if (event.key === 'Enter') { event.preventDefault(); void handleUpdateAlias(d); }
                                 if (event.key === 'Escape') { event.preventDefault(); setEditingDeviceId(null); }
                               }}
-                              placeholder={t('accountLogin.deviceAliasPlaceholder')}
+                              onFocus={event => event.currentTarget.select()}
+                              placeholder={d.device_name ?? t('accountLogin.deviceAliasPlaceholder')}
+                              title={t('accountLogin.deviceAliasPlaceholder')}
                               aria-label={t('accountLogin.deviceAlias')}
                               autoFocus
                               disabled={savingAliasId === d.device_id}
-                            />
-                            <IconButton
-                              aria-label={t('accountLogin.saveDeviceAlias')}
-                              icon={<Check size={14} />}
-                              loading={savingAliasId === d.device_id}
-                              onClick={() => void handleUpdateAlias(d)}
-                              size="sm"
-                              variant="primary"
-                            />
-                            <IconButton
-                              aria-label={t('accountLogin.cancel')}
-                              disabled={savingAliasId === d.device_id}
-                              icon={<X size={14} />}
-                              onClick={() => setEditingDeviceId(null)}
-                              size="sm"
-                              variant="quiet"
+                              trailing={<>
+                                <IconButton
+                                  className="account-panel__device-alias-action"
+                                  aria-label={t('accountLogin.saveDeviceAlias')}
+                                  icon={<Check size={12} />}
+                                  loading={savingAliasId === d.device_id}
+                                  onClick={() => void handleUpdateAlias(d)}
+                                  size="xs"
+                                  variant="quiet"
+                                />
+                                <IconButton
+                                  className="account-panel__device-alias-action"
+                                  aria-label={t('accountLogin.cancel')}
+                                  disabled={savingAliasId === d.device_id}
+                                  icon={<X size={12} />}
+                                  onClick={() => setEditingDeviceId(null)}
+                                  size="xs"
+                                  variant="quiet"
+                                />
+                              </>}
                             />
                           </span>
                         ) : (
                           <span className="account-panel__device-name">
                             <OverflowText title={displayName}>{displayName}</OverflowText>
-                            {isLocal && <StatusPill tone="neutral" className="account-panel__device-badge">{t('accountLogin.thisDevice')}</StatusPill>}
+                            {isLocal && (
+                              <span className="account-panel__device-home" role="img" aria-label={t('accountLogin.thisDevice')}>
+                                <House size={13} />
+                              </span>
+                            )}
                           </span>
                         )}
                         <span className="account-panel__device-meta">
@@ -1041,34 +1027,41 @@ export const AccountPanel: React.FC<AccountPanelProps> = ({
                           </span>
                         )}
                       </span>
-                    </DeviceEntry>
+                    </div>
                     {/* The open editor owns the row's actions; keeping rename and
                         delete beside it rendered two competing icon clusters. */}
                     {editingDeviceId !== d.device_id && (
                       <span className="account-panel__device-actions">
+                        {!['mobile', 'watch'].includes(d.device_kind?.trim().toLowerCase() ?? '') && (
+                          <DeviceVisibilityButton
+                            surfaceId={isLocal ? LOCAL_SURFACE_ID : surfaceIdForDevice(d.device_id)}
+                            name={displayName}
+                            compact
+                            disabled={!localDeviceId}
+                          />
+                        )}
                         <IconButton
+                          className="account-panel__device-action"
                           aria-label={t('accountLogin.editDeviceAlias')}
                           disabled={loading || editingDeviceId !== null || !aliasSupported || savingAliasId !== null}
-                          icon={<Pencil size={14} />}
+                          icon={<Pencil size={12} />}
                           onClick={(e) => { e.stopPropagation(); handleStartAliasEdit(d); }}
-                          size="sm"
+                          size="xs"
                           title={t('accountLogin.editDeviceAlias')}
                           variant="quiet"
                         />
                         <IconButton
+                          className="account-panel__device-action"
                           aria-label={`${removeLabel}: ${displayName}`}
                           disabled={loading || savingAliasId !== null}
-                          icon={<Icon name="delete" size="sm" />}
+                          icon={<Icon name="delete" size="xs" />}
                           onClick={(e) => { e.stopPropagation(); handleDeleteDevice(d.device_id, displayName); }}
-                          size="sm"
+                          size="xs"
                           title={removeLabel}
                           variant="quiet"
                         />
                       </span>
                     )}
-                    <span className="account-panel__device-chevron" aria-hidden="true">
-                      {isSelectable && editingDeviceId !== d.device_id && <Icon name="chevron-right" size="sm" />}
-                    </span>
                   </div>
                   );
                 })}

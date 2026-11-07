@@ -68,12 +68,13 @@ cargo run -p bitfun-miniapp-market-server
 ```
 
 开发默认 secret 不能用于 release 或生产。GitHub OAuth 未配置时，健康响应中的
-`githubAuthConfigured` 为 `false`，登录功能不可用。
+`githubAuthConfigured` 为 `false`，仅 GitHub 登录不可用。邮箱验证码登录由
+`emailAuthConfigured` 单独报告，需配置 SMTP；详见[身份服务说明](../../crates/services/miniapp-market-service/README.md#邮箱验证码登录)。
 
 ## 环境变量
 
 示例环境变量见 `../../../deploy/miniapp-market/market.env.example`。实际值只
-应存在服务器的 `/etc/openbitfun-miniapp-market/market.env`。
+应存在服务器的 `/etc/bitfun-miniapp-market/market.env`。
 
 | 变量 | 作用 |
 | --- | --- |

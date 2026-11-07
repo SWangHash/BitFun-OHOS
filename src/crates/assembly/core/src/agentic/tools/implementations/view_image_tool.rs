@@ -541,6 +541,7 @@ mod tests {
             custom_data: HashMap::new(),
             computer_use_host: None,
             runtime_tool_restrictions: ToolRuntimeRestrictions::default(),
+            model_client: None,
             runtime_handles: bitfun_runtime_ports::ToolRuntimeHandles::default(),
         }
     }

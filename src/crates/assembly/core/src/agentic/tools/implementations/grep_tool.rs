@@ -201,8 +201,8 @@ impl GrepTool {
             .get("output_mode")
             .and_then(|v| v.as_str())
             .unwrap_or("files_with_matches");
-        let output_mode = OutputMode::from_str(output_mode_str)
-            .map_err(|e| BitFunError::tool(e.to_string()))?;
+        let output_mode =
+            OutputMode::from_str(output_mode_str).map_err(|e| BitFunError::tool(e.to_string()))?;
         let show_line_numbers = input
             .get("-n")
             .and_then(|v| v.as_bool())
@@ -983,6 +983,7 @@ mod tests {
                 dir.path().to_path_buf(),
             )),
             loaded_deferred_tool_specs: Vec::new(),
+            model_client: None,
             primary_model_facts: tool_runtime::context::PrimaryModelFacts::default(),
             custom_data: HashMap::new(),
             computer_use_host: None,
@@ -1055,6 +1056,7 @@ mod tests {
                 dir.path().to_path_buf(),
             )),
             loaded_deferred_tool_specs: Vec::new(),
+            model_client: None,
             primary_model_facts: tool_runtime::context::PrimaryModelFacts::default(),
             custom_data: HashMap::new(),
             computer_use_host: None,
@@ -1305,8 +1307,8 @@ mod tests {
                 storage_root: "/repo/.bitfun/search/flashgrep-index".to_string(),
                 base_snapshot_root: "/repo/.bitfun/search/flashgrep-index/base-snapshot"
                     .to_string(),
-                workspace_overlay_root:
-                    "/repo/.bitfun/search/flashgrep-index/workspace-overlay".to_string(),
+                workspace_overlay_root: "/repo/.bitfun/search/flashgrep-index/workspace-overlay"
+                    .to_string(),
                 phase: WorkspaceSearchRepoPhase::Ready,
                 snapshot_key: None,
                 base_head_commit: None,
@@ -1385,8 +1387,8 @@ mod tests {
                 storage_root: "/repo/.bitfun/search/flashgrep-index".to_string(),
                 base_snapshot_root: "/repo/.bitfun/search/flashgrep-index/base-snapshot"
                     .to_string(),
-                workspace_overlay_root:
-                    "/repo/.bitfun/search/flashgrep-index/workspace-overlay".to_string(),
+                workspace_overlay_root: "/repo/.bitfun/search/flashgrep-index/workspace-overlay"
+                    .to_string(),
                 phase: WorkspaceSearchRepoPhase::Ready,
                 snapshot_key: None,
                 base_head_commit: None,
@@ -2169,8 +2171,7 @@ mod tests {
             fs.opened.lock().unwrap().clear();
             let empty = ResponseShell {
                 status: 1,
-                stdout: "BITFUN_RG_CANDIDATES_BEGIN\0BITFUN_RG_CANDIDATES_END\0"
-                    .to_string(),
+                stdout: "BITFUN_RG_CANDIDATES_BEGIN\0BITFUN_RG_CANDIDATES_END\0".to_string(),
                 timed_out: false,
             };
             let result = grep_search_workspace(options.clone(), &fs, Some(&empty))
@@ -2328,6 +2329,7 @@ mod tests {
                     identity,
                 )),
                 loaded_deferred_tool_specs: Vec::new(),
+                model_client: None,
                 primary_model_facts: Default::default(),
                 custom_data: HashMap::new(),
                 computer_use_host: None,

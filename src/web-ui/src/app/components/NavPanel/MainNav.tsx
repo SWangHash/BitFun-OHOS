@@ -10,7 +10,7 @@
  * positional CSS classes for the split-open animation effect.
  */
 
-import React, { Suspense, useCallback, useState, useEffect, useRef, useSyncExternalStore } from 'react';
+import React, { Suspense, useCallback, useMemo, useState, useEffect, useRef, useSyncExternalStore } from 'react';
 import {
   OverflowText,
   Icon,
@@ -33,7 +33,12 @@ import StickySectionHeader from './components/StickySectionHeader';
 import WorkspaceSessionGroupingToggle from './components/WorkspaceSessionGroupingToggle';
 import WorkspaceSessionFilterMenu from './components/WorkspaceSessionFilterMenu';
 import { useMiniAppNavigation } from '@/app/scenes/miniapps/miniAppNavigationStore';
-import WorkspaceListSection from './sections/workspaces/WorkspaceListSection';
+import DeviceWorkspaceSections from './sections/devices/DeviceWorkspaceSections';
+import { devicePlatform, useSidebarDevices } from './sections/devices/useSidebarDevices';
+import { activateDeviceSlot } from './sections/devices/openOnDevice';
+import { useDeviceDirectory } from '@/infrastructure/account/deviceDirectory';
+import { usePeerDeviceModeOptional } from '@/infrastructure/peer-device/peerDeviceContextState';
+import type { NewProjectDeviceOption, NewProjectDeviceTarget } from '../NewProjectDialog/NewProjectDialog';
 import { useSceneStore } from '../../stores/sceneStore';
 import { useMiniAppCatalogSync } from '../../scenes/miniapps/hooks/useMiniAppCatalogSync';
 import { workspaceManager } from '@/infrastructure/services/business/workspaceManager';
@@ -202,6 +207,26 @@ const MainNav: React.FC<MainNavProps> = ({
     return () => window.removeEventListener('nav:new-project', onNewProject);
   }, []);
 
+  const peerDevice = usePeerDeviceModeOptional();
+  const signedIn = useDeviceDirectory(state => state.localId !== null);
+  const deviceSlots = useSidebarDevices(t('deviceOverview.thisDevice'));
+  const deviceOptions = useMemo<NewProjectDeviceOption[] | undefined>(() => (signedIn
+    ? deviceSlots.filter(slot => !slot.isLocal).map(slot => ({
+        surfaceId: slot.surfaceId,
+        name: slot.name,
+        hostKind: slot.hostKind,
+        platform: devicePlatform(slot.os),
+        rendered: slot.rendered,
+        controllable: slot.controllable,
+      }))
+    : undefined), [deviceSlots, signedIn]);
+  /** Creation happens on the rendered device; render the chosen one first. */
+  const handleSelectCreationDevice = useCallback(async (target: NewProjectDeviceTarget) => {
+    const slot = deviceSlots.find(candidate => (target === 'local' ? candidate.isLocal : candidate.surfaceId === target));
+    if (!slot) throw new Error(t('newWorkspace.deviceError'));
+    return await activateDeviceSlot(peerDevice, slot) === 'activated';
+  }, [deviceSlots, peerDevice, t]);
+
   const handleCreateAssistant = useCallback(async () => {
     const scope = getActiveSurfaceScope();
     const workspace = await workspaceManager.createAssistantWorkspace();
@@ -322,7 +347,7 @@ const MainNav: React.FC<MainNavProps> = ({
             />
           </StickySectionHeader>
           <div ref={sessionContentRef} className="bitfun-nav-panel__items" data-bitfun-component="nav-panel" data-bitfun-part="sectionContent">
-            <WorkspaceListSection variant="all" scrollRootRef={sectionsScrollRef} />
+            <DeviceWorkspaceSections scrollRootRef={sectionsScrollRef} />
           </div>
         </div>
         </div>
@@ -339,6 +364,8 @@ const MainNav: React.FC<MainNavProps> = ({
             onPickRemoteFolder={handlePickRemoteFolder}
             onSelectRemoteHost={handleSelectRemoteHost}
             onCreateAssistant={showAssistantChoice ? handleCreateAssistant : undefined}
+            onSelectDevice={showAssistantChoice && peerDevice ? handleSelectCreationDevice : undefined}
+            deviceOptions={deviceOptions}
             defaultParentPath={currentWorkspace && !isRemoteWorkspace(currentWorkspace) ? currentWorkspace.rootPath : undefined}
             data-testid="nav-workspace-dialog"
           />

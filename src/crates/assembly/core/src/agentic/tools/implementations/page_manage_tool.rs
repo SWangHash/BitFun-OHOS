@@ -221,8 +221,8 @@ When the user requests an operation, call it directly. The permission system han
         );
         // Include resolved defaults, so remote approval mailboxes also show
         // private visibility and preview-only publication when fields are omitted.
-        let normalized = serde_json::to_value(&request)
-            .map_err(|error| BitFunError::tool(error.to_string()))?;
+        let normalized =
+            serde_json::to_value(&request).map_err(|error| BitFunError::tool(error.to_string()))?;
         for key in ["visibility", "title", "deploy", "version_id"] {
             if let Some(value) = normalized.get(key).filter(|value| !value.is_null()) {
                 resource.push_str(&format!("; {key}={value}"));
@@ -314,6 +314,7 @@ mod tests {
             custom_data: HashMap::new(),
             computer_use_host: None,
             runtime_tool_restrictions: Default::default(),
+            model_client: None,
             runtime_handles: Default::default(),
         }
     }

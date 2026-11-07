@@ -42,7 +42,7 @@ describe('AgentCompanionDesktopPet styles', () => {
     const output = extractBlock(stylesheet, '&__bubble-output');
     const composerInput = extractBlock(stylesheet, '&__bubble-composer-input');
 
-    expect(bubble).toContain('background-color: var(--bitfun-color-surface-raised);');
+    expect(bubble).toContain('background-color: color-mix(in srgb, var(--bitfun-color-surface-raised) 80%, transparent);');
     expect(bubble).toContain('color: var(--bitfun-color-content-primary);');
     // Status words are drawn as a glyph; the text stays for assistive tech only.
     expect(status).toContain('clip-path: inset(50%);');
@@ -62,19 +62,26 @@ describe('AgentCompanionDesktopPet styles', () => {
     );
   });
 
-  it('layers translucent task-state colors over the opaque themed bubble surface', () => {
+  it('keeps the themed bubble background 20% transparent without fading its content', () => {
     const stylesheet = readStylesheet();
+    const bubble = extractBlock(stylesheet, '&__bubble');
 
-    for (const [selector, surfaceToken] of [
-      ['&__bubble--attention', '--bitfun-color-status-warning-surface'],
-      ['&__bubble--waiting', '--bitfun-color-status-warning-surface'],
-      ['&__bubble--completed', '--bitfun-color-status-success-surface'],
-      ['&__bubble--error,\n  &__bubble--interrupted', '--bitfun-color-status-danger-surface'],
+    expect(bubble).toContain('background-color: color-mix(in srgb, var(--bitfun-color-surface-raised) 80%, transparent);');
+    expect(bubble).not.toMatch(/^\s*opacity\s*:/m);
+    expect(bubble).not.toMatch(/gradient\(|background-image:|backdrop-filter:/);
+    expect(bubble).toContain('var(--bitfun-color-border-subtle)');
+    expect(bubble).toContain('var(--bitfun-shadow-raised)');
+    expect(stylesheet).not.toContain('--_bubble-glow');
+
+    for (const [selector, contentToken] of [
+      ['&__bubble--attention', '--bitfun-color-status-warning-content'],
+      ['&__bubble--waiting', '--bitfun-color-status-warning-content'],
+      ['&__bubble--completed', '--bitfun-color-status-success-content'],
+      ['&__bubble--error,\n  &__bubble--interrupted', '--bitfun-color-status-danger-content'],
     ] as const) {
       const state = extractBlock(stylesheet, selector);
-      expect(state).toContain('background-image: linear-gradient(');
-      expect(state).toContain(`var(${surfaceToken})`);
-      expect(state).not.toContain(`background: var(${surfaceToken});`);
+      expect(state).toContain(`--_bubble-light: var(${contentToken});`);
+      expect(state).not.toMatch(/background(?:-color|-image)?:|gradient\(/);
     }
   });
 

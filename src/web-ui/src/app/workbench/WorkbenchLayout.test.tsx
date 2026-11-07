@@ -6,10 +6,11 @@ import SessionScene from '../scenes/session/SessionScene';
 import WorkbenchLayout from './WorkbenchLayout';
 import { sessionPaneLayoutStore } from '../scenes/session/sessionPaneLayoutStore';
 import SessionPanelSettingsSection from '../scenes/settings/pages/application/SessionPanelSettingsSection';
-import { useSceneStore } from '../stores/sceneStore';
+import { useSceneStore, resetSceneStoreForTest } from '../stores/sceneStore';
 import { getSessionSceneTabId } from '../components/SceneBar/types';
+import { useWindowResizeLayout } from '../layout/windowResizeScheduler';
 
-const mocks = vi.hoisted(() => ({ selectLayout: null as null | ((value: string) => void) }));
+const mocks = vi.hoisted(() => ({ selectLayout: null as null | ((value: string) => void), terminalPosition: 'right' }));
 
 vi.mock('@bitfun/ui', async importOriginal => ({
   ...await importOriginal<typeof import('@bitfun/ui')>(),
@@ -34,10 +35,14 @@ vi.mock('../scenes/session/AuxPane', () => ({
   }) => <iframe title="Editor" data-resize-suspended={String(resizeSuspended)}
     data-terminal-resize-suspended={String(terminalResizeSuspended)} />,
 }));
-vi.mock('../scenes/session/BottomTerminalPane', () => ({ default: () => null }));
+vi.mock('../scenes/session/BottomTerminalPane', () => ({
+  default: ({ terminalResizeSuspended }: { terminalResizeSuspended: boolean }) => (
+    <div data-testid="bottom-terminal" data-resize-suspended={String(terminalResizeSuspended)} />
+  ),
+}));
 vi.mock('../scenes/session/sessionPanelLayout', () => ({ collapseSessionBottomTerminalPane: vi.fn(), expandSessionBottomTerminalPane: vi.fn() }));
 vi.mock('@/tools/terminal/services/terminalPanelPreferenceService', () => ({
-  getCachedTerminalPanelPosition: () => 'right',
+  getCachedTerminalPanelPosition: () => mocks.terminalPosition,
   onTerminalPanelPositionChange: () => () => {},
   refreshTerminalPanelPosition: vi.fn(),
 }));
@@ -52,7 +57,9 @@ describe('workbench pane layout integration', () => {
   const split = () => container.querySelector<HTMLElement>('[data-bitfun-component="split-view"][data-bitfun-part="root"]')!;
 
   beforeEach(() => {
-    useSceneStore.getState().resetForPeerSwitch();
+    mocks.terminalPosition = 'right';
+    useWindowResizeLayout.setState(useWindowResizeLayout.getInitialState());
+    resetSceneStoreForTest();
     sessionPaneLayoutStore.setState(sessionPaneLayoutStore.getInitialState());
     vi.stubGlobal('ResizeObserver', class { observe() {} disconnect() {} });
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function () {
@@ -65,6 +72,7 @@ describe('workbench pane layout integration', () => {
 
   afterEach(() => {
     act(() => root.unmount());
+    useWindowResizeLayout.setState(useWindowResizeLayout.getInitialState());
     container.remove();
     sessionPaneLayoutStore.setState(sessionPaneLayoutStore.getInitialState());
     localStorage.clear();
@@ -166,6 +174,64 @@ describe('workbench pane layout integration', () => {
     act(() => pane.showContent());
     expect(split().getAttribute('data-mode')).toBe('split');
     expect(container.querySelector('iframe')).toBe(editor);
+  });
+
+  it('batches window measurements without changing live interaction or remounting content', () => {
+    vi.useFakeTimers();
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => setTimeout(() => callback(0), 16));
+    vi.stubGlobal('cancelAnimationFrame', (id: number) => clearTimeout(id));
+    mocks.terminalPosition = 'bottom';
+    sessionPaneLayoutStore.getState().showContent();
+    act(() => root.render(<WorkbenchLayout><SessionScene /></WorkbenchLayout>));
+    act(() => vi.advanceTimersByTime(300));
+    const chat = container.querySelector<HTMLTextAreaElement>('[data-testid="chat-draft"]')!;
+    const editor = container.querySelector('iframe')!;
+    const terminal = container.querySelector<HTMLElement>('[data-testid="bottom-terminal"]')!;
+    chat.value = 'unsent edit';
+    for (const measurementSuspended of [true, false, true, false]) {
+      act(() => useWindowResizeLayout.setState({ measurementSuspended }));
+      const suspended = String(measurementSuspended);
+      expect(chat.dataset.dragging).toBe('false');
+      expect(chat.dataset.resizeSuspended).toBe(suspended);
+      expect(editor.dataset.resizeSuspended).toBe(suspended);
+      expect(editor.dataset.terminalResizeSuspended).toBe(suspended);
+      expect(terminal.dataset.resizeSuspended).toBe(suspended);
+      expect(container.querySelector('[data-testid="chat-draft"]')).toBe(chat);
+      expect(container.querySelector('iframe')).toBe(editor);
+      expect(container.querySelector('[data-testid="bottom-terminal"]')).toBe(terminal);
+      expect(chat.value).toBe('unsent edit');
+    }
+  });
+
+  it('suspends measurements through navigation resize and settling without freezing or remounting content', () => {
+    vi.useFakeTimers();
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => setTimeout(() => callback(0), 16));
+    vi.stubGlobal('cancelAnimationFrame', (id: number) => clearTimeout(id));
+    mocks.terminalPosition = 'bottom';
+    sessionPaneLayoutStore.getState().showContent();
+    const render = (navigationResizing: boolean) => act(() => root.render(
+      <WorkbenchLayout navigationResizing={navigationResizing}><SessionScene /></WorkbenchLayout>,
+    ));
+    render(false);
+    act(() => vi.advanceTimersByTime(300));
+    const chat = container.querySelector<HTMLTextAreaElement>('[data-testid="chat-draft"]')!;
+    const editor = container.querySelector('iframe')!;
+    const terminal = container.querySelector<HTMLElement>('[data-testid="bottom-terminal"]')!;
+    chat.value = 'keep this draft';
+    for (let cycle = 0; cycle < 2; cycle++) {
+      render(true);
+      act(() => vi.advanceTimersByTime(300));
+      expect(chat.dataset.dragging).toBe('false');
+      for (const element of [chat, editor, terminal]) expect(element.dataset.resizeSuspended).toBe('true');
+      render(false);
+      expect(chat.dataset.resizeSuspended).toBe('true');
+      act(() => vi.advanceTimersByTime(32));
+      for (const element of [chat, editor, terminal]) expect(element.dataset.resizeSuspended).toBe('false');
+      expect(container.querySelector('[data-testid="chat-draft"]')).toBe(chat);
+      expect(container.querySelector('iframe')).toBe(editor);
+      expect(container.querySelector('[data-testid="bottom-terminal"]')).toBe(terminal);
+      expect(chat.value).toBe('keep this draft');
+    }
   });
 
   it.each(['split', 'overlay'] as const)('moves the existing canvas opposite a conversation in %s mode without remounting it', async layout => {

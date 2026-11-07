@@ -389,8 +389,8 @@ export interface DefaultModelsConfig {
 /**
  * Image request protocol.
  *
- * `chatgpt_codex` is the subscription route: it drives a chat model's
- * `image_generation` tool over the provider's own backend and never touches the
+ * `chatgpt_codex` sends standalone Images JSON requests using the subscription
+ * login over the provider's own backend and never touches the
  * API-key image endpoint.
  */
 export type ImageDialect = 'openai_images' | 'dashscope_native' | 'chatgpt_codex';
@@ -485,6 +485,7 @@ export interface ModelRoutingConfig {
 }
 
 export interface AIConfig {
+  generative_ui_library?: string;
   models: AIModelConfig[];
   tool_presentation_mode?: 'native' | 'ptc' | 'ptc_python';
   default_models: DefaultModelsConfig;

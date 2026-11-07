@@ -43,6 +43,7 @@
             "model-mode-permissions": "為工作階段選擇模型、工作模式、記憶模式與權限模式",
             "creative-frontend-authoring": "讓創造模式擴展客戶端界面與運行時能力",
             "image-generation": "透過已設定的預設圖像模型生成圖片",
+            "office-document-generation": "使用 GenOfficeFile 建立並編輯 Word、Excel 和 PowerPoint 檔案",
             "turn-control": "開始、引導、打斷、取消或恢復一次智能體運行",
             "permission-mailbox": "查看並逐個或批量回答等待中的權限請求",
             "history-search": "分頁加載、搜索和回填歷史消息與工作階段內容",
@@ -377,6 +378,13 @@
             "drag-restore": "拖動卡片到桌面任意位置，拖動卡片邊緣或四角調整大小；關閉 BitFun 時卡片消失，重新打開後按原位置和大小恢復",
             "desktop-pinning": "在卡片選單、首頁卡片列表或設定裡把卡片釘選到 Windows 桌面，隱藏的卡片同樣可以切換釘選狀態"
           }
+        },
+        "generative-ui": {
+          "title": "生成式介面",
+          "summary": "在工作階段中使用所選元件庫生成可互動介面。",
+          "items": {
+            "app-generation": "生成可互動的 GenUI 應用並由宿主渲染"
+          }
         }
       },
       "setting": {
@@ -540,7 +548,8 @@
               "computer-use-permissions": "查看並請求輔助功能與屏幕錄制權限",
               "browser-auto-connect": "控制 BitFun 啓動時是否自動連接瀏覽器",
               "browser-setup": "發現並選擇瀏覽器、配置預設 CDP 或按需重啓",
-              "json-repair": "控制是否在安全邊界內修復模型生成的非法工具參數 JSON"
+              "json-repair": "控制是否在安全邊界內修復模型生成的非法工具參數 JSON",
+              "genui-library": "選擇生成式 UI 元件庫並操作預覽"
             }
           },
           "desktop-control": {

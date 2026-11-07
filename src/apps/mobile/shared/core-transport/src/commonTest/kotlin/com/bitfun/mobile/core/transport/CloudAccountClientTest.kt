@@ -14,6 +14,20 @@ import io.ktor.client.request.HttpRequestData
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.encodeToJsonElement
@@ -183,6 +197,40 @@ class CloudAccountClientTest {
         assertEquals("ok", response.resp)
     }
 
+    @Test
+    fun aLargeRequestUsesTheCurrentHostsOfferAndAcceptsMixedReplies() = runTest {
+        val master = ByteArray(32) { 7 }
+        val peer = ByteArray(32) { 11 }
+        val key = DeviceIdentity.messageKey(peer, DeviceIdentity.publicKey(master))
+        val session = CloudAccountSession("token-1", "user-1", master)
+        val command = RemoteCommand(cmd = "execute_on_device", content = "z".repeat(2048))
+        val compressedRequests = mutableListOf<Boolean>()
+        var keyReads = 0
+        val client = rpcClient(DeviceIdentity.publicKey(peer), onKeyRead = { keyReads++ }) { _, params ->
+            val envelope = RelayJson.decodeFromJsonElement(EncryptedPayload.serializer(), params)
+            assertEquals(RelayMessageEncoding.NAME, envelope.acceptEncoding)
+            val plain = CloudAccountCipher.decrypt(Base64.Default.decode(envelope.encryptedData), key, Base64.Default.decode(envelope.nonce))
+            compressedRequests += plain.first() == 0xff.toByte()
+            assertEquals(command, RelayJson.decodeFromString(RemoteCommand.serializer(), RelayMessageEncoding.decode(plain).decodeToString()))
+
+            // The first reply is already entitled to use the offer in this
+            // request. The second emulates a replacement host without a codec.
+            val accepted = compressedRequests.size == 1
+            val text = RelayJson.encodeToString(CommandStatusResponse.serializer(), CommandStatusResponse("ok", command.content))
+            val nonce = DeviceIdentity.randomBytes(12)
+            val sealed = CloudAccountCipher.encrypt(RelayMessageEncoding.encode(text.encodeToByteArray(), accepted), key, nonce)
+            RelayJson.encodeToJsonElement(EncryptedPayload.serializer(), EncryptedPayload(
+                Base64.Default.encode(sealed), Base64.Default.encode(nonce), if (accepted) RelayMessageEncoding.NAME else null,
+            ))
+        }
+        repeat(3) {
+            val result = client.deviceRpc("http://192.168.1.2:9700", session, "desktop", command, CommandStatusResponse.serializer(), 5_000)
+            assertEquals(command.content, result.message)
+        }
+        assertEquals(listOf(false, true, false), compressedRequests)
+        assertEquals(1, keyReads)
+    }
+
     /**
      * A desktop that answers `{"resp":"error"}` answered — the acknowledged exchange
      * succeeded, so nothing below this notices. The paired transport has always
@@ -239,8 +287,158 @@ class CloudAccountClientTest {
         assertEquals(CloudAccountFailure.RELAY_UNAVAILABLE, (error.cause as CloudAccountException).failure)
     }
 
-    private class FakeRpc(private val reply: suspend (String, JsonElement) -> JsonElement) : AccountRpcConnection {
-        override suspend fun call(target: String, params: JsonElement, timeoutMs: Long): JsonElement = reply(target, params)
+    @Test
+    fun hostStreamRetriesTransientFailureButStopsAtAuthenticationFailure() = runTest {
+        var calls = 0
+        val failures = mutableListOf<Throwable>()
+        val client = rpcClient(DeviceIdentity.publicKey(ByteArray(32) { 11 })) { _, _ ->
+            calls++
+            throw CloudAccountException(if (calls == 1) CloudAccountFailure.TIMEOUT else CloudAccountFailure.AUTHENTICATION)
+        }
+        val error = assertFailsWith<CloudAccountException> {
+            client.subscribeSession("http://192.168.1.2:9700", CloudAccountSession("token-1", "user-1", ByteArray(32)),
+                "desktop-1", "session", { failures += it }, {}).collect()
+        }
+        assertEquals(CloudAccountFailure.AUTHENTICATION, error.failure)
+        assertEquals(2, calls)
+        assertEquals(listOf(CloudAccountFailure.TIMEOUT), failures.map { (it as CloudAccountException).failure })
+    }
+
+    @Test
+    fun cancellingHostStreamBackoffPreventsAnotherRequest() = runTest {
+        var calls = 0
+        val entered = CompletableDeferred<Unit>()
+        val client = rpcClient(DeviceIdentity.publicKey(ByteArray(32) { 11 })) { _, _ ->
+            calls++
+            entered.complete(Unit)
+            throw CloudAccountException(CloudAccountFailure.NETWORK)
+        }
+        val job = launch {
+            client.subscribeSession("http://192.168.1.2:9700", CloudAccountSession("token-1", "user-1", ByteArray(32)),
+                "desktop-1", "session", {}, {}).collect()
+        }
+        entered.await()
+        assertEquals(1, calls)
+        job.cancelAndJoin()
+        advanceUntilIdle()
+        assertEquals(1, calls)
+    }
+
+    /**
+     * The opening page is the only thing repeated after a timeout, and it is a
+     * `read_stream` that subscribes to hints: the relay never sees a session
+     * key or a stored transcript on this path. Closing the flow tells the host
+     * to stop hinting.
+     */
+    @Test
+    fun hostStreamRecoversRepeatsOnlyTheReadAndUnsubscribesOnClose() = runTest {
+        val commands = mutableListOf<RemoteCommand>()
+        val master = ByteArray(32)
+        val peerSecret = ByteArray(32) { 11 }
+        val key = DeviceIdentity.messageKey(peerSecret, DeviceIdentity.publicKey(master))
+        var keyReads = 0
+        val client = rpcClient(DeviceIdentity.publicKey(peerSecret), onKeyRead = { keyReads++ }) { target, params ->
+            assertEquals("desktop-1", target)
+            val envelope = RelayJson.decodeFromJsonElement(EncryptedPayload.serializer(), params)
+            val plain = CloudAccountCipher.decrypt(Base64.Default.decode(envelope.encryptedData), key,
+                Base64.Default.decode(envelope.nonce)).decodeToString()
+            val command = RelayJson.decodeFromString(RemoteCommand.serializer(), plain)
+            commands += command
+            if (commands.size == 1) throw CloudAccountException(CloudAccountFailure.TIMEOUT)
+            val nonce = ByteArray(12) { (commands.size + 20).toByte() }
+            val response = when (command.cmd) {
+                "read_stream" -> """{"resp":"stream_page","stream_id":"session","epoch":4,"events":[{"seq":1,"event":"session-record","payload":{"id":"m1"}}],"has_more":false,"cursor":1,"oldest_seq":1,"truncated":false}"""
+                "unsubscribe_stream" -> """{"resp":"stream_unsubscribed","stream_id":"session"}"""
+                else -> error("unexpected ${command.cmd}")
+            }
+            val encrypted = CloudAccountCipher.encrypt(response.encodeToByteArray(), key, nonce)
+            RelayJson.encodeToJsonElement(EncryptedPayload.serializer(),
+                EncryptedPayload(Base64.Default.encode(encrypted), Base64.Default.encode(nonce)))
+        }
+        val received = mutableListOf<String>()
+        // Collected in the test body so the (real) mock HTTP round trips are
+        // awaited while the backoff delay stays virtual; `first` closes the flow
+        // once the opening page has landed.
+        client.subscribeSession("http://192.168.1.2:9700", CloudAccountSession("token-1", "user-1", master),
+            "desktop-1", "session", {}, {})
+            .onEach { received += it.getValue("event").jsonPrimitive.content }
+            .first { it.getValue("event").jsonPrimitive.content == STREAM_EVENT_READY }
+        assertEquals(listOf("read_stream", "read_stream", "unsubscribe_stream"), commands.map { it.cmd })
+        assertEquals(RemoteCommand(cmd = "read_stream", streamId = "session", subscribe = true), commands[1])
+        assertEquals(listOf("session-record", STREAM_EVENT_READY), received)
+        assertEquals("session", commands.last().streamId)
+        assertEquals(1, keyReads, "the peer key is fetched once and reused for every read")
+    }
+
+    @Test
+    fun deviceEventsFromTheControlledDesktopBecomeStreamHints() = runTest {
+        val master = ByteArray(32)
+        val peerSecret = ByteArray(32) { 11 }
+        val key = DeviceIdentity.messageKey(peerSecret, DeviceIdentity.publicKey(master))
+        val notices = MutableSharedFlow<JsonObject>()
+        var reads = 0
+        val client = rpcClient(DeviceIdentity.publicKey(peerSecret), notifications = notices) { _, params ->
+            val envelope = RelayJson.decodeFromJsonElement(EncryptedPayload.serializer(), params)
+            val plain = CloudAccountCipher.decrypt(Base64.Default.decode(envelope.encryptedData), key,
+                Base64.Default.decode(envelope.nonce)).decodeToString()
+            val command = RelayJson.decodeFromString(RemoteCommand.serializer(), plain)
+            val response = when (command.cmd) {
+                "read_stream" -> {
+                    reads++
+                    // Opening page: the host holds one record. Catch-up after the
+                    // hint: the second record, appended meanwhile.
+                    val events = if (command.after == null) """[{"seq":1,"event":"session-record","payload":{"id":"m1"}}]"""
+                        else """[{"seq":2,"event":"session-record","payload":{"id":"m2"}}]"""
+                    """{"resp":"stream_page","stream_id":"session","epoch":1,"events":$events,"has_more":false,"cursor":${if (command.after == null) 1 else 2},"oldest_seq":1,"truncated":false}"""
+                }
+                else -> """{"resp":"stream_unsubscribed","stream_id":"session"}"""
+            }
+            val nonce = ByteArray(12) { (reads + 40).toByte() }
+            val encrypted = CloudAccountCipher.encrypt(response.encodeToByteArray(), key, nonce)
+            RelayJson.encodeToJsonElement(EncryptedPayload.serializer(),
+                EncryptedPayload(Base64.Default.encode(encrypted), Base64.Default.encode(nonce)))
+        }
+        val received = Channel<String>(Channel.UNLIMITED)
+        val job = launch {
+            client.subscribeSession("http://192.168.1.2:9700", CloudAccountSession("token-1", "user-1", master),
+                "desktop-1", "session", {}, {}).collect { received.send(it.getValue("event").jsonPrimitive.content) }
+        }
+        assertEquals("session-record", received.receive())
+        assertEquals(STREAM_EVENT_READY, received.receive())
+        assertEquals(1, reads)
+        // Hints are only delivered once the stream listens for them.
+        notices.subscriptionCount.first { it > 0 }
+        var hintNonce = 30
+        suspend fun hint(source: String, cursor: Long): JsonObject {
+            val plain = """{"cmd":"device_event","event":"$HOST_STREAM_CHANGED_EVENT","payload":{"stream_id":"session","epoch":1,"cursor":$cursor}}"""
+            val nonce = ByteArray(12) { (hintNonce++).toByte() }
+            val encrypted = CloudAccountCipher.encrypt(plain.encodeToByteArray(), key, nonce)
+            return buildJsonObject {
+                put("type", "device-event"); put("sourceDeviceId", source)
+                put("params", RelayJson.encodeToJsonElement(EncryptedPayload.serializer(),
+                    EncryptedPayload(Base64.Default.encode(encrypted), Base64.Default.encode(nonce))))
+            }
+        }
+        notices.emit(hint("desktop-2", 2))
+        notices.emit(buildJsonObject { put("type", "device-presence") })
+        notices.emit(hint("desktop-1", 2))
+        // Notices are handled in order, so the record arriving proves the
+        // foreign hint and the presence notice caused no read of their own.
+        assertEquals("session-record", received.receive())
+        assertEquals(2, reads)
+        job.cancelAndJoin()
+    }
+
+    private class FakeRpc(
+        override val notifications: Flow<JsonObject>,
+        private val reply: suspend (String, JsonElement) -> JsonElement,
+    ) : AccountRpcConnection {
+        override val peerEncodings = MutableStateFlow(emptySet<String>())
+        override suspend fun call(target: String, params: JsonElement, timeoutMs: Long,
+                expectedEncodings: MutableStateFlow<Set<String>>?): JsonElement {
+            assertTrue(expectedEncodings == null || expectedEncodings === peerEncodings)
+            return reply(target, params)
+        }
         override fun close() {}
     }
 

@@ -18,6 +18,11 @@
   --bitfun-agent-companion-gap: 8px;
   --bitfun-agent-companion-pet-width: 96px;
   --bitfun-agent-companion-pet-height: 96px;
+  /* Room reserved above and below the dock, mirrored by WINDOW_VERTICAL_BUFFER
+     in the component, which grows the host window to hold it. Without it a
+     bubble that lifts (hover, attention pulse) is clipped by the bubble slot
+     and by the window edge. */
+  --bitfun-agent-companion-vertical-buffer: 3px;
 
   width: 100vw;
   height: 100vh;
@@ -52,12 +57,16 @@
   &__dock {
     position: relative;
     flex: 0 1 auto;
-    min-height: 0;
     display: flex;
     flex-direction: row;
     align-items: center;
     justify-content: flex-end;
     gap: var(--bitfun-agent-companion-gap);
+    /* The pet is centered in a slot one buffer taller than it, so it keeps the
+       same clearance from the window edge as a bubble. */
+    min-height: calc(
+      var(--bitfun-agent-companion-pet-height) + var(--bitfun-agent-companion-vertical-buffer) * 2
+    );
     width: max-content;
     max-height: 100vh;
     pointer-events: none;
@@ -81,42 +90,6 @@
     &--anchored {
       position: absolute;
       z-index: 3;
-    }
-  }
-
-  &__menu {
-    min-width: 180px;
-    display: flex;
-    flex-direction: column;
-    padding: 4px;
-    border: 1px solid var(--bitfun-color-border-default);
-    border-radius: 8px;
-    background: var(--bitfun-color-surface-panel);
-    box-shadow: var(--bitfun-shadow-lg);
-  }
-
-  &__menu-item {
-    appearance: none;
-    display: flex;
-    align-items: center;
-    width: 100%;
-    padding: 7px 10px;
-    border: none;
-    border-radius: 6px;
-    background: transparent;
-    color: var(--bitfun-color-content-primary);
-    font: inherit;
-    font-size: 13px;
-    text-align: left;
-    cursor: pointer;
-
-    &:hover {
-      background: var(--bitfun-color-action-neutral-surface-hover);
-    }
-
-    &:focus-visible {
-      outline: 2px solid var(--bitfun-color-focus-ring);
-      outline-offset: -1px;
     }
   }
 
@@ -262,10 +235,20 @@
   &__bubbles {
     position: relative;
     flex-shrink: 0;
-    width: 180px;
-    max-width: 180px;
+    /* Bubbles stay 180px; the inline-end room (open space before the pet)
+       holds their bottom-right shadow, and the negative margin keeps the pet
+       where it was. */
+    width: calc(180px + var(--_bubble-shadow-room));
+    max-width: calc(180px + var(--_bubble-shadow-room));
+    padding-inline-end: var(--_bubble-shadow-room);
+    margin-inline-end: calc(-1 * var(--_bubble-shadow-room));
+    --_bubble-shadow-room: 28px;
+    box-sizing: border-box;
     min-height: 0;
     max-height: 100vh;
+    /* The slot clips (`overflow: hidden`), so the buffer has to sit inside it:
+       a bubble lifting out of its own box then keeps its border visible. */
+    padding-block: var(--bitfun-agent-companion-vertical-buffer);
     display: flex;
     flex-direction: column;
     align-items: flex-end;
@@ -275,7 +258,13 @@
     pointer-events: auto;
 
     &--single {
-      height: min(var(--bitfun-agent-companion-pet-height), 100vh);
+      height: min(
+        calc(
+          var(--bitfun-agent-companion-pet-height)
+          + var(--bitfun-agent-companion-vertical-buffer) * 2
+        ),
+        100vh
+      );
       overflow-y: hidden;
     }
   }
@@ -375,29 +364,18 @@
     width: 180px;
     max-width: 100%;
     box-sizing: border-box;
-    /* Same language as the device overview: the opaque themed surface lit
-       from the corner nearest the title by the task state, a faint ring in
-       that light, and the tail corner pointing at the pet. */
+    /* Both themes use an 80% opaque neutral surface. Task color belongs to the
+       status glyph; a neutral inset edge keeps the bubble clear on any desktop. */
     --_bubble-light: var(--bitfun-color-accent-default);
-    --_bubble-glow: radial-gradient(
-      130% 150% at 0% 0%,
-      color-mix(in srgb, var(--_bubble-light) 20%, transparent),
-      transparent 68%
-    );
-    /* No border: the bubble is defined by its surface, the state light, the
-       theme's top highlight and a soft tinted drop shadow. Everything stays
-       inside the bubble column, which clips sideways. */
     --_bubble-edge:
-      var(--bitfun-shadow-inner-highlight),
-      0 10px 20px -12px color-mix(in srgb, var(--_bubble-light) 34%, transparent);
+      inset 0 0 0 var(--bitfun-border-width-default) var(--bitfun-color-border-subtle),
+      var(--bitfun-shadow-raised);
     padding: 9px 12px;
     border: none;
     border-radius: 14px 14px 4px 14px;
-    background-color: var(--bitfun-color-surface-raised);
-    background-image: var(--_bubble-glow);
+    background-color: color-mix(in srgb, var(--bitfun-color-surface-raised) 80%, transparent);
     color: var(--bitfun-color-content-primary);
     box-shadow: var(--_bubble-edge);
-    backdrop-filter: blur(10px);
     cursor: pointer;
     position: relative;
     z-index: 0;
@@ -528,47 +506,26 @@
     }
   }
 
-  /* Each state sets the light and lays its status tint over the opaque themed
-     surface, fading away from the lit corner so the bubble stays calm. */
+  /* All task states share the translucent surface; glyphs carry the status color. */
   &__bubble--attention {
     --_bubble-light: var(--bitfun-color-status-warning-content);
-    background-image: linear-gradient(
-      135deg,
-      var(--bitfun-color-status-warning-surface),
-      transparent 72%
-    ), var(--_bubble-glow);
     box-shadow:
       var(--_bubble-edge),
-      0 0 0 0 color-mix(in srgb, var(--bitfun-color-status-warning-content) 50%, transparent);
+      inset 0 0 0 1px color-mix(in srgb, var(--bitfun-color-status-warning-content) 40%, transparent);
     animation: bitfun-agent-companion-attention-pulse 1.5s ease-in-out infinite !important;
   }
 
   &__bubble--waiting {
     --_bubble-light: var(--bitfun-color-status-warning-content);
-    background-image: linear-gradient(
-      135deg,
-      var(--bitfun-color-status-warning-surface),
-      transparent 72%
-    ), var(--_bubble-glow);
   }
 
   &__bubble--completed {
     --_bubble-light: var(--bitfun-color-status-success-content);
-    background-image: linear-gradient(
-      135deg,
-      var(--bitfun-color-status-success-surface),
-      transparent 72%
-    ), var(--_bubble-glow);
   }
 
   &__bubble--error,
   &__bubble--interrupted {
     --_bubble-light: var(--bitfun-color-status-danger-content);
-    background-image: linear-gradient(
-      135deg,
-      var(--bitfun-color-status-danger-surface),
-      transparent 72%
-    ), var(--_bubble-glow);
   }
 
   .bitfun-agent-companion-pet {
@@ -593,18 +550,20 @@
 }
 
 @keyframes bitfun-agent-companion-attention-pulse {
+  /* The pulse breathes inside the bubble's edge: an outward ring would be
+     clipped by the column on both sides. */
   0%,
   100% {
     box-shadow:
       var(--_bubble-edge),
-      0 0 0 0 color-mix(in srgb, var(--bitfun-color-status-warning-content) 40%, transparent);
+      inset 0 0 0 1px color-mix(in srgb, var(--bitfun-color-status-warning-content) 18%, transparent);
     transform: translateY(0);
   }
 
   50% {
     box-shadow:
       var(--_bubble-edge),
-      0 0 0 6px transparent;
+      inset 0 0 0 1.5px color-mix(in srgb, var(--bitfun-color-status-warning-content) 55%, transparent);
     transform: translateY(-1px);
   }
 }

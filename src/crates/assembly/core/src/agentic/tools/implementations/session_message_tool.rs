@@ -48,6 +48,7 @@ impl SessionMessageTool {
     }
 
     fn forwarded_user_input_metadata(context: &ToolUseContext) -> serde_json::Map<String, Value> {
+        use bitfun_agent_runtime::remote_file_delivery::TOOL_CONTEXT_PEER_DEVICE_CONTROL_KEY;
         use bitfun_agent_runtime::user_questions::USER_INPUT_AVAILABLE_CONTEXT_KEY;
 
         let mut metadata = serde_json::Map::new();
@@ -60,14 +61,19 @@ impl SessionMessageTool {
                 metadata.insert(USER_INPUT_AVAILABLE_CONTEXT_KEY.to_string(), value.clone());
             }
         }
+        if let Some(value @ Value::Bool(_)) = context
+            .custom_data
+            .get(TOOL_CONTEXT_PEER_DEVICE_CONTROL_KEY)
+        {
+            metadata.insert(
+                TOOL_CONTEXT_PEER_DEVICE_CONTROL_KEY.to_string(),
+                value.clone(),
+            );
+        }
         metadata
     }
 
-    fn resolve_workspace(
-        &self,
-        workspace: &str,
-        context: &ToolUseContext,
-    ) -> BitFunResult<String> {
+    fn resolve_workspace(&self, workspace: &str, context: &ToolUseContext) -> BitFunResult<String> {
         let workspace = workspace.trim();
         if workspace.is_empty() {
             return Err(BitFunError::tool(
@@ -639,9 +645,9 @@ Allowed agent types when creating a session:
                             .resolve_session_agent_type(&target_session_id)
                             .await
                             .map_err(|error| {
-                                BitFunError::tool(
-                                    CoreServiceAgentRuntime::runtime_error_message(error),
-                                )
+                                BitFunError::tool(CoreServiceAgentRuntime::runtime_error_message(
+                                    error,
+                                ))
                             })?,
                     )
                 } else {
@@ -649,10 +655,7 @@ Allowed agent types when creating a session:
                 };
                 let target_agent_type =
                     listed_agent_type.or(resolved_agent_type).ok_or_else(|| {
-                        BitFunError::NotFound(format!(
-                            "Session '{}' not found",
-                            target_session_id
-                        ))
+                        BitFunError::NotFound(format!("Session '{}' not found", target_session_id))
                     })?;
 
                 (target_session_id, target_agent_type, None, workspace_target)
@@ -795,6 +798,7 @@ mod tests {
             dialog_turn_id: None,
             workspace: None,
             loaded_deferred_tool_specs: Vec::new(),
+            model_client: None,
             primary_model_facts: tool_runtime::context::PrimaryModelFacts::default(),
             custom_data: HashMap::new(),
             computer_use_host: None,
@@ -938,6 +942,23 @@ mod tests {
         assert_eq!(
             SessionMessageTool::target_agent_type_from_resolution(Some(" ".to_string())),
             None
+        );
+    }
+
+    #[test]
+    fn desktop_cards_session_message_preserves_peer_origin() {
+        use bitfun_agent_runtime::remote_file_delivery::TOOL_CONTEXT_PEER_DEVICE_CONTROL_KEY;
+        let mut context = empty_context();
+        assert!(!SessionMessageTool::forwarded_user_input_metadata(&context)
+            .contains_key(TOOL_CONTEXT_PEER_DEVICE_CONTROL_KEY));
+        context.custom_data.insert(
+            TOOL_CONTEXT_PEER_DEVICE_CONTROL_KEY.into(),
+            Value::Bool(true),
+        );
+        assert_eq!(
+            SessionMessageTool::forwarded_user_input_metadata(&context)
+                [TOOL_CONTEXT_PEER_DEVICE_CONTROL_KEY],
+            true
         );
     }
 

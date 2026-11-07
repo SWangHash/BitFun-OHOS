@@ -145,6 +145,7 @@ fn default_capability_registry_preserves_product_tool_provider_order() {
             "core.pages",
             "core.creation",
             "core.canvas",
+            "core.openharmony",
             "core.qt-migration",
         ]
     );
@@ -203,6 +204,7 @@ fn product_assembly_plan_keeps_full_capabilities_only_for_core_compatibility_pro
         "core.pages",
         "core.creation",
         "core.canvas",
+        "core.openharmony",
         "core.qt-migration",
     ];
 
@@ -259,6 +261,8 @@ fn product_assembly_plan_keeps_full_capabilities_only_for_core_compatibility_pro
                 "core.web",
                 "core.mcp",
                 "core.computer-use",
+                "core.openharmony",
+                "core.qt-migration",
             ],
             "{profile} must assemble only generic Agent Runtime tool groups"
         );
@@ -498,6 +502,7 @@ fn product_assembly_plan_exposes_build_feature_groups_explicitly() {
             ProductFeatureGroup::Basic,
             ProductFeatureGroup::ImageAnalysis,
             ProductFeatureGroup::ImageGeneration,
+            ProductFeatureGroup::OfficeDocuments,
             ProductFeatureGroup::AgentControl,
             ProductFeatureGroup::Git,
             ProductFeatureGroup::BrowserWeb,
@@ -515,6 +520,7 @@ fn product_assembly_plan_exposes_build_feature_groups_explicitly() {
             "basic",
             "image-analysis",
             "image-generation",
+            "office-documents",
             "agent-control",
             "git",
             "browser-web",
@@ -870,6 +876,7 @@ fn default_capability_assembly_keeps_service_and_tool_facts_together() {
             "core.pages",
             "core.creation",
             "core.canvas",
+            "core.openharmony",
             "core.qt-migration"
         ]
     );

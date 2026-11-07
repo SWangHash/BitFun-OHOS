@@ -1,12 +1,24 @@
 {
   "schemaVersion": 5,
-  "product": "bitfun",
-  "title": "bitfun Playbook",
+  "product": "BitFun",
+  "title": "BitFun Playbook",
   "origin": "https://playbook.bitfun.com",
   "source": "src/shared/interactive-capabilities/catalog.json",
-  "digest": "6ae2eeaa19e6342f9dcf7ff33b7c0fa94547ee1c02fc1835f6f4471caab6fbb3",
-  "ownerDigest": "3cc6d7d869b2c90c2161494a854b5ff7eb72ea69a1a28e40ccd42065fb3382e2",
+  "digest": "0617ead8833592fbb40380d0056d16957906c755980920aad24d2269fd302369",
+  "ownerDigest": "57d167be6eca3389a99862b33166a957ea2cb26093a32cdc526e6fdf37475fd7",
   "searchAcceptance": [
+    {
+      "id": "native-office-generation",
+      "query": "GenOfficeFile",
+      "expectedFirstCapabilityId": "feature.ai-assistant",
+      "expectedCapabilityIds": [
+        "feature.ai-assistant"
+      ],
+      "expectedItem": {
+        "capabilityId": "feature.ai-assistant",
+        "itemId": "office-document-generation"
+      }
+    },
     {
       "id": "native-image-generation",
       "query": "generate_image",
@@ -172,13 +184,13 @@
     }
   ],
   "counts": {
-    "features": 22,
+    "features": 24,
     "settings": 22,
-    "userFacing": 44,
-    "documentedItems": 339,
+    "userFacing": 46,
+    "documentedItems": 347,
     "controlCoverage": {
-      "direct": 62,
-      "delegated": 72,
+      "direct": 63,
+      "delegated": 79,
       "interactive": 205,
       "unsupported": 0
     }
@@ -231,6 +243,7 @@
         "model-mode-permissions",
         "creative-frontend-authoring",
         "image-generation",
+        "office-document-generation",
         "turn-control",
         "permission-mailbox",
         "history-search",
@@ -511,6 +524,51 @@
       },
       "delegateTools": [
         "generate_image"
+      ],
+      "presentationTarget": {
+        "kind": "scene",
+        "sceneId": "session"
+      }
+    },
+    {
+      "id": "feature.ai-assistant:delegate:office-document-generation",
+      "capabilityId": "feature.ai-assistant",
+      "itemIds": [
+        "office-document-generation"
+      ],
+      "kind": "delegate",
+      "risk": "execute",
+      "executionHost": "workspaceHost",
+      "availability": {
+        "desktop": {
+          "available": true
+        },
+        "cli": {
+          "available": true
+        },
+        "peer": {
+          "available": true,
+          "requiredCapabilities": [
+            "product_control_v1"
+          ]
+        },
+        "remoteControl": {
+          "available": true
+        },
+        "detachedDispatch": {
+          "available": true
+        }
+      },
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "outputSchema": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "delegateTools": [
+        "GenOfficeFile"
       ],
       "presentationTarget": {
         "kind": "scene",
@@ -4295,6 +4353,7 @@
         "additionalProperties": true
       },
       "delegateTools": [
+        "OpenUrl",
         "ControlHub"
       ],
       "presentationTarget": {
@@ -11370,7 +11429,7 @@
         "additionalProperties": true
       },
       "delegateTools": [
-        "bitfunControl"
+        "BitFunControl"
       ],
       "presentationTarget": {
         "kind": "settings",
@@ -11415,7 +11474,7 @@
         "additionalProperties": true
       },
       "delegateTools": [
-        "bitfunControl"
+        "BitFunControl"
       ],
       "presentationTarget": {
         "kind": "settings",
@@ -11460,7 +11519,7 @@
         "additionalProperties": true
       },
       "delegateTools": [
-        "bitfunControl"
+        "BitFunControl"
       ],
       "presentationTarget": {
         "kind": "settings",
@@ -11505,7 +11564,7 @@
         "additionalProperties": true
       },
       "delegateTools": [
-        "bitfunControl"
+        "BitFunControl"
       ],
       "presentationTarget": {
         "kind": "settings",
@@ -11838,6 +11897,283 @@
         "kind": "settings",
         "pageId": "application.pet",
         "sectionId": "desktop-cards"
+      }
+    },
+    {
+      "id": "feature.openharmony-devtooling:query",
+      "capabilityId": "feature.openharmony-devtooling",
+      "itemIds": [
+        "build-and-checks",
+        "run-and-logs",
+        "qt-migration-intake",
+        "ui-verification",
+        "knowledge-and-cwd"
+      ],
+      "kind": "query",
+      "risk": "read",
+      "executionHost": "productHost",
+      "availability": {
+        "desktop": {
+          "available": true
+        },
+        "cli": {
+          "available": true
+        },
+        "peer": {
+          "available": true,
+          "requiredCapabilities": [
+            "product_control_v1"
+          ]
+        },
+        "remoteControl": {
+          "available": true
+        },
+        "detachedDispatch": {
+          "available": true
+        }
+      },
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "valueSource": {
+        "kind": "static"
+      },
+      "presentationTarget": {
+        "kind": "scene",
+        "sceneId": "terminal"
+      }
+    },
+    {
+      "id": "feature.openharmony-devtooling:delegate:build-and-checks",
+      "capabilityId": "feature.openharmony-devtooling",
+      "itemIds": [
+        "build-and-checks"
+      ],
+      "kind": "delegate",
+      "risk": "execute",
+      "executionHost": "workspaceHost",
+      "availability": {
+        "desktop": {
+          "available": true
+        },
+        "cli": {
+          "available": true
+        },
+        "peer": {
+          "available": true,
+          "requiredCapabilities": [
+            "product_control_v1"
+          ]
+        },
+        "remoteControl": {
+          "available": true
+        },
+        "detachedDispatch": {
+          "available": true
+        }
+      },
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "outputSchema": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "delegateTools": [
+        "arkts_check"
+      ],
+      "presentationTarget": {
+        "kind": "scene",
+        "sceneId": "terminal"
+      }
+    },
+    {
+      "id": "feature.openharmony-devtooling:delegate:run-and-logs",
+      "capabilityId": "feature.openharmony-devtooling",
+      "itemIds": [
+        "run-and-logs"
+      ],
+      "kind": "delegate",
+      "risk": "execute",
+      "executionHost": "workspaceHost",
+      "availability": {
+        "desktop": {
+          "available": true
+        },
+        "cli": {
+          "available": true
+        },
+        "peer": {
+          "available": true,
+          "requiredCapabilities": [
+            "product_control_v1"
+          ]
+        },
+        "remoteControl": {
+          "available": true
+        },
+        "detachedDispatch": {
+          "available": true
+        }
+      },
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "outputSchema": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "delegateTools": [
+        "start_app",
+        "hdc_log"
+      ],
+      "presentationTarget": {
+        "kind": "scene",
+        "sceneId": "terminal"
+      }
+    },
+    {
+      "id": "feature.openharmony-devtooling:delegate:qt-migration-intake",
+      "capabilityId": "feature.openharmony-devtooling",
+      "itemIds": [
+        "qt-migration-intake"
+      ],
+      "kind": "delegate",
+      "risk": "execute",
+      "executionHost": "workspaceHost",
+      "availability": {
+        "desktop": {
+          "available": true
+        },
+        "cli": {
+          "available": true
+        },
+        "peer": {
+          "available": true,
+          "requiredCapabilities": [
+            "product_control_v1"
+          ]
+        },
+        "remoteControl": {
+          "available": true
+        },
+        "detachedDispatch": {
+          "available": true
+        }
+      },
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "outputSchema": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "delegateTools": [
+        "QtMigrationIntake"
+      ],
+      "presentationTarget": {
+        "kind": "scene",
+        "sceneId": "terminal"
+      }
+    },
+    {
+      "id": "feature.openharmony-devtooling:delegate:ui-verification",
+      "capabilityId": "feature.openharmony-devtooling",
+      "itemIds": [
+        "ui-verification"
+      ],
+      "kind": "delegate",
+      "risk": "execute",
+      "executionHost": "workspaceHost",
+      "availability": {
+        "desktop": {
+          "available": true
+        },
+        "cli": {
+          "available": true
+        },
+        "peer": {
+          "available": true,
+          "requiredCapabilities": [
+            "product_control_v1"
+          ]
+        },
+        "remoteControl": {
+          "available": true
+        },
+        "detachedDispatch": {
+          "available": true
+        }
+      },
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "outputSchema": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "delegateTools": [
+        "verify_ui",
+        "get_ui_verification_log",
+        "save_ui_screenshot"
+      ],
+      "presentationTarget": {
+        "kind": "scene",
+        "sceneId": "terminal"
+      }
+    },
+    {
+      "id": "feature.openharmony-devtooling:delegate:knowledge-and-cwd",
+      "capabilityId": "feature.openharmony-devtooling",
+      "itemIds": [
+        "knowledge-and-cwd"
+      ],
+      "kind": "delegate",
+      "risk": "execute",
+      "executionHost": "workspaceHost",
+      "availability": {
+        "desktop": {
+          "available": true
+        },
+        "cli": {
+          "available": true
+        },
+        "peer": {
+          "available": true,
+          "requiredCapabilities": [
+            "product_control_v1"
+          ]
+        },
+        "remoteControl": {
+          "available": true
+        },
+        "detachedDispatch": {
+          "available": true
+        }
+      },
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "outputSchema": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "delegateTools": [
+        "switch_cwd"
+      ],
+      "presentationTarget": {
+        "kind": "scene",
+        "sceneId": "terminal"
       }
     },
     {
@@ -12959,7 +13295,7 @@
             "type": "string"
           },
           "packagePath": {
-            "description": "Imported bitfun pet-package directory.",
+            "description": "Imported BitFun pet-package directory.",
             "minLength": 1,
             "type": "string"
           }
@@ -16809,7 +17145,8 @@
         "computer-use-permissions",
         "browser-auto-connect",
         "browser-setup",
-        "json-repair"
+        "json-repair",
+        "genui-library"
       ],
       "kind": "query",
       "risk": "read",
@@ -17294,6 +17631,54 @@
       },
       "inputSchema": {
         "type": "boolean"
+      },
+      "outputSchema": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "valueSource": {
+        "kind": "static"
+      },
+      "presentationTarget": {
+        "kind": "settings",
+        "pageId": "tools.execution"
+      }
+    },
+    {
+      "id": "setting.tools.execution:option:genui-library",
+      "capabilityId": "setting.tools.execution",
+      "itemIds": [
+        "genui-library"
+      ],
+      "kind": "option",
+      "risk": "write",
+      "executionHost": "productHost",
+      "availability": {
+        "desktop": {
+          "available": true
+        },
+        "cli": {
+          "available": true
+        },
+        "peer": {
+          "available": true,
+          "requiredCapabilities": [
+            "product_control_v1"
+          ]
+        },
+        "remoteControl": {
+          "available": true
+        },
+        "detachedDispatch": {
+          "available": true
+        }
+      },
+      "inputSchema": {
+        "type": "string",
+        "enum": [
+          "openbitfun",
+          "openui"
+        ]
       },
       "outputSchema": {
         "type": "object",
@@ -18795,12 +19180,12 @@
             "type": "string"
           },
           "serverId": {
-            "description": "Exact user server ID from list-servers, or a new ID when adding a server. These settings belong to the executing bitfun product host, not the workspace host.",
+            "description": "Exact user server ID from list-servers, or a new ID when adding a server. These settings belong to the executing BitFun product host, not the workspace host.",
             "minLength": 1,
             "type": "string"
           },
           "workingDirectory": {
-            "description": "Optional directory on the bitfun product host for a local process; never a remote workspace path.",
+            "description": "Optional directory on the BitFun product host for a local process; never a remote workspace path.",
             "minLength": 1,
             "type": "string"
           }
@@ -18861,7 +19246,7 @@
         "additionalProperties": false,
         "properties": {
           "serverId": {
-            "description": "Exact user server ID from list-servers, or a new ID when adding a server. These settings belong to the executing bitfun product host, not the workspace host.",
+            "description": "Exact user server ID from list-servers, or a new ID when adding a server. These settings belong to the executing BitFun product host, not the workspace host.",
             "minLength": 1,
             "type": "string"
           }
@@ -18920,7 +19305,7 @@
         "additionalProperties": false,
         "properties": {
           "serverId": {
-            "description": "Exact user server ID from list-servers, or a new ID when adding a server. These settings belong to the executing bitfun product host, not the workspace host.",
+            "description": "Exact user server ID from list-servers, or a new ID when adding a server. These settings belong to the executing BitFun product host, not the workspace host.",
             "minLength": 1,
             "type": "string"
           }
@@ -18979,7 +19364,7 @@
         "additionalProperties": false,
         "properties": {
           "serverId": {
-            "description": "Exact user server ID from list-servers, or a new ID when adding a server. These settings belong to the executing bitfun product host, not the workspace host.",
+            "description": "Exact user server ID from list-servers, or a new ID when adding a server. These settings belong to the executing BitFun product host, not the workspace host.",
             "minLength": 1,
             "type": "string"
           }
@@ -19043,7 +19428,7 @@
             "type": "string"
           },
           "serverId": {
-            "description": "Exact user server ID from list-servers, or a new ID when adding a server. These settings belong to the executing bitfun product host, not the workspace host.",
+            "description": "Exact user server ID from list-servers, or a new ID when adding a server. These settings belong to the executing BitFun product host, not the workspace host.",
             "minLength": 1,
             "type": "string"
           }
@@ -20749,6 +21134,96 @@
         "kind": "settings",
         "pageId": "data.diagnostics"
       }
+    },
+    {
+      "id": "feature.generative-ui:query",
+      "capabilityId": "feature.generative-ui",
+      "itemIds": [
+        "app-generation"
+      ],
+      "kind": "query",
+      "risk": "read",
+      "executionHost": "productHost",
+      "availability": {
+        "desktop": {
+          "available": true
+        },
+        "cli": {
+          "available": true
+        },
+        "peer": {
+          "available": true,
+          "requiredCapabilities": [
+            "product_control_v1"
+          ]
+        },
+        "remoteControl": {
+          "available": true
+        },
+        "detachedDispatch": {
+          "available": true
+        }
+      },
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "valueSource": {
+        "kind": "static"
+      },
+      "presentationTarget": {
+        "kind": "scene",
+        "sceneId": "session"
+      }
+    },
+    {
+      "id": "feature.generative-ui:delegate:app-generation",
+      "capabilityId": "feature.generative-ui",
+      "itemIds": [
+        "app-generation"
+      ],
+      "kind": "delegate",
+      "risk": "execute",
+      "executionHost": "workspaceHost",
+      "availability": {
+        "desktop": {
+          "available": true
+        },
+        "cli": {
+          "available": true
+        },
+        "peer": {
+          "available": true,
+          "requiredCapabilities": [
+            "product_control_v1"
+          ]
+        },
+        "remoteControl": {
+          "available": true
+        },
+        "detachedDispatch": {
+          "available": true
+        }
+      },
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "outputSchema": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "delegateTools": [
+        "GenerativeUI"
+      ],
+      "presentationTarget": {
+        "kind": "scene",
+        "sceneId": "session"
+      }
     }
   ],
   "capabilities": [
@@ -20786,13 +21261,13 @@
         "创建、归档、恢复和分叉会话",
         "暂停、继续或引导正在运行的任务",
         "查看工具调用、权限请求和用量",
-        "用创造模式安全定制正在运行的 bitfun 前端"
+        "用创造模式安全定制正在运行的 BitFun 前端"
       ],
       "highlightsEn": [
         "Create, archive, restore, and fork sessions",
         "Pause, continue, or steer running work",
         "Inspect tool calls, permission requests, and usage",
-        "Safely customize the running bitfun frontend in Creative mode"
+        "Safely customize the running BitFun frontend in Creative mode"
       ],
       "items": [
         {
@@ -20871,6 +21346,27 @@
               "Use generate_image to create images from the user's description; omit service_id to use the configured default image model",
               "Specify count and size when needed and deliver the returned file paths; access remote workspace files through the active workspace data plane",
               "Report missing configuration, authentication failures, or quota limits explicitly without automatically switching services"
+            ]
+          }
+        },
+        {
+          "id": "office-document-generation",
+          "titleZh": "用 GenOfficeFile 创建并编辑 Word、Excel 和 PowerPoint 文件",
+          "titleEn": "Create and edit Word, Excel, and PowerPoint files with GenOfficeFile",
+          "control": {
+            "kind": "delegate",
+            "tools": [
+              "GenOfficeFile"
+            ],
+            "workflowZh": [
+              "先用 GenOfficeFile guide 读取格式指南，再通过 create 和 edit 分批生成或修改 .docx、.xlsx、.pptx 文件，无需安装 Office",
+              "用 read 分页查看文档结构；文件和引用图片通过当前工作区文件系统读写，支持本地或远程工作区",
+              "仅能继续编辑由该工具生成的文件；其他程序改过的内容默认拒绝覆盖，需要用户明确同意丢弃外部修改"
+            ],
+            "workflowEn": [
+              "Read the format guide with GenOfficeFile guide, then use create and edit to build or revise .docx, .xlsx, and .pptx files in batches without installing Office",
+              "Use read to page through document structure; documents and referenced images use the active local or remote workspace filesystem",
+              "Only files generated by this tool can be reopened for editing; external changes are rejected by default and may be discarded only with the user's explicit agreement"
             ]
           }
         },
@@ -21062,12 +21558,12 @@
       "stepsZh": [
         "打开 AI 助手或新建会话",
         "选择项目、模型和工作模式",
-        "描述目标；bitfun 会在会话中持续记录进度"
+        "描述目标；BitFun 会在会话中持续记录进度"
       ],
       "stepsEn": [
         "Open the AI assistant or create a session",
         "Choose a project, model, and working mode",
-        "Describe the goal; bitfun keeps progress in the session"
+        "Describe the goal; BitFun keeps progress in the session"
       ],
       "agentExamplesZh": [
         "新建一个会话，我们来排查这个构建错误",
@@ -21127,11 +21623,11 @@
         "创建、归档、恢复和分叉会话",
         "暂停、继续或引导正在运行的任务",
         "查看工具调用、权限请求和用量",
-        "用创造模式安全定制正在运行的 bitfun 前端",
+        "用创造模式安全定制正在运行的 BitFun 前端",
         "Create, archive, restore, and fork sessions",
         "Pause, continue, or steer running work",
         "Inspect tool calls, permission requests, and usage",
-        "Safely customize the running bitfun frontend in Creative mode",
+        "Safely customize the running BitFun frontend in Creative mode",
         "打开并新建一个 AI 会话",
         "Open and create a new AI session",
         "重命名、归档、恢复、删除、复制、分叉与导出会话",
@@ -21142,6 +21638,8 @@
         "Extend client UI and runtime capabilities in Creative mode",
         "通过已配置的默认图像模型生成图片",
         "Generate images with the configured default image model",
+        "用 GenOfficeFile 创建并编辑 Word、Excel 和 PowerPoint 文件",
+        "Create and edit Word, Excel, and PowerPoint files with GenOfficeFile",
         "开始、引导、打断、取消或恢复一次智能体运行",
         "Start, steer, interrupt, cancel, or recover an agent turn",
         "查看并逐个或批量回答等待中的权限请求",
@@ -21189,6 +21687,13 @@
         "Use generate_image to create images from the user's description; omit service_id to use the configured default image model",
         "Specify count and size when needed and deliver the returned file paths; access remote workspace files through the active workspace data plane",
         "Report missing configuration, authentication failures, or quota limits explicitly without automatically switching services",
+        "GenOfficeFile",
+        "先用 GenOfficeFile guide 读取格式指南，再通过 create 和 edit 分批生成或修改 .docx、.xlsx、.pptx 文件，无需安装 Office",
+        "用 read 分页查看文档结构；文件和引用图片通过当前工作区文件系统读写，支持本地或远程工作区",
+        "仅能继续编辑由该工具生成的文件；其他程序改过的内容默认拒绝覆盖，需要用户明确同意丢弃外部修改",
+        "Read the format guide with GenOfficeFile guide, then use create and edit to build or revise .docx, .xlsx, and .pptx files in batches without installing Office",
+        "Use read to page through document structure; documents and referenced images use the active local or remote workspace filesystem",
+        "Only files generated by this tool can be reopened for editing; external changes are rejected by default and may be discarded only with the user's explicit agreement",
         "ListWorkspaces",
         "SessionControl",
         "SessionHistory",
@@ -21963,11 +22468,11 @@
             ],
             "workflowZh": [
               "先用 Read 读取当前内容，再根据改动范围选择 Edit 精确替换或 Write 创建/完整写入文件",
-              "文件工具沿用 bitfun 的工作区、权限与变更快照语义；写入后重新读取或查看差异确认结果"
+              "文件工具沿用 BitFun 的工作区、权限与变更快照语义；写入后重新读取或查看差异确认结果"
             ],
             "workflowEn": [
               "Read the current content first, then use Edit for exact replacements or Write for creation/full rewrites",
-              "The file tools preserve bitfun workspace, permission, and change-snapshot semantics; read back or inspect the diff after writing"
+              "The file tools preserve BitFun workspace, permission, and change-snapshot semantics; read back or inspect the diff after writing"
             ]
           }
         },
@@ -22148,9 +22653,9 @@
         "Use Glob for path or filename patterns, then Grep for text, regular expressions, and surrounding context",
         "Both tools use the current session workspace data plane and never silently fall back to local paths for a remote workspace",
         "先用 Read 读取当前内容，再根据改动范围选择 Edit 精确替换或 Write 创建/完整写入文件",
-        "文件工具沿用 bitfun 的工作区、权限与变更快照语义；写入后重新读取或查看差异确认结果",
+        "文件工具沿用 BitFun 的工作区、权限与变更快照语义；写入后重新读取或查看差异确认结果",
         "Read the current content first, then use Edit for exact replacements or Write for creation/full rewrites",
-        "The file tools preserve bitfun workspace, permission, and change-snapshot semantics; read back or inspect the diff after writing",
+        "The file tools preserve BitFun workspace, permission, and change-snapshot semantics; read back or inspect the diff after writing",
         "GetFileDiff",
         "若 GetFileDiff 是延迟工具，先用 GetToolSpec 加载它的当前契约",
         "按工作区、会话或目标文件读取差异，并在页面或快照变化后重新获取最新结果",
@@ -22952,8 +23457,8 @@
       "categoryId": "workspace",
       "titleZh": "内置浏览器",
       "titleEn": "Built-in browser",
-      "summaryZh": "在 bitfun 内打开网页和本地服务；智能体可直接读取页面、选择元素并点击、填写、滚动或截图。",
-      "summaryEn": "Open webpages and local services inside bitfun, where an agent can inspect the page and select, click, fill, scroll, or capture elements directly.",
+      "summaryZh": "在 BitFun 内打开网页和本地服务；智能体可直接读取页面、选择元素并点击、填写、滚动或截图。",
+      "summaryEn": "Open webpages and local services inside BitFun, where an agent can inspect the page and select, click, fill, scroll, or capture elements directly.",
       "keywordsZh": [
         "浏览器",
         "网页",
@@ -22993,22 +23498,21 @@
       "items": [
         {
           "id": "open-urls",
-          "titleZh": "输入完整网址、本地域名或开发服务端口并在 bitfun 内打开",
-          "titleEn": "Open full URLs, local hostnames, or development-service ports inside bitfun",
+          "titleZh": "输入完整网址、本地域名或开发服务端口并在 BitFun 内打开",
+          "titleEn": "Open full URLs, local hostnames, or development-service ports inside BitFun",
           "control": {
             "kind": "delegate",
             "tools": [
+              "OpenUrl",
               "ControlHub"
             ],
             "workflowZh": [
-              "用户给出网址时，用 browser.navigate（target=builtin）直接打开，缺少页面时自动创建；需要读取或交互时附带 observe=article 或 snapshot，并复用返回的 session_id；用户只要求显示内置浏览器且没有网址时，改用 bitfunControl 打开 feature.browser 能力根入口，不得臆造 about:blank",
-              "对同一个 session_id 指定 target 为 builtin；选择已打开页面时，用 browser.connect 和唯一匹配的 target_url 或 target_title；快照、点击、填写、滚动和截图等动作与外部 CDP 浏览器共用同一套契约",
-              "复用 navigate 返回的观察结果，只在下一步需要新页面状态时重新快照；涉及用户账号登录态时，优先使用用户在设置中已授权连接的 external 浏览器，未授权时请用户连接，不得自行开启权限；CDP 协议扩展同样需要可用的外接连接"
+              "用户给出链接且只需要打开页面时用 OpenUrl 打开；需要读取页面、定位元素、截图或交互时改用 ControlHub",
+              "打开后如需继续操作页面，先取得内置页面的 session_id，再按浏览器动作契约执行"
             ],
             "workflowEn": [
-              "When the user supplies a URL, use browser.navigate with target=builtin (creates a page when needed), add observe=article or snapshot for reading/interaction, and keep the returned session_id; when they only want the built-in browser surface, open the feature.browser capability root with bitfunControl and never invent about:blank",
-              "Address that session_id with target set to builtin; to select an existing page, use browser.connect with a unique target_url or target_title match. Portable actions share the external CDP contract",
-              "Reuse the observation returned by navigate; refresh only when the next decision needs new page state. For account/login-dependent work, prefer the external browser the user authorized in Settings; if unavailable, ask the user to connect it and never enable permissions yourself. CDP extensions also require an available external connection"
+              "Use OpenUrl when the user supplies a link and only needs the page opened; switch to ControlHub when reading, locating elements, capturing screenshots, or interacting",
+              "When further page work is needed, keep the built-in session_id and follow the shared browser-action contract"
             ]
           }
         },
@@ -23042,12 +23546,12 @@
               "ControlHub"
             ],
             "workflowZh": [
-              "用户给出网址时，用 browser.navigate（target=builtin）直接打开，缺少页面时自动创建；需要读取或交互时附带 observe=article 或 snapshot，并复用返回的 session_id；用户只要求显示内置浏览器且没有网址时，改用 bitfunControl 打开 feature.browser 能力根入口，不得臆造 about:blank",
+              "用户给出网址时，用 browser.navigate（target=builtin）直接打开，缺少页面时自动创建；需要读取或交互时附带 observe=article 或 snapshot，并复用返回的 session_id；用户只要求显示内置浏览器且没有网址时，改用 BitFunControl 打开 feature.browser 能力根入口，不得臆造 about:blank",
               "对同一个 session_id 指定 target 为 builtin；选择已打开页面时，用 browser.connect 和唯一匹配的 target_url 或 target_title；快照、点击、填写、滚动和截图等动作与外部 CDP 浏览器共用同一套契约",
               "复用 navigate 返回的观察结果，只在下一步需要新页面状态时重新快照；涉及用户账号登录态时，优先使用用户在设置中已授权连接的 external 浏览器，未授权时请用户连接，不得自行开启权限；CDP 协议扩展同样需要可用的外接连接"
             ],
             "workflowEn": [
-              "When the user supplies a URL, use browser.navigate with target=builtin (creates a page when needed), add observe=article or snapshot for reading/interaction, and keep the returned session_id; when they only want the built-in browser surface, open the feature.browser capability root with bitfunControl and never invent about:blank",
+              "When the user supplies a URL, use browser.navigate with target=builtin (creates a page when needed), add observe=article or snapshot for reading/interaction, and keep the returned session_id; when they only want the built-in browser surface, open the feature.browser capability root with BitFunControl and never invent about:blank",
               "Address that session_id with target set to builtin; to select an existing page, use browser.connect with a unique target_url or target_title match. Portable actions share the external CDP contract",
               "Reuse the observation returned by navigate; refresh only when the next decision needs new page state. For account/login-dependent work, prefer the external browser the user authorized in Settings; if unavailable, ask the user to connect it and never enable permissions yourself. CDP extensions also require an available external connection"
             ]
@@ -23063,12 +23567,12 @@
               "ControlHub"
             ],
             "workflowZh": [
-              "用户给出网址时，用 browser.navigate（target=builtin）直接打开，缺少页面时自动创建；需要读取或交互时附带 observe=article 或 snapshot，并复用返回的 session_id；用户只要求显示内置浏览器且没有网址时，改用 bitfunControl 打开 feature.browser 能力根入口，不得臆造 about:blank",
+              "用户给出网址时，用 browser.navigate（target=builtin）直接打开，缺少页面时自动创建；需要读取或交互时附带 observe=article 或 snapshot，并复用返回的 session_id；用户只要求显示内置浏览器且没有网址时，改用 BitFunControl 打开 feature.browser 能力根入口，不得臆造 about:blank",
               "对同一个 session_id 指定 target 为 builtin；选择已打开页面时，用 browser.connect 和唯一匹配的 target_url 或 target_title；快照、点击、填写、滚动和截图等动作与外部 CDP 浏览器共用同一套契约",
               "复用 navigate 返回的观察结果，只在下一步需要新页面状态时重新快照；涉及用户账号登录态时，优先使用用户在设置中已授权连接的 external 浏览器，未授权时请用户连接，不得自行开启权限；CDP 协议扩展同样需要可用的外接连接"
             ],
             "workflowEn": [
-              "When the user supplies a URL, use browser.navigate with target=builtin (creates a page when needed), add observe=article or snapshot for reading/interaction, and keep the returned session_id; when they only want the built-in browser surface, open the feature.browser capability root with bitfunControl and never invent about:blank",
+              "When the user supplies a URL, use browser.navigate with target=builtin (creates a page when needed), add observe=article or snapshot for reading/interaction, and keep the returned session_id; when they only want the built-in browser surface, open the feature.browser capability root with BitFunControl and never invent about:blank",
               "Address that session_id with target set to builtin; to select an existing page, use browser.connect with a unique target_url or target_title match. Portable actions share the external CDP contract",
               "Reuse the observation returned by navigate; refresh only when the next decision needs new page state. For account/login-dependent work, prefer the external browser the user authorized in Settings; if unavailable, ask the user to connect it and never enable permissions yourself. CDP extensions also require an available external connection"
             ]
@@ -23084,12 +23588,12 @@
               "ControlHub"
             ],
             "workflowZh": [
-              "用户给出网址时，用 browser.navigate（target=builtin）直接打开，缺少页面时自动创建；需要读取或交互时附带 observe=article 或 snapshot，并复用返回的 session_id；用户只要求显示内置浏览器且没有网址时，改用 bitfunControl 打开 feature.browser 能力根入口，不得臆造 about:blank",
+              "用户给出网址时，用 browser.navigate（target=builtin）直接打开，缺少页面时自动创建；需要读取或交互时附带 observe=article 或 snapshot，并复用返回的 session_id；用户只要求显示内置浏览器且没有网址时，改用 BitFunControl 打开 feature.browser 能力根入口，不得臆造 about:blank",
               "对同一个 session_id 指定 target 为 builtin；选择已打开页面时，用 browser.connect 和唯一匹配的 target_url 或 target_title；快照、点击、填写、滚动和截图等动作与外部 CDP 浏览器共用同一套契约",
               "复用 navigate 返回的观察结果，只在下一步需要新页面状态时重新快照；涉及用户账号登录态时，优先使用用户在设置中已授权连接的 external 浏览器，未授权时请用户连接，不得自行开启权限；CDP 协议扩展同样需要可用的外接连接"
             ],
             "workflowEn": [
-              "When the user supplies a URL, use browser.navigate with target=builtin (creates a page when needed), add observe=article or snapshot for reading/interaction, and keep the returned session_id; when they only want the built-in browser surface, open the feature.browser capability root with bitfunControl and never invent about:blank",
+              "When the user supplies a URL, use browser.navigate with target=builtin (creates a page when needed), add observe=article or snapshot for reading/interaction, and keep the returned session_id; when they only want the built-in browser surface, open the feature.browser capability root with BitFunControl and never invent about:blank",
               "Address that session_id with target set to builtin; to select an existing page, use browser.connect with a unique target_url or target_title match. Portable actions share the external CDP contract",
               "Reuse the observation returned by navigate; refresh only when the next decision needs new page state. For account/login-dependent work, prefer the external browser the user authorized in Settings; if unavailable, ask the user to connect it and never enable permissions yourself. CDP extensions also require an available external connection"
             ]
@@ -23105,12 +23609,12 @@
               "ControlHub"
             ],
             "workflowZh": [
-              "用户给出网址时，用 browser.navigate（target=builtin）直接打开，缺少页面时自动创建；需要读取或交互时附带 observe=article 或 snapshot，并复用返回的 session_id；用户只要求显示内置浏览器且没有网址时，改用 bitfunControl 打开 feature.browser 能力根入口，不得臆造 about:blank",
+              "用户给出网址时，用 browser.navigate（target=builtin）直接打开，缺少页面时自动创建；需要读取或交互时附带 observe=article 或 snapshot，并复用返回的 session_id；用户只要求显示内置浏览器且没有网址时，改用 BitFunControl 打开 feature.browser 能力根入口，不得臆造 about:blank",
               "对同一个 session_id 指定 target 为 builtin；选择已打开页面时，用 browser.connect 和唯一匹配的 target_url 或 target_title；快照、点击、填写、滚动和截图等动作与外部 CDP 浏览器共用同一套契约",
               "复用 navigate 返回的观察结果，只在下一步需要新页面状态时重新快照；涉及用户账号登录态时，优先使用用户在设置中已授权连接的 external 浏览器，未授权时请用户连接，不得自行开启权限；CDP 协议扩展同样需要可用的外接连接"
             ],
             "workflowEn": [
-              "When the user supplies a URL, use browser.navigate with target=builtin (creates a page when needed), add observe=article or snapshot for reading/interaction, and keep the returned session_id; when they only want the built-in browser surface, open the feature.browser capability root with bitfunControl and never invent about:blank",
+              "When the user supplies a URL, use browser.navigate with target=builtin (creates a page when needed), add observe=article or snapshot for reading/interaction, and keep the returned session_id; when they only want the built-in browser surface, open the feature.browser capability root with BitFunControl and never invent about:blank",
               "Address that session_id with target set to builtin; to select an existing page, use browser.connect with a unique target_url or target_title match. Portable actions share the external CDP contract",
               "Reuse the observation returned by navigate; refresh only when the next decision needs new page state. For account/login-dependent work, prefer the external browser the user authorized in Settings; if unavailable, ask the user to connect it and never enable permissions yourself. CDP extensions also require an available external connection"
             ]
@@ -23126,12 +23630,12 @@
               "ControlHub"
             ],
             "workflowZh": [
-              "用户给出网址时，用 browser.navigate（target=builtin）直接打开，缺少页面时自动创建；需要读取或交互时附带 observe=article 或 snapshot，并复用返回的 session_id；用户只要求显示内置浏览器且没有网址时，改用 bitfunControl 打开 feature.browser 能力根入口，不得臆造 about:blank",
+              "用户给出网址时，用 browser.navigate（target=builtin）直接打开，缺少页面时自动创建；需要读取或交互时附带 observe=article 或 snapshot，并复用返回的 session_id；用户只要求显示内置浏览器且没有网址时，改用 BitFunControl 打开 feature.browser 能力根入口，不得臆造 about:blank",
               "对同一个 session_id 指定 target 为 builtin；选择已打开页面时，用 browser.connect 和唯一匹配的 target_url 或 target_title；快照、点击、填写、滚动和截图等动作与外部 CDP 浏览器共用同一套契约",
               "复用 navigate 返回的观察结果，只在下一步需要新页面状态时重新快照；涉及用户账号登录态时，优先使用用户在设置中已授权连接的 external 浏览器，未授权时请用户连接，不得自行开启权限；CDP 协议扩展同样需要可用的外接连接"
             ],
             "workflowEn": [
-              "When the user supplies a URL, use browser.navigate with target=builtin (creates a page when needed), add observe=article or snapshot for reading/interaction, and keep the returned session_id; when they only want the built-in browser surface, open the feature.browser capability root with bitfunControl and never invent about:blank",
+              "When the user supplies a URL, use browser.navigate with target=builtin (creates a page when needed), add observe=article or snapshot for reading/interaction, and keep the returned session_id; when they only want the built-in browser surface, open the feature.browser capability root with BitFunControl and never invent about:blank",
               "Address that session_id with target set to builtin; to select an existing page, use browser.connect with a unique target_url or target_title match. Portable actions share the external CDP contract",
               "Reuse the observation returned by navigate; refresh only when the next decision needs new page state. For account/login-dependent work, prefer the external browser the user authorized in Settings; if unavailable, ask the user to connect it and never enable permissions yourself. CDP extensions also require an available external connection"
             ]
@@ -23147,12 +23651,12 @@
               "ControlHub"
             ],
             "workflowZh": [
-              "用户给出网址时，用 browser.navigate（target=builtin）直接打开，缺少页面时自动创建；需要读取或交互时附带 observe=article 或 snapshot，并复用返回的 session_id；用户只要求显示内置浏览器且没有网址时，改用 bitfunControl 打开 feature.browser 能力根入口，不得臆造 about:blank",
+              "用户给出网址时，用 browser.navigate（target=builtin）直接打开，缺少页面时自动创建；需要读取或交互时附带 observe=article 或 snapshot，并复用返回的 session_id；用户只要求显示内置浏览器且没有网址时，改用 BitFunControl 打开 feature.browser 能力根入口，不得臆造 about:blank",
               "对同一个 session_id 指定 target 为 builtin；选择已打开页面时，用 browser.connect 和唯一匹配的 target_url 或 target_title；快照、点击、填写、滚动和截图等动作与外部 CDP 浏览器共用同一套契约",
               "复用 navigate 返回的观察结果，只在下一步需要新页面状态时重新快照；涉及用户账号登录态时，优先使用用户在设置中已授权连接的 external 浏览器，未授权时请用户连接，不得自行开启权限；CDP 协议扩展同样需要可用的外接连接"
             ],
             "workflowEn": [
-              "When the user supplies a URL, use browser.navigate with target=builtin (creates a page when needed), add observe=article or snapshot for reading/interaction, and keep the returned session_id; when they only want the built-in browser surface, open the feature.browser capability root with bitfunControl and never invent about:blank",
+              "When the user supplies a URL, use browser.navigate with target=builtin (creates a page when needed), add observe=article or snapshot for reading/interaction, and keep the returned session_id; when they only want the built-in browser surface, open the feature.browser capability root with BitFunControl and never invent about:blank",
               "Address that session_id with target set to builtin; to select an existing page, use browser.connect with a unique target_url or target_title match. Portable actions share the external CDP contract",
               "Reuse the observation returned by navigate; refresh only when the next decision needs new page state. For account/login-dependent work, prefer the external browser the user authorized in Settings; if unavailable, ask the user to connect it and never enable permissions yourself. CDP extensions also require an available external connection"
             ]
@@ -23188,12 +23692,12 @@
               "ControlHub"
             ],
             "workflowZh": [
-              "用户给出网址时，用 browser.navigate（target=builtin）直接打开，缺少页面时自动创建；需要读取或交互时附带 observe=article 或 snapshot，并复用返回的 session_id；用户只要求显示内置浏览器且没有网址时，改用 bitfunControl 打开 feature.browser 能力根入口，不得臆造 about:blank",
+              "用户给出网址时，用 browser.navigate（target=builtin）直接打开，缺少页面时自动创建；需要读取或交互时附带 observe=article 或 snapshot，并复用返回的 session_id；用户只要求显示内置浏览器且没有网址时，改用 BitFunControl 打开 feature.browser 能力根入口，不得臆造 about:blank",
               "对同一个 session_id 指定 target 为 builtin；选择已打开页面时，用 browser.connect 和唯一匹配的 target_url 或 target_title；快照、点击、填写、滚动和截图等动作与外部 CDP 浏览器共用同一套契约",
               "复用 navigate 返回的观察结果，只在下一步需要新页面状态时重新快照；涉及用户账号登录态时，优先使用用户在设置中已授权连接的 external 浏览器，未授权时请用户连接，不得自行开启权限；CDP 协议扩展同样需要可用的外接连接"
             ],
             "workflowEn": [
-              "When the user supplies a URL, use browser.navigate with target=builtin (creates a page when needed), add observe=article or snapshot for reading/interaction, and keep the returned session_id; when they only want the built-in browser surface, open the feature.browser capability root with bitfunControl and never invent about:blank",
+              "When the user supplies a URL, use browser.navigate with target=builtin (creates a page when needed), add observe=article or snapshot for reading/interaction, and keep the returned session_id; when they only want the built-in browser surface, open the feature.browser capability root with BitFunControl and never invent about:blank",
               "Address that session_id with target set to builtin; to select an existing page, use browser.connect with a unique target_url or target_title match. Portable actions share the external CDP contract",
               "Reuse the observation returned by navigate; refresh only when the next decision needs new page state. For account/login-dependent work, prefer the external browser the user authorized in Settings; if unavailable, ask the user to connect it and never enable permissions yourself. CDP extensions also require an available external connection"
             ]
@@ -23209,12 +23713,12 @@
               "ControlHub"
             ],
             "workflowZh": [
-              "用户给出网址时，用 browser.navigate（target=builtin）直接打开，缺少页面时自动创建；需要读取或交互时附带 observe=article 或 snapshot，并复用返回的 session_id；用户只要求显示内置浏览器且没有网址时，改用 bitfunControl 打开 feature.browser 能力根入口，不得臆造 about:blank",
+              "用户给出网址时，用 browser.navigate（target=builtin）直接打开，缺少页面时自动创建；需要读取或交互时附带 observe=article 或 snapshot，并复用返回的 session_id；用户只要求显示内置浏览器且没有网址时，改用 BitFunControl 打开 feature.browser 能力根入口，不得臆造 about:blank",
               "对同一个 session_id 指定 target 为 builtin；选择已打开页面时，用 browser.connect 和唯一匹配的 target_url 或 target_title；快照、点击、填写、滚动和截图等动作与外部 CDP 浏览器共用同一套契约",
               "复用 navigate 返回的观察结果，只在下一步需要新页面状态时重新快照；涉及用户账号登录态时，优先使用用户在设置中已授权连接的 external 浏览器，未授权时请用户连接，不得自行开启权限；CDP 协议扩展同样需要可用的外接连接"
             ],
             "workflowEn": [
-              "When the user supplies a URL, use browser.navigate with target=builtin (creates a page when needed), add observe=article or snapshot for reading/interaction, and keep the returned session_id; when they only want the built-in browser surface, open the feature.browser capability root with bitfunControl and never invent about:blank",
+              "When the user supplies a URL, use browser.navigate with target=builtin (creates a page when needed), add observe=article or snapshot for reading/interaction, and keep the returned session_id; when they only want the built-in browser surface, open the feature.browser capability root with BitFunControl and never invent about:blank",
               "Address that session_id with target set to builtin; to select an existing page, use browser.connect with a unique target_url or target_title match. Portable actions share the external CDP contract",
               "Reuse the observation returned by navigate; refresh only when the next decision needs new page state. For account/login-dependent work, prefer the external browser the user authorized in Settings; if unavailable, ask the user to connect it and never enable permissions yourself. CDP extensions also require an available external connection"
             ]
@@ -23230,12 +23734,12 @@
               "ControlHub"
             ],
             "workflowZh": [
-              "用户给出网址时，用 browser.navigate（target=builtin）直接打开，缺少页面时自动创建；需要读取或交互时附带 observe=article 或 snapshot，并复用返回的 session_id；用户只要求显示内置浏览器且没有网址时，改用 bitfunControl 打开 feature.browser 能力根入口，不得臆造 about:blank",
+              "用户给出网址时，用 browser.navigate（target=builtin）直接打开，缺少页面时自动创建；需要读取或交互时附带 observe=article 或 snapshot，并复用返回的 session_id；用户只要求显示内置浏览器且没有网址时，改用 BitFunControl 打开 feature.browser 能力根入口，不得臆造 about:blank",
               "对同一个 session_id 指定 target 为 builtin；选择已打开页面时，用 browser.connect 和唯一匹配的 target_url 或 target_title；快照、点击、填写、滚动和截图等动作与外部 CDP 浏览器共用同一套契约",
               "复用 navigate 返回的观察结果，只在下一步需要新页面状态时重新快照；涉及用户账号登录态时，优先使用用户在设置中已授权连接的 external 浏览器，未授权时请用户连接，不得自行开启权限；CDP 协议扩展同样需要可用的外接连接"
             ],
             "workflowEn": [
-              "When the user supplies a URL, use browser.navigate with target=builtin (creates a page when needed), add observe=article or snapshot for reading/interaction, and keep the returned session_id; when they only want the built-in browser surface, open the feature.browser capability root with bitfunControl and never invent about:blank",
+              "When the user supplies a URL, use browser.navigate with target=builtin (creates a page when needed), add observe=article or snapshot for reading/interaction, and keep the returned session_id; when they only want the built-in browser surface, open the feature.browser capability root with BitFunControl and never invent about:blank",
               "Address that session_id with target set to builtin; to select an existing page, use browser.connect with a unique target_url or target_title match. Portable actions share the external CDP contract",
               "Reuse the observation returned by navigate; refresh only when the next decision needs new page state. For account/login-dependent work, prefer the external browser the user authorized in Settings; if unavailable, ask the user to connect it and never enable permissions yourself. CDP extensions also require an available external connection"
             ]
@@ -23255,12 +23759,12 @@
       "agentControl": {
         "tool": "ControlHub",
         "workflowZh": [
-          "用户给出网址时，用 browser.navigate（target=builtin）直接打开，缺少页面时自动创建；需要读取或交互时附带 observe=article 或 snapshot，并复用返回的 session_id；用户只要求显示内置浏览器且没有网址时，改用 bitfunControl 打开 feature.browser 能力根入口，不得臆造 about:blank",
+          "用户给出网址时，用 browser.navigate（target=builtin）直接打开，缺少页面时自动创建；需要读取或交互时附带 observe=article 或 snapshot，并复用返回的 session_id；用户只要求显示内置浏览器且没有网址时，改用 BitFunControl 打开 feature.browser 能力根入口，不得臆造 about:blank",
           "对同一个 session_id 指定 target 为 builtin；选择已打开页面时，用 browser.connect 和唯一匹配的 target_url 或 target_title；快照、点击、填写、滚动和截图等动作与外部 CDP 浏览器共用同一套契约",
           "复用 navigate 返回的观察结果，只在下一步需要新页面状态时重新快照；涉及用户账号登录态时，优先使用用户在设置中已授权连接的 external 浏览器，未授权时请用户连接，不得自行开启权限；CDP 协议扩展同样需要可用的外接连接"
         ],
         "workflowEn": [
-          "When the user supplies a URL, use browser.navigate with target=builtin (creates a page when needed), add observe=article or snapshot for reading/interaction, and keep the returned session_id; when they only want the built-in browser surface, open the feature.browser capability root with bitfunControl and never invent about:blank",
+          "When the user supplies a URL, use browser.navigate with target=builtin (creates a page when needed), add observe=article or snapshot for reading/interaction, and keep the returned session_id; when they only want the built-in browser surface, open the feature.browser capability root with BitFunControl and never invent about:blank",
           "Address that session_id with target set to builtin; to select an existing page, use browser.connect with a unique target_url or target_title match. Portable actions share the external CDP contract",
           "Reuse the observation returned by navigate; refresh only when the next decision needs new page state. For account/login-dependent work, prefer the external browser the user authorized in Settings; if unavailable, ask the user to connect it and never enable permissions yourself. CDP extensions also require an available external connection"
         ]
@@ -23314,8 +23818,8 @@
         "Let an agent inspect and operate the built-in page",
         "Share one action contract with external CDP browsers",
         "Keep the page beside a session",
-        "输入完整网址、本地域名或开发服务端口并在 bitfun 内打开",
-        "Open full URLs, local hostnames, or development-service ports inside bitfun",
+        "输入完整网址、本地域名或开发服务端口并在 BitFun 内打开",
+        "Open full URLs, local hostnames, or development-service ports inside BitFun",
         "让智能体搜索网页并按需读取指定页面正文",
         "Let an agent search the web and fetch selected page content on demand",
         "使用后退、前进和地址栏浏览页面历史",
@@ -23344,13 +23848,18 @@
         "Open this URL in the built-in browser and find the sign-in button",
         "Inspect the current built-in page and fill this form",
         "Use the built-in browser to open the search result and summarize the page",
-        "用户给出网址时，用 browser.navigate（target=builtin）直接打开，缺少页面时自动创建；需要读取或交互时附带 observe=article 或 snapshot，并复用返回的 session_id；用户只要求显示内置浏览器且没有网址时，改用 bitfunControl 打开 feature.browser 能力根入口，不得臆造 about:blank",
+        "用户给出网址时，用 browser.navigate（target=builtin）直接打开，缺少页面时自动创建；需要读取或交互时附带 observe=article 或 snapshot，并复用返回的 session_id；用户只要求显示内置浏览器且没有网址时，改用 BitFunControl 打开 feature.browser 能力根入口，不得臆造 about:blank",
         "对同一个 session_id 指定 target 为 builtin；选择已打开页面时，用 browser.connect 和唯一匹配的 target_url 或 target_title；快照、点击、填写、滚动和截图等动作与外部 CDP 浏览器共用同一套契约",
         "复用 navigate 返回的观察结果，只在下一步需要新页面状态时重新快照；涉及用户账号登录态时，优先使用用户在设置中已授权连接的 external 浏览器，未授权时请用户连接，不得自行开启权限；CDP 协议扩展同样需要可用的外接连接",
-        "When the user supplies a URL, use browser.navigate with target=builtin (creates a page when needed), add observe=article or snapshot for reading/interaction, and keep the returned session_id; when they only want the built-in browser surface, open the feature.browser capability root with bitfunControl and never invent about:blank",
+        "When the user supplies a URL, use browser.navigate with target=builtin (creates a page when needed), add observe=article or snapshot for reading/interaction, and keep the returned session_id; when they only want the built-in browser surface, open the feature.browser capability root with BitFunControl and never invent about:blank",
         "Address that session_id with target set to builtin; to select an existing page, use browser.connect with a unique target_url or target_title match. Portable actions share the external CDP contract",
         "Reuse the observation returned by navigate; refresh only when the next decision needs new page state. For account/login-dependent work, prefer the external browser the user authorized in Settings; if unavailable, ask the user to connect it and never enable permissions yourself. CDP extensions also require an available external connection",
         "ControlHub",
+        "OpenUrl",
+        "用户给出链接且只需要打开页面时用 OpenUrl 打开；需要读取页面、定位元素、截图或交互时改用 ControlHub",
+        "打开后如需继续操作页面，先取得内置页面的 session_id，再按浏览器动作契约执行",
+        "Use OpenUrl when the user supplies a link and only needs the page opened; switch to ControlHub when reading, locating elements, capturing screenshots, or interacting",
+        "When further page work is needed, keep the built-in session_id and follow the shared browser-action contract",
         "WebSearch",
         "WebFetch",
         "先用 WebSearch 找到候选来源并保留标题与 URL，再只对需要核实的页面调用 WebFetch",
@@ -23866,8 +24375,8 @@
       "categoryId": "automation",
       "titleZh": "Mini Apps 小应用",
       "titleEn": "Mini Apps",
-      "summaryZh": "在 bitfun 内安装、创建和运行轻量应用，让界面、数据与智能体工作流组合在一起。",
-      "summaryEn": "Install, create, and run lightweight apps inside bitfun, combining UI, data, and agent workflows.",
+      "summaryZh": "在 BitFun 内安装、创建和运行轻量应用，让界面、数据与智能体工作流组合在一起。",
+      "summaryEn": "Install, create, and run lightweight apps inside BitFun, combining UI, data, and agent workflows.",
       "keywordsZh": [
         "Mini App",
         "小应用",
@@ -24049,11 +24558,11 @@
               "MiniAppBrowser"
             ],
             "workflowZh": [
-              "先用 bitfunControl 的 get 查询 feature.miniapps，并按 schema 用 inspect-app 读取源码，理解业务函数、动作参数和状态；源码更新属于应用改造，不是日常操作的前置步骤",
+              "先用 BitFunControl 的 get 查询 feature.miniapps，并按 schema 用 inspect-app 读取源码，理解业务函数、动作参数和状态；源码更新属于应用改造，不是日常操作的前置步骤",
               "用 MiniAppBrowser 的 open 连接当前实例，优先 observe_bridge 读取业务状态、act_bridge 执行语义动作并核对结果，保留用户草稿，不改源码、不重载、不切换呈现。旧应用缺少接口时使用可用的 DOM/输入或说明限制；自动活动信息不能代替业务状态"
             ],
             "workflowEn": [
-              "Use bitfunControl get for feature.miniapps, then inspect-app source to understand business functions, action parameters, and state. Source updates are app enhancements, not prerequisites for routine operation",
+              "Use BitFunControl get for feature.miniapps, then inspect-app source to understand business functions, action parameters, and state. Source updates are app enhancements, not prerequisites for routine operation",
               "Open the current instance with MiniAppBrowser; prefer observe_bridge for business state and act_bridge for semantic operations and result verification. Preserve drafts without editing source, reloading, or changing presentation. For legacy apps use available DOM/input controls or report the gap; activity is not business state"
             ]
           }
@@ -24457,9 +24966,9 @@
         "Call PublishMiniApp only after an explicit request to submit externally, with the completed app, license, and release notes",
         "When authentication, validation, or upload returns a resumable state, show the exact next step and never report pending authorization or review as published",
         "MiniAppBrowser",
-        "先用 bitfunControl 的 get 查询 feature.miniapps，并按 schema 用 inspect-app 读取源码，理解业务函数、动作参数和状态；源码更新属于应用改造，不是日常操作的前置步骤",
+        "先用 BitFunControl 的 get 查询 feature.miniapps，并按 schema 用 inspect-app 读取源码，理解业务函数、动作参数和状态；源码更新属于应用改造，不是日常操作的前置步骤",
         "用 MiniAppBrowser 的 open 连接当前实例，优先 observe_bridge 读取业务状态、act_bridge 执行语义动作并核对结果，保留用户草稿，不改源码、不重载、不切换呈现。旧应用缺少接口时使用可用的 DOM/输入或说明限制；自动活动信息不能代替业务状态",
-        "Use bitfunControl get for feature.miniapps, then inspect-app source to understand business functions, action parameters, and state. Source updates are app enhancements, not prerequisites for routine operation",
+        "Use BitFunControl get for feature.miniapps, then inspect-app source to understand business functions, action parameters, and state. Source updates are app enhancements, not prerequisites for routine operation",
         "Open the current instance with MiniAppBrowser; prefer observe_bridge for business state and act_bridge for semantic operations and result verification. Preserve drafts without editing source, reloading, or changing presentation. For legacy apps use available DOM/input controls or report the gap; activity is not business state"
       ],
       "docsUrl": "https://playbook.bitfun.com/capabilities/feature.miniapps/"
@@ -25074,8 +25583,8 @@
       "categoryId": "automation",
       "titleZh": "外部导入",
       "titleEn": "External Import",
-      "summaryZh": "查看外部 AI 生态的内容与状态，导入受支持的 Skill、MCP、Hook，以及 Codex、Zcode 会话，并在 bitfun 中继续对话。",
-      "summaryEn": "Inspect external AI content and status, import supported Skills, MCP, Hooks, and Codex or Zcode sessions, and continue conversations in bitfun.",
+      "summaryZh": "查看外部 AI 生态的内容与状态，导入受支持的 Skill、MCP、Hook，以及 Codex、Zcode 会话，并在 BitFun 中继续对话。",
+      "summaryEn": "Inspect external AI content and status, import supported Skills, MCP, Hooks, and Codex or Zcode sessions, and continue conversations in BitFun.",
       "keywordsZh": [
         "外部导入",
         "生态兼容",
@@ -25142,24 +25651,24 @@
         },
         {
           "id": "codex-session-import",
-          "titleZh": "发现、移除和重新添加 Codex 来源会话，并在 bitfun 分支中续聊",
-          "titleEn": "Discover, remove and restore Codex source sessions, then continue in bitfun branches",
+          "titleZh": "发现、移除和重新添加 Codex 来源会话，并在 BitFun 分支中续聊",
+          "titleEn": "Discover, remove and restore Codex source sessions, then continue in BitFun branches",
           "control": {
             "kind": "open",
             "reasonCode": "unstructuredInteraction",
-            "reasonZh": "“发现、移除和重新添加 Codex 来源会话，并在 bitfun 分支中续聊”由用户在生态兼容页开启发现或选择已移除的来源。打开来源时刷新历史，首次发送创建独立分支。归档、移除和分支删除各自独立，原应用历史保持不变。智能体打开入口，由用户选择具体会话。",
-            "reasonEn": "“Discover, remove and restore Codex source sessions, then continue in bitfun branches” requires the user to enable discovery or select a removed source in ecosystem compatibility. Opening a source refreshes its history and first send creates an independent branch. Archives, source removal and branch deletion stay independent; original history is preserved. The Agent opens the entry for the user to choose a session."
+            "reasonZh": "“发现、移除和重新添加 Codex 来源会话，并在 BitFun 分支中续聊”由用户在生态兼容页开启发现或选择已移除的来源。打开来源时刷新历史，首次发送创建独立分支。归档、移除和分支删除各自独立，原应用历史保持不变。智能体打开入口，由用户选择具体会话。",
+            "reasonEn": "“Discover, remove and restore Codex source sessions, then continue in BitFun branches” requires the user to enable discovery or select a removed source in ecosystem compatibility. Opening a source refreshes its history and first send creates an independent branch. Archives, source removal and branch deletion stay independent; original history is preserved. The Agent opens the entry for the user to choose a session."
           }
         },
         {
           "id": "zcode-session-import",
-          "titleZh": "发现、移除和重新添加 Zcode 来源会话，并在 bitfun 分支中续聊",
-          "titleEn": "Discover, remove and restore Zcode source sessions, then continue in bitfun branches",
+          "titleZh": "发现、移除和重新添加 Zcode 来源会话，并在 BitFun 分支中续聊",
+          "titleEn": "Discover, remove and restore Zcode source sessions, then continue in BitFun branches",
           "control": {
             "kind": "open",
             "reasonCode": "unstructuredInteraction",
-            "reasonZh": "“发现、移除和重新添加 Zcode 来源会话，并在 bitfun 分支中续聊”由用户在生态兼容页开启发现或选择已移除的来源。打开来源时刷新历史，首次发送创建独立分支。归档、移除和分支删除各自独立，原应用历史保持不变。智能体打开入口，由用户选择具体会话。",
-            "reasonEn": "“Discover, remove and restore Zcode source sessions, then continue in bitfun branches” requires the user to enable discovery or select a removed source in ecosystem compatibility. Opening a source refreshes its history and first send creates an independent branch. Archives, source removal and branch deletion stay independent; original history is preserved. The Agent opens the entry for the user to choose a session."
+            "reasonZh": "“发现、移除和重新添加 Zcode 来源会话，并在 BitFun 分支中续聊”由用户在生态兼容页开启发现或选择已移除的来源。打开来源时刷新历史，首次发送创建独立分支。归档、移除和分支删除各自独立，原应用历史保持不变。智能体打开入口，由用户选择具体会话。",
+            "reasonEn": "“Discover, remove and restore Zcode source sessions, then continue in BitFun branches” requires the user to enable discovery or select a removed source in ecosystem compatibility. Opening a source refreshes its history and first send creates an independent branch. Archives, source removal and branch deletion stay independent; original history is preserved. The Agent opens the entry for the user to choose a session."
           }
         },
         {
@@ -25306,10 +25815,10 @@
         "Discover OpenCode, Claude Code, Codex, and other external AI sources and content",
         "按来源启用或停用集成，并选择管理、预览或只读策略",
         "Enable or disable each source and choose managed, preview, or read-only policy",
-        "发现、移除和重新添加 Codex 来源会话，并在 bitfun 分支中续聊",
-        "Discover, remove and restore Codex source sessions, then continue in bitfun branches",
-        "发现、移除和重新添加 Zcode 来源会话，并在 bitfun 分支中续聊",
-        "Discover, remove and restore Zcode source sessions, then continue in bitfun branches",
+        "发现、移除和重新添加 Codex 来源会话，并在 BitFun 分支中续聊",
+        "Discover, remove and restore Codex source sessions, then continue in BitFun branches",
+        "发现、移除和重新添加 Zcode 来源会话，并在 BitFun 分支中续聊",
+        "Discover, remove and restore Zcode source sessions, then continue in BitFun branches",
         "展开外部 Prompt/Command 内容并处理与原生命令的冲突",
         "Expand external prompt/command content and resolve conflicts with native commands",
         "启用外部智能体，处理同名冲突并绑定模型",
@@ -25612,8 +26121,8 @@
       "categoryId": "connect",
       "titleZh": "Remote Connect 与多设备",
       "titleEn": "Remote Connect & devices",
-      "summaryZh": "从手机、Bot 或另一台 bitfun 设备连接当前主机，远程查看会话、回答权限并继续工作。",
-      "summaryEn": "Connect to this host from mobile, a bot, or another bitfun device to inspect sessions, answer permissions, and continue work remotely.",
+      "summaryZh": "从手机、Bot 或另一台 BitFun 设备远程查看会话、回答权限并继续工作。手机与同账号设备互控默认使用官方 Relay，无需部署服务器；官方与局域网模式登录时均需联网。",
+      "summaryEn": "Inspect sessions, answer permissions, and continue work from mobile, a bot, or another BitFun device. Mobile and same-account device control use the official Relay by default, with no server deployment; both official and LAN modes need internet access for sign-in.",
       "keywordsZh": [
         "Remote Connect",
         "远程控制",
@@ -25623,7 +26132,8 @@
         "微信",
         "多设备",
         "Peer Device",
-        "GitHub"
+        "GitHub",
+        "邮箱登录"
       ],
       "keywordsEn": [
         "remote connect",
@@ -25634,28 +26144,29 @@
         "WeChat",
         "multi-device",
         "peer device",
-        "GitHub"
+        "GitHub",
+        "email sign-in"
       ],
       "highlightsZh": [
-        "通过局域网或官方 Relay 连接",
+        "官方 Relay 无需部署；桌面端可同时运行局域网 Relay",
         "接入飞书、Telegram 或微信 Bot",
-        "使用 GitHub 身份管理设备并进入 Peer Device Mode"
+        "使用同一种登录方式与同一账号管理设备并进入 Peer Device Mode"
       ],
       "highlightsEn": [
-        "Connect through LAN or the official Relay",
+        "Use the official Relay without deployment; Desktop can also run a LAN Relay concurrently",
         "Use Feishu, Telegram, or WeChat bots",
-        "Use GitHub identity to manage devices and enter Peer Device Mode"
+        "Use the same login method and account to manage devices and enter Peer Device Mode"
       ],
       "items": [
         {
           "id": "connection-methods",
-          "titleZh": "选择局域网或官方 Relay",
-          "titleEn": "Choose LAN or the official Relay",
+          "titleZh": "使用官方 Relay 或桌面内置局域网 Relay；两者可同时运行，登录均需联网",
+          "titleEn": "Use the official or Desktop-hosted LAN Relay; both can run together and need internet for sign-in",
           "control": {
             "kind": "open",
             "reasonCode": "unstructuredInteraction",
-            "reasonZh": "“选择局域网或官方 Relay”需要结合当前网络与设备状态，确认目标主机后才能连接；智能体打开连接入口，由用户完成选择。",
-            "reasonEn": "“Choose LAN or the official Relay” depends on the current network and device state and requires the user to confirm the target host; the Agent opens the connection entry for that choice."
+            "reasonZh": "“使用官方 Relay 或桌面内置局域网 Relay；两者可同时运行，登录均需联网”需要结合当前网络与设备状态，由用户确认目标主机。官方 Relay 无需部署；私有 Relay 需配套客户端构建，界面没有自定义服务器地址或部署向导。",
+            "reasonEn": "“Use the official or Desktop-hosted LAN Relay; both can run together and need internet for sign-in” depends on network and device state and requires target confirmation. The official Relay needs no deployment; a private Relay requires matching client builds, with no custom-server field or deployment wizard in the UI."
           }
         },
         {
@@ -25703,13 +26214,13 @@
         },
         {
           "id": "account",
-          "titleZh": "使用 GitHub 登录、退出并查看身份状态",
-          "titleEn": "Sign in with GitHub, sign out, and inspect identity status",
+          "titleZh": "通过共享登录页使用 GitHub 或邮箱验证码登录、退出并查看身份状态",
+          "titleEn": "Sign in through the shared page with GitHub or an email code, sign out, and inspect identity status",
           "control": {
             "kind": "open",
             "reasonCode": "externalAuth",
-            "reasonZh": "GitHub 账户登录必须由用户在外部认证页面确认；智能体可以打开入口并读取非秘密状态，但不能冒充账户持有人。",
-            "reasonEn": "GitHub account sign-in requires confirmation on an external authentication page; the Agent may open the entry and read non-secret status but cannot impersonate the account holder."
+            "reasonZh": "登录必须由用户在外部认证页面完成。GitHub 与邮箱是独立账号，各设备需使用同一种方式和同一账号；旧客户端或服务可能仅支持 GitHub。智能体可打开入口并读取非秘密状态，不能代替用户认证。",
+            "reasonEn": "The user must complete sign-in on the external authentication page. GitHub and email are independent accounts; devices need the same method and account. Older clients or services may support GitHub only. The Agent may open the entry and read non-secret status, but cannot authenticate for the user."
           }
         },
         {
@@ -25725,25 +26236,27 @@
         },
         {
           "id": "peer-device",
-          "titleZh": "进入 Peer Device Mode，把另一台 bitfun 设备作为命令与事件数据面",
-          "titleEn": "Enter Peer Device Mode and use another bitfun device as the command and event data plane",
+          "titleZh": "进入 Peer Device Mode，把另一台 BitFun 设备作为命令与事件数据面",
+          "titleEn": "Enter Peer Device Mode and use another BitFun device as the command and event data plane",
           "control": {
             "kind": "open",
             "reasonCode": "unstructuredInteraction",
-            "reasonZh": "“进入 Peer Device Mode，把另一台 bitfun 设备作为命令与事件数据面”由多个实时状态相关步骤组成，目前没有一个能确定完成整个流程的单一结构化 Command；智能体会打开精确入口，并把后续交互保留在用户可见界面。",
-            "reasonEn": "“Enter Peer Device Mode and use another bitfun device as the command and event data plane” spans multiple live-state-dependent steps and currently has no single structured Command that can deterministically complete the whole workflow; the Agent opens the exact entry and keeps the remaining interaction visible to the user."
+            "reasonZh": "“进入 Peer Device Mode，把另一台 BitFun 设备作为命令与事件数据面”由多个实时状态相关步骤组成，目前没有一个能确定完成整个流程的单一结构化 Command；智能体会打开精确入口，并把后续交互保留在用户可见界面。",
+            "reasonEn": "“Enter Peer Device Mode and use another BitFun device as the command and event data plane” spans multiple live-state-dependent steps and currently has no single structured Command that can deterministically complete the whole workflow; the Agent opens the exact entry and keeps the remaining interaction visible to the user."
           }
         }
       ],
       "stepsZh": [
-        "打开 Remote Connect",
-        "选择网络、Bot 或账户",
-        "按向导连接并确认安全提示"
+        "打开 Remote Connect，选择网络、Bot 或账户入口",
+        "手机或设备互控：宿主与控制端以相同方式登录同一账号，官方 Relay 无需部署",
+        "手机可扫描官方或桌面局域网邀请，确认目标设备；二维码不授予访问权，目标宿主须保持在线",
+        "Bot 远控：在对应平台完成机器人配置与配对，检查监听状态"
       ],
       "stepsEn": [
-        "Open Remote Connect",
-        "Choose Network, Bot, or Account",
-        "Follow the connection flow and review its security notice"
+        "Open Remote Connect and choose Network, Bot, or Account",
+        "For mobile or device control, sign in on the host and controller with the same method and account; the official Relay needs no deployment",
+        "On mobile, scan an official or Desktop LAN invitation and confirm the target; the QR code grants no access and the host must stay online",
+        "For bot control, configure and pair the bot on its platform, then check listener status"
       ],
       "agentExamplesZh": [
         "打开 Remote Connect",
@@ -25980,6 +26493,7 @@
         "多设备",
         "Peer Device",
         "GitHub",
+        "邮箱登录",
         "remote connect",
         "remote control",
         "mobile",
@@ -25987,26 +26501,27 @@
         "WeChat",
         "multi-device",
         "peer device",
-        "通过局域网或官方 Relay 连接",
+        "email sign-in",
+        "官方 Relay 无需部署；桌面端可同时运行局域网 Relay",
         "接入飞书、Telegram 或微信 Bot",
-        "使用 GitHub 身份管理设备并进入 Peer Device Mode",
-        "Connect through LAN or the official Relay",
+        "使用同一种登录方式与同一账号管理设备并进入 Peer Device Mode",
+        "Use the official Relay without deployment; Desktop can also run a LAN Relay concurrently",
         "Use Feishu, Telegram, or WeChat bots",
-        "Use GitHub identity to manage devices and enter Peer Device Mode",
-        "选择局域网或官方 Relay",
-        "Choose LAN or the official Relay",
+        "Use the same login method and account to manage devices and enter Peer Device Mode",
+        "使用官方 Relay 或桌面内置局域网 Relay；两者可同时运行，登录均需联网",
+        "Use the official or Desktop-hosted LAN Relay; both can run together and need internet for sign-in",
         "启动、停止 Remote Connect 并查看实时连接状态和设备信息",
         "Start or stop Remote Connect and inspect live status and device information",
         "查看局域网 IP、网络信息与可分享的连接配置",
         "Inspect LAN IP, network details, and shareable connection configuration",
         "配置飞书、Telegram、微信等 Bot 并单独停止 Bot",
         "Configure Feishu, Telegram, WeChat, and other bots, and stop a bot independently",
-        "使用 GitHub 登录、退出并查看身份状态",
-        "Sign in with GitHub, sign out, and inspect identity status",
+        "通过共享登录页使用 GitHub 或邮箱验证码登录、退出并查看身份状态",
+        "Sign in through the shared page with GitHub or an email code, sign out, and inspect identity status",
         "列出、连接、查看设备型号与系统、设置别名和删除同账户设备",
         "List, connect, inspect model and OS, set aliases, and remove same-account devices",
-        "进入 Peer Device Mode，把另一台 bitfun 设备作为命令与事件数据面",
-        "Enter Peer Device Mode and use another bitfun device as the command and event data plane",
+        "进入 Peer Device Mode，把另一台 BitFun 设备作为命令与事件数据面",
+        "Enter Peer Device Mode and use another BitFun device as the command and event data plane",
         "打开 Remote Connect",
         "我想配置手机远程控制",
         "带我管理已连接设备",
@@ -26028,8 +26543,8 @@
       "categoryId": "connect",
       "titleZh": "Detached Dispatch 远程派发",
       "titleEn": "Detached Dispatch",
-      "summaryZh": "把可持续运行的任务派发到另一台 bitfun 主机；控制端可以断开，目标主机继续执行并保留记录。",
-      "summaryEn": "Dispatch durable work to another bitfun host; the controller may disconnect while the target continues and keeps the record.",
+      "summaryZh": "把可持续运行的任务派发到另一台 BitFun 主机；控制端可以断开，目标主机继续执行并保留记录。",
+      "summaryEn": "Dispatch durable work to another BitFun host; the controller may disconnect while the target continues and keeps the record.",
       "keywordsZh": [
         "派发任务",
         "Detached Dispatch",
@@ -26069,13 +26584,13 @@
         },
         {
           "id": "provision",
-          "titleZh": "为目标主机配置运行环境并安装或更新 bitfun CLI",
-          "titleEn": "Provision the target runtime and install or update the bitfun CLI",
+          "titleZh": "为目标主机配置运行环境并安装或更新 BitFun CLI",
+          "titleEn": "Provision the target runtime and install or update the BitFun CLI",
           "control": {
             "kind": "open",
             "reasonCode": "unstructuredInteraction",
-            "reasonZh": "“为目标主机配置运行环境并安装或更新 bitfun CLI”由多个实时状态相关步骤组成，目前没有一个能确定完成整个流程的单一结构化 Command；智能体会打开精确入口，并把后续交互保留在用户可见界面。",
-            "reasonEn": "“Provision the target runtime and install or update the bitfun CLI” spans multiple live-state-dependent steps and currently has no single structured Command that can deterministically complete the whole workflow; the Agent opens the exact entry and keeps the remaining interaction visible to the user."
+            "reasonZh": "“为目标主机配置运行环境并安装或更新 BitFun CLI”由多个实时状态相关步骤组成，目前没有一个能确定完成整个流程的单一结构化 Command；智能体会打开精确入口，并把后续交互保留在用户可见界面。",
+            "reasonEn": "“Provision the target runtime and install or update the BitFun CLI” spans multiple live-state-dependent steps and currently has no single structured Command that can deterministically complete the whole workflow; the Agent opens the exact entry and keeps the remaining interaction visible to the user."
           }
         },
         {
@@ -26194,8 +26709,8 @@
           "id": "list-targets",
           "titleZh": "列出派发目标",
           "titleEn": "List dispatch targets",
-          "descriptionZh": "读取同账户下所有 bitfun 设备（含本机，带 isCurrentDevice 标记、在线状态、型号与系统）以及本机已保存的 SSH 连接。回答“有几台设备”或派发前先调用；未登录账户时 devices 为空并说明原因。",
-          "descriptionEn": "Read every bitfun device on this account (including this one, marked isCurrentDevice, with online state, model and OS) plus this host's saved SSH connections. Call it before stating how many devices exist or before submitting; when signed out, devices is empty with a reason.",
+          "descriptionZh": "读取同账户下所有 BitFun 设备（含本机，带 isCurrentDevice 标记、在线状态、型号与系统）以及本机已保存的 SSH 连接。回答“有几台设备”或派发前先调用；未登录账户时 devices 为空并说明原因。",
+          "descriptionEn": "Read every BitFun device on this account (including this one, marked isCurrentDevice, with online state, model and OS) plus this host's saved SSH connections. Call it before stating how many devices exist or before submitting; when signed out, devices is empty with a reason.",
           "risk": "read",
           "inputSchema": {
             "additionalProperties": false,
@@ -26389,8 +26904,8 @@
         "Reload events and execution history after reconnecting",
         "列出同账户设备与已保存的 SSH 目标",
         "List same-account devices and saved SSH targets",
-        "为目标主机配置运行环境并安装或更新 bitfun CLI",
-        "Provision the target runtime and install or update the bitfun CLI",
+        "为目标主机配置运行环境并安装或更新 BitFun CLI",
+        "Provision the target runtime and install or update the BitFun CLI",
         "在提交任务前同步目标所需的模型配置",
         "Synchronize required model configuration before submitting a job",
         "从当前 Git 工作区把持久任务提交到同账户设备或 SSH 目标",
@@ -26566,12 +27081,12 @@
         }
       ],
       "stepsZh": [
-        "使用 GitHub 登录",
+        "登录 BitFun 账号（GitHub 或服务支持的邮箱验证码）",
         "打开 Pages",
         "选择页面并确认发布与可见性"
       ],
       "stepsEn": [
-        "Sign in to a GitHub account",
+        "Sign in to BitFun with GitHub or an email code supported by the service",
         "Open Pages",
         "Choose a page and confirm publishing and visibility"
       ],
@@ -26911,7 +27426,7 @@
           "control": {
             "kind": "delegate",
             "tools": [
-              "bitfunControl"
+              "BitFunControl"
             ],
             "workflowZh": [
               "先用 search 搜索“桌面宠物 / Petdex / companion”，再 get `setting.application.pet` 读取当前选项和受支持操作",
@@ -26932,7 +27447,7 @@
           "control": {
             "kind": "delegate",
             "tools": [
-              "bitfunControl"
+              "BitFunControl"
             ],
             "workflowZh": [
               "先用 search 搜索“桌面宠物 / Petdex / companion”，再 get `setting.application.pet` 读取当前选项和受支持操作",
@@ -26953,7 +27468,7 @@
           "control": {
             "kind": "delegate",
             "tools": [
-              "bitfunControl"
+              "BitFunControl"
             ],
             "workflowZh": [
               "先用 search 搜索“桌面宠物 / Petdex / companion”，再 get `setting.application.pet` 读取当前选项和受支持操作",
@@ -26974,7 +27489,7 @@
           "control": {
             "kind": "delegate",
             "tools": [
-              "bitfunControl"
+              "BitFunControl"
             ],
             "workflowZh": [
               "先用 search 搜索“桌面宠物 / Petdex / companion”，再 get `setting.application.pet` 读取当前选项和受支持操作",
@@ -27011,7 +27526,7 @@
         "Choose a preset or import a Petdex pack"
       ],
       "agentControl": {
-        "tool": "bitfunControl",
+        "tool": "BitFunControl",
         "workflowZh": [
           "先用 search 搜索“桌面宠物 / Petdex / companion”，再 get `setting.application.pet` 读取当前选项和受支持操作",
           "用 configure 修改 `enabled`；用 execute 的 `list-pets`、`use-pet`、`delete-pet` 查看、导入/选择或删除角色",
@@ -27078,7 +27593,7 @@
         "Search for desktop pet, Petdex, or companion first, then get `setting.application.pet` for current options and supported operations",
         "Use configure for `enabled`, and execute `list-pets`, `use-pet`, or `delete-pet` to inspect, import/select, or remove a character",
         "Read back the real state with get or list-pets; local package paths are unavailable to remote workspaces and failures must be explicit",
-        "bitfunControl"
+        "BitFunControl"
       ],
       "docsUrl": "https://playbook.bitfun.com/capabilities/feature.desktop-pet/"
     },
@@ -27193,8 +27708,8 @@
         },
         {
           "id": "drag-restore",
-          "titleZh": "拖动卡片到桌面任意位置，拖动卡片边缘或四角调整大小；关闭 bitfun 时卡片消失，重新打开后按原位置和大小恢复",
-          "titleEn": "Drag cards anywhere on the desktop and resize them from their edges or corners; they disappear when bitfun closes and return with the same position and size when it reopens",
+          "titleZh": "拖动卡片到桌面任意位置，拖动卡片边缘或四角调整大小；关闭 BitFun 时卡片消失，重新打开后按原位置和大小恢复",
+          "titleEn": "Drag cards anywhere on the desktop and resize them from their edges or corners; they disappear when BitFun closes and return with the same position and size when it reopens",
           "control": {
             "kind": "open",
             "reasonCode": "visualSelection",
@@ -27275,8 +27790,8 @@
         "Refresh data, check off list items, toggle always-on-top, open the link, or return to the source session from a card",
         "在卡片菜单、首页卡片列表或设置里把卡片固定到 Windows 桌面，隐藏的卡片同样可以切换固定状态",
         "Pin a card to the Windows desktop from the card menu, the Home card list, or Settings, including hidden cards",
-        "拖动卡片到桌面任意位置，拖动卡片边缘或四角调整大小；关闭 bitfun 时卡片消失，重新打开后按原位置和大小恢复",
-        "Drag cards anywhere on the desktop and resize them from their edges or corners; they disappear when bitfun closes and return with the same position and size when it reopens",
+        "拖动卡片到桌面任意位置，拖动卡片边缘或四角调整大小；关闭 BitFun 时卡片消失，重新打开后按原位置和大小恢复",
+        "Drag cards anywhere on the desktop and resize them from their edges or corners; they disappear when BitFun closes and return with the same position and size when it reopens",
         "20 分钟后提醒我开会",
         "做一张卡片帮我盯着这个 PR 的状态",
         "Remind me about the meeting in 20 minutes",
@@ -27290,6 +27805,233 @@
         "DesktopCard"
       ],
       "docsUrl": "https://playbook.bitfun.com/capabilities/feature.desktop-cards/"
+    },
+    {
+      "id": "feature.openharmony-devtooling",
+      "kind": "feature",
+      "categoryId": "workspace",
+      "titleZh": "鸿蒙开发工具链",
+      "titleEn": "HarmonyOS dev tooling",
+      "summaryZh": "让智能体构建鸿蒙工程、检查 ArkTS 与 C++ 源码、安装启动应用到真机、抓取 hdc 日志并验证 UI，覆盖真机调试闭环。",
+      "summaryEn": "Let agents build HarmonyOS projects, check ArkTS and C++ sources, install and launch on a device, capture hdc logs, and verify UI through the on-device loop.",
+      "keywordsZh": [
+        "鸿蒙",
+        "HarmonyOS",
+        "OpenHarmony",
+        "ArkTS",
+        "hdc",
+        "真机调试",
+        "设备日志",
+        "UI 验证"
+      ],
+      "keywordsEn": [
+        "HarmonyOS",
+        "OpenHarmony",
+        "ArkTS",
+        "hdc",
+        "on-device debugging",
+        "device log",
+        "UI verification",
+        "Qt migration"
+      ],
+      "highlightsZh": [
+        "ArkTS 源码静态检查",
+        "hdc 安装、启动与设备日志抓取",
+        "UI 验证留痕：截图与验证日志",
+        "Qt 迁移请求的源码、产物与工具链收集"
+      ],
+      "highlightsEn": [
+        "ArkTS source static checks",
+        "hdc install, launch, and log capture",
+        "Traceable UI verification with screenshots and logs",
+        "Qt migration intake for source, output, and toolchain details"
+      ],
+      "items": [
+        {
+          "id": "build-and-checks",
+          "titleZh": "检查 ArkTS 源码",
+          "titleEn": "Check ArkTS sources",
+          "control": {
+            "kind": "delegate",
+            "tools": [
+              "arkts_check"
+            ],
+            "workflowZh": [
+              "提交前用 arkts_check 做静态检查，把问题按文件与行号汇报"
+            ],
+            "workflowEn": [
+              "Run arkts_check before commits and report findings by file and line"
+            ]
+          }
+        },
+        {
+          "id": "run-and-logs",
+          "titleZh": "安装启动应用到真机并抓取 hdc 设备日志",
+          "titleEn": "Install and launch on a device and capture hdc logs",
+          "control": {
+            "kind": "delegate",
+            "tools": [
+              "start_app",
+              "hdc_log"
+            ],
+            "workflowZh": [
+              "用 start_app 把应用安装并启动到目标设备，失败时报告设备与包状态",
+              "用 hdc_log 过滤并跟踪设备日志，把与本次改动相关的错误摘出来"
+            ],
+            "workflowEn": [
+              "Use start_app to install and launch on the target device and report device or package failures",
+              "Use hdc_log to filter and follow device logs, extracting errors relevant to the change"
+            ]
+          }
+        },
+        {
+          "id": "qt-migration-intake",
+          "titleZh": "分析 Qt 迁移请求并收集源码、产物、工具链与模板信息",
+          "titleEn": "Analyze Qt migration requests and collect source, output, toolchain, and template details",
+          "control": {
+            "kind": "delegate",
+            "tools": [
+              "QtMigrationIntake"
+            ],
+            "workflowZh": [
+              "在 Qt 迁移入口先用 QtMigrationIntake 判定任务类型与四个必填字段，缺少路径时用 AskUserQuestion 补齐",
+              "用户在策略问题中给出新的 Qt kit bin 目录时，用 toolchain 参数重新绑定工具链，不再要求二次确认"
+            ],
+            "workflowEn": [
+              "Start Qt migration intake with QtMigrationIntake to classify the task and the four required fields, and use AskUserQuestion for missing paths",
+              "When the user names a different Qt kit bin directory in the strategy answer, rebind it through the toolchain argument instead of asking again"
+            ]
+          }
+        },
+        {
+          "id": "ui-verification",
+          "titleZh": "验证界面表现并保存截图与验证日志",
+          "titleEn": "Verify UI behavior and keep screenshots and verification logs",
+          "control": {
+            "kind": "delegate",
+            "tools": [
+              "verify_ui",
+              "get_ui_verification_log",
+              "save_ui_screenshot"
+            ],
+            "workflowZh": [
+              "用 verify_ui 对目标页面执行验证，读取判定结果而不是凭截图猜测",
+              "用 get_ui_verification_log 与 save_ui_screenshot 留存证据，便于用户复核"
+            ],
+            "workflowEn": [
+              "Run verify_ui against the target page and read the verdict instead of guessing from screenshots",
+              "Keep verification records with get_ui_verification_log and save_ui_screenshot so users can review it"
+            ]
+          }
+        },
+        {
+          "id": "knowledge-and-cwd",
+          "titleZh": "切换会话工作目录",
+          "titleEn": "Switch the session working directory",
+          "control": {
+            "kind": "delegate",
+            "tools": [
+              "switch_cwd"
+            ],
+            "workflowZh": [
+              "需要在不同模块间连续操作时用 switch_cwd 切换工作目录，并说明当前目录"
+            ],
+            "workflowEn": [
+              "Use switch_cwd when work spans modules and always state the current directory"
+            ]
+          }
+        }
+      ],
+      "stepsZh": [
+        "在鸿蒙工作区打开智能体会话",
+        "让智能体检查并安装应用到设备",
+        "查看设备日志与 UI 验证结果"
+      ],
+      "stepsEn": [
+        "Open an agent session on a HarmonyOS workspace",
+        "Ask the agent to check sources and install to the device",
+        "Review device logs and UI verification results"
+      ],
+      "agentExamplesZh": [
+        "检查这个鸿蒙工程的 ArkTS 源码",
+        "把应用装到真机上，看看崩溃日志"
+      ],
+      "agentExamplesEn": [
+        "Check the ArkTS sources in this HarmonyOS project",
+        "Install the app on the device and check the crash logs"
+      ],
+      "destination": {
+        "kind": "scene",
+        "sceneId": "terminal"
+      },
+      "operations": [],
+      "options": [],
+      "searchTerms": [
+        "feature.openharmony-devtooling",
+        "鸿蒙开发工具链",
+        "HarmonyOS dev tooling",
+        "项目与开发",
+        "Projects & development",
+        "鸿蒙",
+        "HarmonyOS",
+        "OpenHarmony",
+        "ArkTS",
+        "hdc",
+        "真机调试",
+        "设备日志",
+        "UI 验证",
+        "on-device debugging",
+        "device log",
+        "UI verification",
+        "Qt migration",
+        "ArkTS 源码静态检查",
+        "hdc 安装、启动与设备日志抓取",
+        "UI 验证留痕：截图与验证日志",
+        "Qt 迁移请求的源码、产物与工具链收集",
+        "ArkTS source static checks",
+        "hdc install, launch, and log capture",
+        "Traceable UI verification with screenshots and logs",
+        "Qt migration intake for source, output, and toolchain details",
+        "检查 ArkTS 源码",
+        "Check ArkTS sources",
+        "安装启动应用到真机并抓取 hdc 设备日志",
+        "Install and launch on a device and capture hdc logs",
+        "分析 Qt 迁移请求并收集源码、产物、工具链与模板信息",
+        "Analyze Qt migration requests and collect source, output, toolchain, and template details",
+        "验证界面表现并保存截图与验证日志",
+        "Verify UI behavior and keep screenshots and verification logs",
+        "切换会话工作目录",
+        "Switch the session working directory",
+        "检查这个鸿蒙工程的 ArkTS 源码",
+        "把应用装到真机上，看看崩溃日志",
+        "Check the ArkTS sources in this HarmonyOS project",
+        "Install the app on the device and check the crash logs",
+        "arkts_check",
+        "提交前用 arkts_check 做静态检查，把问题按文件与行号汇报",
+        "Run arkts_check before commits and report findings by file and line",
+        "start_app",
+        "hdc_log",
+        "用 start_app 把应用安装并启动到目标设备，失败时报告设备与包状态",
+        "用 hdc_log 过滤并跟踪设备日志，把与本次改动相关的错误摘出来",
+        "Use start_app to install and launch on the target device and report device or package failures",
+        "Use hdc_log to filter and follow device logs, extracting errors relevant to the change",
+        "QtMigrationIntake",
+        "在 Qt 迁移入口先用 QtMigrationIntake 判定任务类型与四个必填字段，缺少路径时用 AskUserQuestion 补齐",
+        "用户在策略问题中给出新的 Qt kit bin 目录时，用 toolchain 参数重新绑定工具链，不再要求二次确认",
+        "Start Qt migration intake with QtMigrationIntake to classify the task and the four required fields, and use AskUserQuestion for missing paths",
+        "When the user names a different Qt kit bin directory in the strategy answer, rebind it through the toolchain argument instead of asking again",
+        "verify_ui",
+        "get_ui_verification_log",
+        "save_ui_screenshot",
+        "用 verify_ui 对目标页面执行验证，读取判定结果而不是凭截图猜测",
+        "用 get_ui_verification_log 与 save_ui_screenshot 留存证据，便于用户复核",
+        "Run verify_ui against the target page and read the verdict instead of guessing from screenshots",
+        "Keep verification records with get_ui_verification_log and save_ui_screenshot so users can review it",
+        "switch_cwd",
+        "需要在不同模块间连续操作时用 switch_cwd 切换工作目录，并说明当前目录",
+        "Use switch_cwd when work spans modules and always state the current directory"
+      ],
+      "docsUrl": "https://playbook.bitfun.com/capabilities/feature.openharmony-devtooling/"
     },
     {
       "id": "setting.application.general",
@@ -27353,8 +28095,8 @@
         },
         {
           "id": "launch-at-login",
-          "titleZh": "控制 bitfun 是否在登录系统后自动启动",
-          "titleEn": "Choose whether bitfun launches automatically after system sign-in",
+          "titleZh": "控制 BitFun 是否在登录系统后自动启动",
+          "titleEn": "Choose whether BitFun launches automatically after system sign-in",
           "control": {
             "kind": "direct",
             "operations": [],
@@ -27367,8 +28109,8 @@
         },
         {
           "id": "prevent-sleep",
-          "titleZh": "控制 bitfun 运行期间是否阻止电脑自动睡眠",
-          "titleEn": "Choose whether bitfun prevents the computer from sleeping while it runs",
+          "titleZh": "控制 BitFun 运行期间是否阻止电脑自动睡眠",
+          "titleEn": "Choose whether BitFun prevents the computer from sleeping while it runs",
           "control": {
             "kind": "direct",
             "operations": [],
@@ -27441,8 +28183,8 @@
           "id": "launch-at-login",
           "titleZh": "登录后自动启动",
           "titleEn": "Launch at login",
-          "descriptionZh": "在当前桌面系统登录后自动启动 bitfun。",
-          "descriptionEn": "Launch bitfun automatically after signing in to this desktop system.",
+          "descriptionZh": "在当前桌面系统登录后自动启动 BitFun。",
+          "descriptionEn": "Launch BitFun automatically after signing in to this desktop system.",
           "valueSchema": {
             "type": "boolean"
           },
@@ -27456,8 +28198,8 @@
           "id": "prevent-sleep",
           "titleZh": "阻止系统睡眠",
           "titleEn": "Prevent system sleep",
-          "descriptionZh": "在 bitfun 运行期间持有本机睡眠抑制器。",
-          "descriptionEn": "Hold a local sleep inhibitor while bitfun is running.",
+          "descriptionZh": "在 BitFun 运行期间持有本机睡眠抑制器。",
+          "descriptionEn": "Hold a local sleep inhibitor while BitFun is running.",
           "valueSchema": {
             "type": "boolean"
           },
@@ -27556,10 +28298,10 @@
         "Enable or disable automatic update checks",
         "手动检查并后台下载更新，确认后安装并重启，或稍后从关于页面安装",
         "Check and download updates in the background, then confirm installation and restart or install later from About",
-        "控制 bitfun 是否在登录系统后自动启动",
-        "Choose whether bitfun launches automatically after system sign-in",
-        "控制 bitfun 运行期间是否阻止电脑自动睡眠",
-        "Choose whether bitfun prevents the computer from sleeping while it runs",
+        "控制 BitFun 是否在登录系统后自动启动",
+        "Choose whether BitFun launches automatically after system sign-in",
+        "控制 BitFun 运行期间是否阻止电脑自动睡眠",
+        "Choose whether BitFun prevents the computer from sleeping while it runs",
         "选择关闭主窗口时退出、最小化到托盘或每次询问",
         "Choose whether closing the main window quits, minimizes to tray, or asks each time",
         "分别控制任务完成和权限请求通知",
@@ -27743,8 +28485,8 @@
           "id": "theme",
           "titleZh": "主题",
           "titleEn": "Theme",
-          "descriptionZh": "使用系统、bitfun 深色或 bitfun 浅色外观。",
-          "descriptionEn": "Use the system, bitfun dark, or bitfun light appearance.",
+          "descriptionZh": "使用系统、BitFun 深色或 BitFun 浅色外观。",
+          "descriptionEn": "Use the system, BitFun dark, or BitFun light appearance.",
           "valueSchema": {
             "type": "string",
             "enum": [
@@ -27768,8 +28510,8 @@
           "id": "language",
           "titleZh": "界面语言",
           "titleEn": "Interface language",
-          "descriptionZh": "设置 bitfun 的界面语言。",
-          "descriptionEn": "Set the bitfun interface language.",
+          "descriptionZh": "设置 BitFun 的界面语言。",
+          "descriptionEn": "Set the BitFun interface language.",
           "valueSchema": {
             "type": "string",
             "enum": [
@@ -27958,12 +28700,12 @@
       ],
       "agentExamplesZh": [
         "关闭桌面伙伴",
-        "让 bitfun 使用 /path/to/pet 里的萌宠",
+        "让 BitFun 使用 /path/to/pet 里的萌宠",
         "关闭小卡片功能"
       ],
       "agentExamplesEn": [
         "Turn off the desktop companion",
-        "Make bitfun use the pet at /path/to/pet",
+        "Make BitFun use the pet at /path/to/pet",
         "Turn off desktop cards"
       ],
       "destination": {
@@ -27975,8 +28717,8 @@
           "id": "list-pets",
           "titleZh": "列出可用萌宠",
           "titleEn": "List available pets",
-          "descriptionZh": "读取当前角色以及 bitfun 已导入的 Petdex 角色。",
-          "descriptionEn": "Read the active character and Petdex characters imported into bitfun.",
+          "descriptionZh": "读取当前角色以及 BitFun 已导入的 Petdex 角色。",
+          "descriptionEn": "Read the active character and Petdex characters imported into BitFun.",
           "risk": "read",
           "inputSchema": {
             "additionalProperties": false,
@@ -28036,8 +28778,8 @@
           "id": "delete-pet",
           "titleZh": "删除已导入萌宠",
           "titleEn": "Delete an imported pet",
-          "descriptionZh": "按角色 ID 或 bitfun 包目录删除已导入角色；若正在使用则安全回退到默认角色。",
-          "descriptionEn": "Delete an imported character by ID or bitfun package path, safely falling back when it is active.",
+          "descriptionZh": "按角色 ID 或 BitFun 包目录删除已导入角色；若正在使用则安全回退到默认角色。",
+          "descriptionEn": "Delete an imported character by ID or BitFun package path, safely falling back when it is active.",
           "risk": "destructive",
           "inputSchema": {
             "additionalProperties": false,
@@ -28060,7 +28802,7 @@
                 "type": "string"
               },
               "packagePath": {
-                "description": "Imported bitfun pet-package directory.",
+                "description": "Imported BitFun pet-package directory.",
                 "minLength": 1,
                 "type": "string"
               }
@@ -28146,10 +28888,10 @@
         "刷新角色列表并删除不再需要的导入包",
         "Refresh the character list and delete imported packages you no longer need",
         "关闭桌面伙伴",
-        "让 bitfun 使用 /path/to/pet 里的萌宠",
+        "让 BitFun 使用 /path/to/pet 里的萌宠",
         "关闭小卡片功能",
         "Turn off the desktop companion",
-        "Make bitfun use the pet at /path/to/pet",
+        "Make BitFun use the pet at /path/to/pet",
         "Turn off desktop cards"
       ],
       "docsUrl": "https://playbook.bitfun.com/capabilities/setting.application.pet/"
@@ -29528,8 +30270,8 @@
       "categoryId": "assistant",
       "titleZh": "记忆设置",
       "titleEn": "Memory settings",
-      "summaryZh": "控制 bitfun 是否从会话中提取和使用长期记忆，以及保留、整理和模型策略。",
-      "summaryEn": "Control whether bitfun extracts and uses long-term memory from sessions, including retention, consolidation, and model policy.",
+      "summaryZh": "控制 BitFun 是否从会话中提取和使用长期记忆，以及保留、整理和模型策略。",
+      "summaryEn": "Control whether BitFun extracts and uses long-term memory from sessions, including retention, consolidation, and model policy.",
       "keywordsZh": [
         "记忆设置",
         "长期记忆",
@@ -30383,8 +31125,8 @@
           "id": "worktree-root-path",
           "titleZh": "受管 Worktree 根目录",
           "titleEn": "Managed-worktree root",
-          "descriptionZh": "设置 bitfun 创建受管 Worktree 的统一根目录。",
-          "descriptionEn": "Set the common root where bitfun creates managed worktrees.",
+          "descriptionZh": "设置 BitFun 创建受管 Worktree 的统一根目录。",
+          "descriptionEn": "Set the common root where BitFun creates managed worktrees.",
           "valueSchema": {
             "type": "string",
             "minLength": 1,
@@ -30429,8 +31171,8 @@
           "id": "worktree-auto-delete-enabled",
           "titleZh": "自动清理 Worktree",
           "titleEn": "Automatic worktree cleanup",
-          "descriptionZh": "允许 bitfun 自动清理超过保留上限的受管 Worktree。",
-          "descriptionEn": "Allow bitfun to prune managed worktrees beyond the retention limit.",
+          "descriptionZh": "允许 BitFun 自动清理超过保留上限的受管 Worktree。",
+          "descriptionEn": "Allow BitFun to prune managed worktrees beyond the retention limit.",
           "valueSchema": {
             "type": "boolean"
           },
@@ -30741,8 +31483,8 @@
         },
         {
           "id": "browser-auto-connect",
-          "titleZh": "控制 bitfun 启动时是否自动连接浏览器",
-          "titleEn": "Choose whether bitfun reconnects browser control at startup",
+          "titleZh": "控制 BitFun 启动时是否自动连接浏览器",
+          "titleEn": "Choose whether BitFun reconnects browser control at startup",
           "control": {
             "kind": "direct",
             "operations": [],
@@ -30779,6 +31521,25 @@
             "options": [
               {
                 "id": "tool-json-repair"
+              }
+            ]
+          }
+        },
+        {
+          "id": "genui-library",
+          "titleZh": "选择生成式 UI 组件库及关联 UI 规范并操作预览",
+          "titleEn": "Select a GenUI component library, its UI specification and preview",
+          "destination": {
+            "kind": "settings",
+            "pageId": "tools.execution",
+            "viewId": "advanced"
+          },
+          "control": {
+            "kind": "direct",
+            "operations": [],
+            "options": [
+              {
+                "id": "genui-library"
               }
             ]
           }
@@ -30942,8 +31703,8 @@
           "id": "browser-auto-connect",
           "titleZh": "启动时连接浏览器",
           "titleEn": "Connect browser on startup",
-          "descriptionZh": "bitfun 启动后自动尝试连接浏览器控制。",
-          "descriptionEn": "Automatically try to connect browser control after bitfun starts.",
+          "descriptionZh": "BitFun 启动后自动尝试连接浏览器控制。",
+          "descriptionEn": "Automatically try to connect browser control after BitFun starts.",
           "valueSchema": {
             "type": "boolean"
           },
@@ -30964,6 +31725,24 @@
           "handler": {
             "kind": "config",
             "path": "ai.allow_tool_json_repair"
+          }
+        },
+        {
+          "id": "genui-library",
+          "titleZh": "生成式 UI 组件库及 UI 规范",
+          "titleEn": "GenUI component library and UI specification",
+          "descriptionZh": "选择后续生成使用的组件库及其关联的设计规则、资源、视口、宿主外壳和验收检查；已有应用保留自己的目标身份。",
+          "descriptionEn": "Choose the component library and its bound design rules, resources, viewport, host shell and acceptance checks. Existing apps retain their target identity.",
+          "valueSchema": {
+            "type": "string",
+            "enum": [
+              "openbitfun",
+              "openui"
+            ]
+          },
+          "handler": {
+            "kind": "config",
+            "path": "ai.generative_ui_library"
           }
         }
       ],
@@ -31023,12 +31802,14 @@
         "Enable or disable Computer Use after operating-system authorization",
         "查看并请求辅助功能与屏幕录制权限",
         "Inspect and request accessibility and screen-recording permissions",
-        "控制 bitfun 启动时是否自动连接浏览器",
-        "Choose whether bitfun reconnects browser control at startup",
+        "控制 BitFun 启动时是否自动连接浏览器",
+        "Choose whether BitFun reconnects browser control at startup",
         "发现并选择浏览器、配置默认 CDP 或按需重启",
         "Discover and choose a browser, configure default CDP, or restart it when needed",
         "控制是否在安全边界内修复模型生成的非法工具参数 JSON",
         "Choose whether malformed model-generated tool-argument JSON may be repaired within safety boundaries",
+        "选择生成式 UI 组件库及关联 UI 规范并操作预览",
+        "Select a GenUI component library, its UI specification and preview",
         "启用 Computer Use",
         "把子智能体最大并发改为 8",
         "打开权限设置",
@@ -31696,6 +32477,7 @@
         "Exa",
         "Tavily",
         "DeepSeek",
+        "Keenable",
         "搜索服务",
         "API Key",
         "自定义端点"
@@ -31706,6 +32488,7 @@
         "Exa",
         "Tavily",
         "DeepSeek",
+        "Keenable",
         "search provider",
         "API key",
         "custom endpoint"
@@ -31713,34 +32496,34 @@
       "highlightsZh": [
         "切换 WebSearch 运行时搜索服务",
         "在执行主机上加密保存设备凭据",
-        "配置和查看 bitfun Search HTTP Protocol v1"
+        "配置和查看 BitFun Search HTTP Protocol v1"
       ],
       "highlightsEn": [
         "Switch the WebSearch runtime provider",
         "Store device credentials encrypted on the execution host",
-        "Configure and inspect bitfun Search HTTP Protocol v1"
+        "Configure and inspect BitFun Search HTTP Protocol v1"
       ],
       "items": [
         {
           "id": "provider",
-          "titleZh": "在免费 Exa MCP、Exa Search API、Tavily、DeepSeek 与 bitfun Search HTTP Protocol 之间选择运行时服务",
-          "titleEn": "Choose free Exa MCP, Exa Search API, Tavily, DeepSeek, or bitfun Search HTTP Protocol as the runtime provider",
+          "titleZh": "在免费 Exa MCP、Exa Search API、Tavily、DeepSeek、Keenable 与 BitFun Search HTTP Protocol 之间选择运行时服务",
+          "titleEn": "Choose free Exa MCP, Exa Search API, Tavily, DeepSeek, Keenable, or BitFun Search HTTP Protocol as the runtime provider",
           "control": {
             "kind": "open",
             "reasonCode": "unstructuredInteraction",
-            "reasonZh": "“在免费 Exa MCP、Exa Search API、Tavily、DeepSeek 与 bitfun Search HTTP Protocol 之间选择运行时服务”与各服务的配置状态相关，目前没有一个能安全完成选择、检查和保存整个流程的单一结构化 Command；智能体会打开精确设置入口，由用户确认配置。",
-            "reasonEn": "“Choose free Exa MCP, Exa Search API, Tavily, DeepSeek, or bitfun Search HTTP Protocol as the runtime provider” depends on provider-specific configuration state, and no single structured Command can safely complete selection, validation, and saving; the Agent opens the exact settings entry for user confirmation."
+            "reasonZh": "“在免费 Exa MCP、Exa Search API、Tavily、DeepSeek、Keenable 与 BitFun Search HTTP Protocol 之间选择运行时服务”与各服务的配置状态相关，目前没有一个能安全完成选择、检查和保存整个流程的单一结构化 Command；智能体会打开精确设置入口，由用户确认配置。",
+            "reasonEn": "“Choose free Exa MCP, Exa Search API, Tavily, DeepSeek, Keenable, or BitFun Search HTTP Protocol as the runtime provider” depends on provider-specific configuration state, and no single structured Command can safely complete selection, validation, and saving; the Agent opens the exact settings entry for user confirmation."
           }
         },
         {
           "id": "http-endpoint",
-          "titleZh": "为 bitfun Search HTTP Protocol 配置端点、认证方式和受限凭据 Header",
-          "titleEn": "Configure the endpoint, authentication mode, and restricted credential header for bitfun Search HTTP Protocol",
+          "titleZh": "为 BitFun Search HTTP Protocol 配置端点、认证方式和受限凭据 Header",
+          "titleEn": "Configure the endpoint, authentication mode, and restricted credential header for BitFun Search HTTP Protocol",
           "control": {
             "kind": "open",
             "reasonCode": "unstructuredInteraction",
-            "reasonZh": "“为 bitfun Search HTTP Protocol 配置端点、认证方式和受限凭据 Header”包含 URL、安全限制和认证方式等关联字段，需要在设置页中一起校验并明确保存；智能体会打开对应入口而不猜测端点配置。",
-            "reasonEn": "“Configure the endpoint, authentication mode, and restricted credential header for bitfun Search HTTP Protocol” combines URL, security restrictions, and authentication fields that must be validated and explicitly saved together in Settings; the Agent opens the corresponding entry instead of guessing endpoint configuration."
+            "reasonZh": "“为 BitFun Search HTTP Protocol 配置端点、认证方式和受限凭据 Header”包含 URL、安全限制和认证方式等关联字段，需要在设置页中一起校验并明确保存；智能体会打开对应入口而不猜测端点配置。",
+            "reasonEn": "“Configure the endpoint, authentication mode, and restricted credential header for BitFun Search HTTP Protocol” combines URL, security restrictions, and authentication fields that must be validated and explicitly saved together in Settings; the Agent opens the corresponding entry instead of guessing endpoint configuration."
           }
         },
         {
@@ -31756,13 +32539,13 @@
         },
         {
           "id": "http-protocol",
-          "titleZh": "查看并复制 bitfun Search HTTP Protocol v1 的请求、响应和传输限制",
-          "titleEn": "Inspect and copy the request, response, and transport limits for bitfun Search HTTP Protocol v1",
+          "titleZh": "查看并复制 BitFun Search HTTP Protocol v1 的请求、响应和传输限制",
+          "titleEn": "Inspect and copy the request, response, and transport limits for BitFun Search HTTP Protocol v1",
           "control": {
             "kind": "open",
             "reasonCode": "visualSelection",
-            "reasonZh": "协议说明仅在选中 bitfun Search HTTP Protocol 时显示，并由设置页提供完整可复制内容；智能体会打开精确入口，避免用不完整摘要替代产品内协议。",
-            "reasonEn": "The protocol specification is shown only when bitfun Search HTTP Protocol is selected and the Settings page owns the complete copyable content; the Agent opens the exact entry instead of substituting an incomplete summary."
+            "reasonZh": "协议说明仅在选中 BitFun Search HTTP Protocol 时显示，并由设置页提供完整可复制内容；智能体会打开精确入口，避免用不完整摘要替代产品内协议。",
+            "reasonEn": "The protocol specification is shown only when BitFun Search HTTP Protocol is selected and the Settings page owns the complete copyable content; the Agent opens the exact entry instead of substituting an incomplete summary."
           }
         }
       ],
@@ -31800,6 +32583,7 @@
         "Exa",
         "Tavily",
         "DeepSeek",
+        "Keenable",
         "搜索服务",
         "API Key",
         "自定义端点",
@@ -31809,18 +32593,18 @@
         "custom endpoint",
         "切换 WebSearch 运行时搜索服务",
         "在执行主机上加密保存设备凭据",
-        "配置和查看 bitfun Search HTTP Protocol v1",
+        "配置和查看 BitFun Search HTTP Protocol v1",
         "Switch the WebSearch runtime provider",
         "Store device credentials encrypted on the execution host",
-        "Configure and inspect bitfun Search HTTP Protocol v1",
-        "在免费 Exa MCP、Exa Search API、Tavily、DeepSeek 与 bitfun Search HTTP Protocol 之间选择运行时服务",
-        "Choose free Exa MCP, Exa Search API, Tavily, DeepSeek, or bitfun Search HTTP Protocol as the runtime provider",
-        "为 bitfun Search HTTP Protocol 配置端点、认证方式和受限凭据 Header",
-        "Configure the endpoint, authentication mode, and restricted credential header for bitfun Search HTTP Protocol",
+        "Configure and inspect BitFun Search HTTP Protocol v1",
+        "在免费 Exa MCP、Exa Search API、Tavily、DeepSeek、Keenable 与 BitFun Search HTTP Protocol 之间选择运行时服务",
+        "Choose free Exa MCP, Exa Search API, Tavily, DeepSeek, Keenable, or BitFun Search HTTP Protocol as the runtime provider",
+        "为 BitFun Search HTTP Protocol 配置端点、认证方式和受限凭据 Header",
+        "Configure the endpoint, authentication mode, and restricted credential header for BitFun Search HTTP Protocol",
         "查看当前执行主机的凭据状态，并保存、替换或清除 API Key/Secret",
         "Inspect credential status on the current execution host and save, replace, or clear an API key or secret",
-        "查看并复制 bitfun Search HTTP Protocol v1 的请求、响应和传输限制",
-        "Inspect and copy the request, response, and transport limits for bitfun Search HTTP Protocol v1",
+        "查看并复制 BitFun Search HTTP Protocol v1 的请求、响应和传输限制",
+        "Inspect and copy the request, response, and transport limits for BitFun Search HTTP Protocol v1",
         "打开网页搜索设置",
         "带我配置 WebSearch 搜索服务",
         "Open Web Search settings",
@@ -32149,12 +32933,12 @@
                 "type": "string"
               },
               "serverId": {
-                "description": "Exact user server ID from list-servers, or a new ID when adding a server. These settings belong to the executing bitfun product host, not the workspace host.",
+                "description": "Exact user server ID from list-servers, or a new ID when adding a server. These settings belong to the executing BitFun product host, not the workspace host.",
                 "minLength": 1,
                 "type": "string"
               },
               "workingDirectory": {
-                "description": "Optional directory on the bitfun product host for a local process; never a remote workspace path.",
+                "description": "Optional directory on the BitFun product host for a local process; never a remote workspace path.",
                 "minLength": 1,
                 "type": "string"
               }
@@ -32186,7 +32970,7 @@
             "additionalProperties": false,
             "properties": {
               "serverId": {
-                "description": "Exact user server ID from list-servers, or a new ID when adding a server. These settings belong to the executing bitfun product host, not the workspace host.",
+                "description": "Exact user server ID from list-servers, or a new ID when adding a server. These settings belong to the executing BitFun product host, not the workspace host.",
                 "minLength": 1,
                 "type": "string"
               }
@@ -32213,7 +32997,7 @@
             "additionalProperties": false,
             "properties": {
               "serverId": {
-                "description": "Exact user server ID from list-servers, or a new ID when adding a server. These settings belong to the executing bitfun product host, not the workspace host.",
+                "description": "Exact user server ID from list-servers, or a new ID when adding a server. These settings belong to the executing BitFun product host, not the workspace host.",
                 "minLength": 1,
                 "type": "string"
               }
@@ -32240,7 +33024,7 @@
             "additionalProperties": false,
             "properties": {
               "serverId": {
-                "description": "Exact user server ID from list-servers, or a new ID when adding a server. These settings belong to the executing bitfun product host, not the workspace host.",
+                "description": "Exact user server ID from list-servers, or a new ID when adding a server. These settings belong to the executing BitFun product host, not the workspace host.",
                 "minLength": 1,
                 "type": "string"
               }
@@ -32272,7 +33056,7 @@
                 "type": "string"
               },
               "serverId": {
-                "description": "Exact user server ID from list-servers, or a new ID when adding a server. These settings belong to the executing bitfun product host, not the workspace host.",
+                "description": "Exact user server ID from list-servers, or a new ID when adding a server. These settings belong to the executing BitFun product host, not the workspace host.",
                 "minLength": 1,
                 "type": "string"
               }
@@ -33113,6 +33897,130 @@
         "Take me to export a diagnostic bundle"
       ],
       "docsUrl": "https://playbook.bitfun.com/capabilities/setting.data.diagnostics/"
+    },
+    {
+      "id": "feature.generative-ui",
+      "kind": "feature",
+      "categoryId": "automation",
+      "titleZh": "Generative UI 生成式界面",
+      "titleEn": "Generative UI",
+      "summaryZh": "由智能体按组件库及关联 UI 规范生成 OpenUI 组件应用或 HTML/CSS/SVG 自由文档，经目标视口实际渲染、宿主验收与需求复核后接受并保存。",
+      "summaryEn": "Generate OpenUI component apps or free HTML/CSS/SVG documents under a bound UI specification; accept and persist only after target-viewport rendering, host checks and requirement review.",
+      "keywordsZh": [
+        "Generative UI",
+        "生成式界面",
+        "交互应用",
+        "宿主组件",
+        "应用状态"
+      ],
+      "keywordsEn": [
+        "generative UI",
+        "interactive app",
+        "component contracts",
+        "application state",
+        "structured widget"
+      ],
+      "highlightsZh": [
+        "按组件库及其 UI 规范的设计规则、资源、视口和宿主外壳约束生成结果",
+        "组件路径使用 OpenUI 描述和可信 renderer；自由路径保留 HTML/CSS/SVG",
+        "支持生成、交互、保存和重开",
+        "可注册自定义宿主组件"
+      ],
+      "highlightsEn": [
+        "Constrain generated results with the selected library's UI rules, resources, viewport and host shell",
+        "Use OpenUI descriptions and trusted renderers for components; retain HTML/CSS/SVG for free documents",
+        "Support generation, interaction, save and reopen",
+        "Register custom host components"
+      ],
+      "items": [
+        {
+          "id": "app-generation",
+          "titleZh": "生成可交互的 GenUI 应用并由宿主渲染",
+          "titleEn": "Generate interactive GenUI applications rendered by the host",
+          "control": {
+            "kind": "delegate",
+            "tools": [
+              "GenerativeUI"
+            ],
+            "workflowZh": [
+              "按所选 UI 规范选择 OpenUI 组件描述或 HTML/CSS/SVG 自由文档；规范身份随候选固定。",
+              "宿主按所选 UI 规范渲染 OpenUI 描述或 HTML/CSS/SVG 自由文档，并支持本地交互。"
+            ],
+            "workflowEn": [
+              "Use OpenUI descriptions or free HTML/CSS/SVG under the selected UI specification; pin that identity to the candidate.",
+              "Render OpenUI descriptions or free HTML/CSS/SVG under the selected UI specification and support local interaction."
+            ]
+          }
+        }
+      ],
+      "stepsZh": [
+        "打开 AI 会话",
+        "让智能体生成一个 GenUI 应用",
+        "在宿主中完成交互并保存，随后重开应用"
+      ],
+      "stepsEn": [
+        "Open an AI session",
+        "Ask the agent to generate a GenUI application",
+        "Interact and save it in the host, then reopen the application"
+      ],
+      "agentExamplesZh": [
+        "生成一个可保存的记账应用",
+        "生成一个带预算设置和支出汇总的 dashboard 应用",
+        "生成一个阅读目录并支持收藏",
+        "生成一个带完成状态的日计划"
+      ],
+      "agentExamplesEn": [
+        "Generate a saveable accounting app",
+        "Generate a dashboard with budget settings and an expense summary",
+        "Generate a reading catalog with favorites",
+        "Generate a daily plan with completion state"
+      ],
+      "destination": {
+        "kind": "scene",
+        "sceneId": "session"
+      },
+      "operations": [],
+      "options": [],
+      "searchTerms": [
+        "feature.generative-ui",
+        "Generative UI 生成式界面",
+        "Generative UI",
+        "扩展与自动化",
+        "Extensions & automation",
+        "生成式界面",
+        "交互应用",
+        "宿主组件",
+        "应用状态",
+        "generative UI",
+        "interactive app",
+        "component contracts",
+        "application state",
+        "structured widget",
+        "按组件库及其 UI 规范的设计规则、资源、视口和宿主外壳约束生成结果",
+        "组件路径使用 OpenUI 描述和可信 renderer；自由路径保留 HTML/CSS/SVG",
+        "支持生成、交互、保存和重开",
+        "可注册自定义宿主组件",
+        "Constrain generated results with the selected library's UI rules, resources, viewport and host shell",
+        "Use OpenUI descriptions and trusted renderers for components; retain HTML/CSS/SVG for free documents",
+        "Support generation, interaction, save and reopen",
+        "Register custom host components",
+        "生成可交互的 GenUI 应用并由宿主渲染",
+        "Generate interactive GenUI applications rendered by the host",
+        "生成一个可保存的记账应用",
+        "生成一个带预算设置和支出汇总的 dashboard 应用",
+        "生成一个阅读目录并支持收藏",
+        "生成一个带完成状态的日计划",
+        "Generate a saveable accounting app",
+        "Generate a dashboard with budget settings and an expense summary",
+        "Generate a reading catalog with favorites",
+        "Generate a daily plan with completion state",
+        "GenerativeUI",
+        "按所选 UI 规范选择 OpenUI 组件描述或 HTML/CSS/SVG 自由文档；规范身份随候选固定。",
+        "宿主按所选 UI 规范渲染 OpenUI 描述或 HTML/CSS/SVG 自由文档，并支持本地交互。",
+        "Use OpenUI descriptions or free HTML/CSS/SVG under the selected UI specification; pin that identity to the candidate.",
+        "Render OpenUI descriptions or free HTML/CSS/SVG under the selected UI specification and support local interaction."
+      ],
+      "docsUrl": "https://playbook.bitfun.com/capabilities/feature.generative-ui/"
     }
   ]
 }

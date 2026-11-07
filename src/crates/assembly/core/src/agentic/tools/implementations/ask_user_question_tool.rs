@@ -8,9 +8,8 @@ use bitfun_agent_runtime::user_questions::{
     build_cancelled_user_question_result, build_timed_out_user_question_result,
     validate_ask_user_question_input, wait_for_user_question_response, AskUserQuestionInput,
     PendingQuestionRequestMeta, PendingUserQuestion, QuestionPresentation, ResolvedQuestionRequest,
-    UserQuestionController, UserQuestionWaitOutcome,
-    USER_INPUT_AVAILABLE_CONTEXT_KEY, USER_INPUT_MODEL_ROUND_CONTEXT_KEY,
-    USER_INPUT_PARENT_CONTEXT_KEY,
+    UserQuestionController, UserQuestionWaitOutcome, USER_INPUT_AVAILABLE_CONTEXT_KEY,
+    USER_INPUT_MODEL_ROUND_CONTEXT_KEY, USER_INPUT_PARENT_CONTEXT_KEY,
 };
 use log::{debug, warn};
 use serde_json::{json, Value};
@@ -363,24 +362,26 @@ Usage notes:
         // "wait forever". Config read failures fall back to the AIConfig
         // default (180s) rather than failing the tool outright, matching
         // the tolerance of computer_use_locate.rs.
-        let configured_timeout = match crate::service::config::global::GlobalConfigManager::get_service().await {
-            Ok(service) => {
-                let ai_config: crate::service::config::types::AIConfig =
-                    service.get_config(Some("ai")).await.unwrap_or_default();
-                ai_config
-                    .user_question_timeout_secs
-                    .filter(|seconds| *seconds > 0)
-                    .map(|seconds| std::time::Duration::from_secs(u64::from(seconds)))
-            }
-            Err(_) => {
-                let default = crate::service::config::types::AIConfig::default();
-                default
-                    .user_question_timeout_secs
-                    .filter(|seconds| *seconds > 0)
-                    .map(|seconds| std::time::Duration::from_secs(u64::from(seconds)))
-            }
-        };
-        self.call_with_timeout(input, context, configured_timeout).await
+        let configured_timeout =
+            match crate::service::config::global::GlobalConfigManager::get_service().await {
+                Ok(service) => {
+                    let ai_config: crate::service::config::types::AIConfig =
+                        service.get_config(Some("ai")).await.unwrap_or_default();
+                    ai_config
+                        .user_question_timeout_secs
+                        .filter(|seconds| *seconds > 0)
+                        .map(|seconds| std::time::Duration::from_secs(u64::from(seconds)))
+                }
+                Err(_) => {
+                    let default = crate::service::config::types::AIConfig::default();
+                    default
+                        .user_question_timeout_secs
+                        .filter(|seconds| *seconds > 0)
+                        .map(|seconds| std::time::Duration::from_secs(u64::from(seconds)))
+                }
+            };
+        self.call_with_timeout(input, context, configured_timeout)
+            .await
     }
 }
 
@@ -688,6 +689,7 @@ mod tests {
             workspace: None,
             loaded_deferred_tool_specs: Vec::new(),
             primary_model_facts: tool_runtime::context::PrimaryModelFacts::default(),
+            model_client: None,
             custom_data,
             computer_use_host: None,
             runtime_tool_restrictions: Default::default(),
@@ -1009,19 +1011,22 @@ mod tests {
         );
         // A template that tolerates a skip keeps the configured bound.
         assert_eq!(
-            super::unattended_question_timeout(Some(&presentation(true)), Some(std::time::Duration::from_secs(7))),
+            super::unattended_question_timeout(
+                Some(&presentation(true)),
+                Some(std::time::Duration::from_secs(7))
+            ),
             Some(std::time::Duration::from_secs(7))
         );
         // The Qt intake owns its wait: any configured bound is ignored.
         assert_eq!(
-            super::unattended_question_timeout(Some(&presentation(false)), Some(std::time::Duration::from_secs(30))),
+            super::unattended_question_timeout(
+                Some(&presentation(false)),
+                Some(std::time::Duration::from_secs(30))
+            ),
             None
         );
         // Host config null/0: wait forever even when the template allows a timeout.
-        assert_eq!(
-            super::unattended_question_timeout(None, None),
-            None
-        );
+        assert_eq!(super::unattended_question_timeout(None, None), None);
         assert_eq!(
             super::unattended_question_timeout(Some(&presentation(true)), None),
             None

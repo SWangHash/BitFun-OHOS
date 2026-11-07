@@ -167,9 +167,9 @@
     "initializationFailed": "核心系统初始化失败"
   },
   "moduleLoad": {
-    "title": "此视图暂时无法加载",
     "description": "可以重试；若仍无法加载，请先保存未完成的编辑，再重新加载应用。",
-    "retry": "重试"
+    "retry": "重试",
+    "title": "此视图暂时无法加载"
   },
   "boundary": {
     "title": "应用错误",
@@ -565,9 +565,5 @@
     "preparingSession": "准备审查会话",
     "startingReview": "启动审查运行",
     "launchingReview": "启动审查"
-  },
-  "moduleLoad": {
-    "description": "可以重试；若仍无法加载，请先保存未完成的编辑，再重新加载应用。",
-    "retry": "重试"
   }
 }

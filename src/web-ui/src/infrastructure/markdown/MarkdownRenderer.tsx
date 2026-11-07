@@ -28,11 +28,12 @@ import { useAppearance } from '@/infrastructure/appearance';
 import { contextMenuController } from '@/shared/context-menu-system/core/ContextMenuController';
 import { ContextType, type CustomContext, type MenuItem } from '@/shared/context-menu-system/types';
 import { createTab, openCanvasArtifactTab, openFileInBestTarget } from '@/shared/utils/tabUtils';
+import { parseCanvasArtifactReference } from '@/shared/utils/canvasArtifactReference';
 import { browserTabTitleFromUrl } from '@/shared/utils/browserTabTitle';
 import { isHtmlFilePath, openHtmlFileInExternalBrowser } from '@/shared/utils/htmlFilePreview';
+import { browserLinkPreferenceStore } from '@/infrastructure/config/services/browserLinkPreference';
 import { createLogger } from '@/shared/utils/logger';
 import type { LineRange } from '@/shared/editor/LineRange';
-import { parseCanvasArtifactReference } from '@/shared/utils/canvasArtifactReference';
 import {
   isStartupRenderTraceEnabled,
   recordReactRenderProfile,
@@ -234,7 +235,7 @@ const EDITOR_OPENABLE_EXTENSIONS = new Set([
   'vue', 'svelte',
   'html', 'htm', 'css', 'scss', 'less', 'sass',
   'json', 'jsonc', 'yaml', 'yml', 'toml', 'xml',
-  'md', 'mdx', 'rst', 'txt', 'csv', 'tsv',
+  'md', 'mdx', 'rst', 'txt', 'csv', 'tsv', 'pdf',
   'sh', 'bash', 'zsh', 'fish', 'ps1', 'bat', 'cmd',
   'sql', 'graphql', 'gql', 'proto',
   'ini', 'cfg', 'conf', 'env', 'lock',
@@ -903,6 +904,8 @@ export interface MarkdownRendererProps {
   content: string;
   /** Compact conversation images; document renderers retain their original layout. */
   imageThumbnails?: boolean;
+  /** Recycle offscreen syntax decoration; source text remains selectable. */
+  deferCodeHighlighting?: boolean;
   /** Display a region while resolving Markdown references against all content. */
   sourceRange?: MarkdownSourceRange;
   /** Owning workspace ID; content opened from links is routed by it. `basePath` is only the IO root. */
@@ -935,6 +938,7 @@ const MarkdownSurface = React.memo<MarkdownRendererProps & { thinking?: boolean;
   singleLinePreview = false,
   content, 
   imageThumbnails = false,
+  deferCodeHighlighting = false,
   sourceRange,
   workspaceId,
   basePath,
@@ -979,6 +983,7 @@ const MarkdownSurface = React.memo<MarkdownRendererProps & { thinking?: boolean;
   const onHttpLinkClickRef = useLiveValueRef(onHttpLinkClick);
   const traceContextRef = useLiveValueRef(traceContext);
   const sourceRangeRef = useLiveValueRef(sourceRange);
+  const deferCodeHighlightingRef = useLiveValueRef(deferCodeHighlighting);
 
   // The overlay belongs to the renderer that resolved the image bytes: a
   // Markdown image is inline content, not an independently mounted viewer.
@@ -1366,17 +1371,25 @@ const MarkdownSurface = React.memo<MarkdownRendererProps & { thinking?: boolean;
         fontWeight: 'inherit',
         color: syntaxThemeRef.current['code[class*="language-"]']?.color,
       };
+      // The outer transcript already bounds ordinary Markdown sections. Keep
+      // their decoration for that row's lifetime: swapping complete <pre>
+      // trees on intersection can briefly shrink WebKit's scroll range and
+      // clamp a reader at the historical edge (83/166px in native traces).
+      // Only whole semantic documents need an additional inner code budget.
+      // Indivisible huge fences remain plaintext and need no visibility swap.
+      const recycleDecoration = deferCodeHighlightingRef.current
+        && markdownContentRef.current.length > 12_000 && code.length <= 24_000;
       return (
         <div className={`code-block-wrapper${hasMultipleLines ? '' : ' code-block-wrapper--single-line'}`} data-bitfun-component="markdown" data-bitfun-part="codeBlock" data-bitfun-state={streaming ? 'streaming' : undefined}>
           <div className="code-block-toolbar" data-bitfun-component="markdown" data-bitfun-part="codeToolbar">
             <span className="code-block-lang">{formatCodeLanguageLabel(normalizedLang)}</span>
             <CopyButton code={code} />
           </div>
-          <MarkdownCodeBody>
+          <MarkdownCodeBody deferHighlighting={!thinking && recycleDecoration}>{visible => <>
             {/* Thinking must never mount a syntax highlighter, even after completion
                 or reopening. Bulk highlighting caused measured completion stalls;
                 keep this lightweight path independent of streaming state. */}
-            {thinking ? (
+            {thinking || !visible ? (
               <CodeBlockFallback
                 code={code}
                 language={normalizedLang}
@@ -1390,7 +1403,10 @@ const MarkdownSurface = React.memo<MarkdownRendererProps & { thinking?: boolean;
                 showLineNumbers={false}
                 customStyle={codeBodyStyle}
                 codeTagProps={{ style: codeTagStyle }}
-                preferFallback={streaming}
+                // A single indivisible fence may be megabytes. Keep its exact
+                // native text instead of synchronously building an unbounded
+                // syntax-token tree in the scrolling transcript.
+                preferFallback={streaming || (deferCodeHighlightingRef.current && code.length > 24_000)}
                 fallback={CodeBlockFallback}
                 fallbackProps={{
                   code,
@@ -1403,7 +1419,7 @@ const MarkdownSurface = React.memo<MarkdownRendererProps & { thinking?: boolean;
                 {code}
               </AsyncPrismSyntaxHighlighter>
             )}
-          </MarkdownCodeBody>
+          </>}</MarkdownCodeBody>
         </div>
       );
     },
@@ -1591,7 +1607,11 @@ const MarkdownSurface = React.memo<MarkdownRendererProps & { thinking?: boolean;
                 return;
               }
               const hasExternalOpenModifier = e.metaKey || e.ctrlKey || e.shiftKey || e.altKey;
-              if (canOpenInBuiltInBrowser(e.currentTarget) && !hasExternalOpenModifier) {
+              if (
+                browserLinkPreferenceStore.getState().target === 'builtin' &&
+                canOpenInBuiltInBrowser(e.currentTarget) &&
+                !hasExternalOpenModifier
+              ) {
                 handleOpenBuiltInBrowserLink(hrefValue);
                 return;
               }
@@ -1712,12 +1732,26 @@ const MarkdownSurface = React.memo<MarkdownRendererProps & { thinking?: boolean;
       return <li {...props} className={['markdown-list-item', className].filter(Boolean).join(' ')}>{children}</li>;
     },
 
-    th({ node: _node, children, className, ...props }: any) {
-      return <th {...props} className={['markdown-header-cell', className].filter(Boolean).join(' ')}>{children}</th>;
+    th({ node: _node, children, className, align, style, ...props }: any) {
+      return (
+        <th {...props} className={['markdown-header-cell', className].filter(Boolean).join(' ')}
+          style={align ? { ...style, textAlign: align } : style}>
+          <div className="markdown-table-cell-content">
+            <div className="markdown-table-cell-body">{children}</div>
+          </div>
+        </th>
+      );
     },
 
-    td({ node: _node, children, className, ...props }: any) {
-      return <td {...props} className={['markdown-data-cell', className].filter(Boolean).join(' ')}>{children}</td>;
+    td({ node: _node, children, className, align, style, ...props }: any) {
+      return (
+        <td {...props} className={['markdown-data-cell', className].filter(Boolean).join(' ')}
+          style={align ? { ...style, textAlign: align } : style}>
+          <div className="markdown-table-cell-content">
+            <div className="markdown-table-cell-body">{children}</div>
+          </div>
+        </td>
+      );
     },
     
     p({ node: _node, children, align, style, className, ...props }: any) {
@@ -1752,11 +1786,11 @@ const MarkdownSurface = React.memo<MarkdownRendererProps & { thinking?: boolean;
     markdownContentRef,
     onHttpLinkClickRef,
     remoteConnectionIdRef,
-    remoteSshHostRef,
     workspaceIdRef,
     syntaxThemeRef,
     traceContextRef,
     sourceRangeRef,
+    deferCodeHighlightingRef,
   ]);
   
   const textRevealRef = useRef<HTMLDivElement>(null);
