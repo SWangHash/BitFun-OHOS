@@ -5,6 +5,11 @@
 //! Product policy, tool routing, and UI commands stay in product assembly and
 //! app entrypoints.
 
+// ArkWeb host port for the OHOS built-in browser (ArkUI `Web` through
+// `@ohos-rs/ability`). OHOS product code that upstream does not carry: keep this
+// gate, the `pub use` block below, and `arkweb_host.rs` across upstream merges.
+// Removing the gate still compiles and silently drops the host port, which only
+// shows up as built-in browser automation losing its pages.
 #[cfg(any(target_env = "ohos", test))]
 mod arkweb_host;
 pub mod cdp;

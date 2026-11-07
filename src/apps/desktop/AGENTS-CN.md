@@ -51,9 +51,16 @@ OHOS 产品目标由本目录与 `src/apps/ohos` 维护，上游仓库不包含�
   从该分支恢复。
 - 共享文件中的 `#[cfg(target_env = "ohos")]` / `#[cfg(not(target_env = "ohos"))]`
   分支必须保留。风险最高的区域是浏览器（`api/browser_api.rs`、
-  `api/ohos/browser.rs`、`api/browser_control_api.rs`）、隐私启动装配
+  `api/ohos/browser.rs`、`api/browser_control_api.rs`、`builtin_browser_host.rs`）、
+  内置浏览器链路（`lib.rs` 中的 ArkWeb 宿主注册、
+  `services-integrations/src/browser_control/arkweb_host.rs` 及其 `mod.rs` 门控、
+  `src/apps/ohos/.../BrowserWebviewService.ets`）、隐私启动装配
   （`lib.rs` 中的 `PrivacyServiceState::enabled`）以及应用更新
   （`api/ohos/update.rs`、`check_for_updates_ohos`、`DailyAppUpdateGate.tsx`）。
+- 内置浏览器在 OHOS 上有两条路径：展示走 `browser_webview_*` → ArkTS
+  `BrowserWebviewService`；自动化走 `lib.rs` 中注册的 `ArkWebBrowserHost` /
+  `HaitaiBrowserLaunchHost`。`arkweb_host.rs` 只有通过 `mod.rs` 的门控才会被编译，
+  合并时若整体采用上游 `mod.rs`，它会变成孤儿文件而编译仍然通过。
 - 固定的 Tauri fork 把 `target_env = "ohos"` 当作 mobile，因此
   `#[cfg(desktop)]` 窗口 API 在 OHOS 上不存在。必须保留
   `cfg(not(target_env = "ohos"))` 门控并提供 OHOS 分支，不能为了编译通过直接删掉

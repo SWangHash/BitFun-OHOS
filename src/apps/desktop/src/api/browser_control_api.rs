@@ -256,6 +256,11 @@ pub struct BrowserControlStatusResponse {
     pub connection_issue: Option<String>,
 }
 
+// OHOS built-in browser status: the page is an ArkWeb component, so status comes
+// from the ArkWeb automation target registry and CDP endpoint owned by the
+// current process instead of a launched external browser. This function and the
+// `is_builtin_browser_preference` dispatch below are OHOS product code; keep
+// them when merging upstream/main.
 #[cfg(target_env = "ohos")]
 async fn builtin_browser_status(preference: &str) -> Result<BrowserControlStatusResponse, String> {
     let targets = list_arkweb_automation_targets();

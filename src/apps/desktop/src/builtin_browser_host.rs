@@ -1,4 +1,11 @@
 //! Desktop adapter for the built-in browser automation host port.
+//!
+//! This host runs on every target, but the OHOS side is not a Tauri child
+//! WebView: `browser_api::browser_webview_*` routes to the ArkTS
+//! `BrowserWebviewService.ets`, and `browser_control::arkweb_host` plus
+//! `api/ohos/browser.rs` carry the ArkWeb automation target registry. Keep those
+//! `cfg(target_env = "ohos")` branches when merging upstream/main; replacing
+//! them with desktop child-WebView calls breaks the built-in browser there.
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};

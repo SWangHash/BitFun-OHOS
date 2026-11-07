@@ -1,3 +1,15 @@
+//! ArkWeb built-in browser host port and automation-target registry.
+//!
+//! OHOS-only. `browser_control::mod` compiles this module under
+//! `#[cfg(any(target_env = "ohos", test))]`; the real page is an ArkUI `Web`
+//! component created by `src/apps/ohos`'s `BrowserWebviewService.ets`, not a
+//! desktop child WebView and not an external CDP Chromium.
+//!
+//! Upstream does not carry OHOS support. When merging `upstream/main`, keep this
+//! file together with its `mod`/`pub use` lines in `mod.rs`: dropping the gate
+//! still compiles, so a lost registration shows up only as a built-in browser
+//! that cannot be automated.
+
 use async_trait::async_trait;
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, OnceLock, RwLock};

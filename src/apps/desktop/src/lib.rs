@@ -2634,6 +2634,10 @@ async fn init_agentic_system(
 )> {
     use bitfun_core::agentic::*;
 
+    // OHOS built-in browser ports: Haitai launch plus the ArkWeb host that
+    // creates and drives ArkUI `Web` pages. Neither port exists upstream; keep
+    // these registrations when merging upstream/main or built-in browser
+    // automation silently has no host on OHOS.
     #[cfg(target_env = "ohos")]
     bitfun_services_integrations::browser_control::register_haitai_browser_launch_port(Arc::new(
         api::ohos::browser::HaitaiBrowserLaunchHost,

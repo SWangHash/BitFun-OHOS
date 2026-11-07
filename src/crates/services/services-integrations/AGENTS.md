@@ -137,6 +137,12 @@ they do not prove live SSH/Peer/relay behavior.
   probing/page creation, and CDP launch process handling behind
   `browser-control`; product profile paths and tool request/result types stay in higher
   layers.
+- `browser_control::arkweb_host` is the OHOS built-in browser host port and
+  automation-target registry (ArkUI `Web` via `@ohos-rs/ability`, no desktop
+  child WebView). It is gated by `#[cfg(any(target_env = "ohos", test))]` in
+  `browser_control/mod.rs`. Upstream does not carry OHOS: keep the module, the
+  gate, and its re-exports across upstream merges. Dropping the gate still
+  compiles and only surfaces as built-in browser automation losing its pages.
 - Web tool network providers own concrete HTTP/Exa requests behind `web-tools`;
   product validation, readable extraction, and tool result types stay in
   higher layers.

@@ -169,3 +169,23 @@ pnpm --dir src/web-ui run test:run src/infrastructure/api/htmlPreviewApi.test.ts
 Native resource loading is covered by `node tests/e2e/scripts/run-html-preview.mjs`
 after building Desktop and Web UI. See the E2E guide for isolated storage and
 binary/frontend snapshot overrides.
+
+## OHOS embedded browser
+
+OHOS has no Tauri child WebView. Session and standalone browser pages are ArkUI
+`Web` components created by `src/apps/ohos`'s `BrowserWebviewService.ets`.
+`useEmbeddedBrowserWebview` still invokes the same `browser_webview_*` commands;
+`src/apps/desktop/src/api/browser_api.rs` routes each one through the ArkTS bridge
+instead of `app.get_webview(label)`. Those ArkWeb pages are invisible to the Tauri
+webview registry, so do not reintroduce `getByLabel` as a fallback path.
+
+Agent browser control attaches to the same ArkWeb pages through
+`browser_control/arkweb_host.rs` and `api/ohos/browser.rs`: the automation target
+registry plus a CDP endpoint owned by the current process (logical port zero,
+independent of external CDP port 9222). `browser_control_api.rs` answers built-in
+browser status from that registry rather than from a launched external browser.
+
+This OHOS path exists only in this repository. Keep the
+`cfg(target_env = "ohos")` branches when merging upstream, and do not replace them
+with desktop child-WebView or external-Chromium assumptions.
+

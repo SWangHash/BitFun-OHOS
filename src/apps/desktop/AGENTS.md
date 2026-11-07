@@ -69,9 +69,17 @@ the OHOS side instead of dropping it:
   is the reference OHOS release line; restore anything a merge drops from it.
 - Shared files carry `#[cfg(target_env = "ohos")]` / `#[cfg(not(target_env = "ohos"))]`
   branches. The highest-risk areas are browser (`api/browser_api.rs`,
-  `api/ohos/browser.rs`, `api/browser_control_api.rs`), privacy startup wiring
-  (`lib.rs` `PrivacyServiceState::enabled`), and app updates (`api/ohos/update.rs`,
-  `check_for_updates_ohos`, `DailyAppUpdateGate.tsx`).
+  `api/ohos/browser.rs`, `api/browser_control_api.rs`, `builtin_browser_host.rs`),
+  the built-in browser chain (ArkWeb host registration in `lib.rs`,
+  `services-integrations/src/browser_control/arkweb_host.rs` gated from its
+  `mod.rs`, and `src/apps/ohos/.../BrowserWebviewService.ets`), privacy startup
+  wiring (`lib.rs` `PrivacyServiceState::enabled`), and app updates
+  (`api/ohos/update.rs`, `check_for_updates_ohos`, `DailyAppUpdateGate.tsx`).
+- The built-in browser has two OHOS paths: presentation through `browser_webview_*`
+  to the ArkTS `BrowserWebviewService`, and automation through
+  `ArkWebBrowserHost` / `HaitaiBrowserLaunchHost` registered in `lib.rs`.
+  `arkweb_host.rs` is reachable only through its `mod.rs` gate, so a merge that
+  takes the upstream `mod.rs` orphans it while the tree still compiles.
 - The pinned Tauri fork classifies `target_env = "ohos"` as mobile, so
   `#[cfg(desktop)]` window APIs are unavailable there. Keep the
   `cfg(not(target_env = "ohos"))` gates and add an OHOS fallback; do not delete

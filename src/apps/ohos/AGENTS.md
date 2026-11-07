@@ -65,6 +65,11 @@ contract.
 their first navigation so web apps can use `localStorage` and `sessionStorage`.
 `DefaultWebview.ets` applies that setting; other callers retain the ArkWeb default.
 
+This bridge is OHOS product code that upstream does not carry. Keep
+`BrowserWebviewService.ets`, `DefaultWebview.ets`, and the `browser_webview_*`
+ArkTS registrations across upstream merges; the Rust side is
+`src/apps/desktop/src/api/ohos/browser.rs`.
+
 Run `node --test src/apps/ohos/tests/browser-webview.test.cjs` for browser
 creation, initial storage configuration, evaluation failures, bounds updates,
 and drag handling.

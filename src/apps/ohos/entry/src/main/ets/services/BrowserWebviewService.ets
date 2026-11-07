@@ -1,3 +1,13 @@
+/**
+ * OHOS built-in browser host: creates and drives ArkUI `Web` components for the
+ * Desktop `browser_webview_*` commands and for Agent browser control.
+ *
+ * Rust counterparts: `src/apps/desktop/src/api/ohos/browser.rs` (ArkWeb host and
+ * Haitai launch ports) and `browser_control/arkweb_host.rs` (automation target
+ * registry). This file is OHOS product code and is absent from upstream; do not
+ * delete it while resolving an upstream merge. The contract is guarded by
+ * `src/apps/ohos/tests/browser-webview.test.cjs`.
+ */
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import RustModule from 'libbitfun_desktop_lib.so';
 import {
