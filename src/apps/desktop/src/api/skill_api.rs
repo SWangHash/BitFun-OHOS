@@ -1,14 +1,14 @@
 //! Skill Management API
 
+use bitfun_core::service::config::GlobalConfig;
 use bitfun_core::service::workspace::{WorkspaceInfo, WorkspaceKind};
-use log::info;
+use log::{info, warn};
 use regex::Regex;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
-use std::process::Stdio;
 use std::sync::OnceLock;
 use tauri::State;
 use tokio::sync::RwLock;
@@ -37,15 +37,12 @@ use bitfun_core::service::config::agent_profile_project_store::{
     deserialize_project_agent_profiles_document, serialize_project_agent_profiles_document,
 };
 use bitfun_core::service::config::types::{SkillMarketConfig, SkillMarketSource};
-use bitfun_core::service::runtime::RuntimeManager;
-use bitfun_core::util::process_manager;
 use bitfun_services_integrations::skillhub::{self, SkillHubClient};
 
 const SKILLS_SEARCH_API_BASE: &str = "https://skills.sh";
 const DEFAULT_MARKET_QUERY: &str = "skill";
 const DEFAULT_MARKET_LIMIT: u32 = 12;
 const MAX_MARKET_LIMIT: u32 = 500;
-const MAX_OUTPUT_PREVIEW_CHARS: usize = 2000;
 const MARKET_DESC_FETCH_TIMEOUT_SECS: u64 = 4;
 const MARKET_DESC_FETCH_CONCURRENCY: usize = 6;
 const MARKET_DESC_MAX_LEN: usize = 220;
@@ -1828,64 +1825,34 @@ pub async fn download_skill_market(
         .map(|skill| skill.name)
         .collect();
 
-    let runtime_manager = RuntimeManager::new()
-        .map_err(|e| format!("Failed to initialize runtime manager: {}", e))?;
-    let resolved_npx = runtime_manager.resolve_command("npx").ok_or_else(|| {
-        "Command 'npx' is not available. Install Node.js or configure bitfun runtimes.".to_string()
-    })?;
-
-    let mut command = process_manager::create_tokio_command(&resolved_npx.command);
-    command
-        .arg("-y")
-        .arg("skills")
-        .arg("add")
-        .arg(&package)
-        .arg("-y")
-        .arg("-a")
-        .arg("universal");
-
-    if level == SkillLocation::User {
-        command.arg("-g");
-    }
-
-    if let Some(path) = workspace_path.as_ref() {
-        command.current_dir(path);
-    }
-
-    let current_path = std::env::var("PATH").ok();
-    if let Some(merged_path) = runtime_manager.merged_path_env(current_path.as_deref()) {
-        command.env("PATH", &merged_path);
-        #[cfg(windows)]
-        {
-            command.env("Path", &merged_path);
+    // Proxy is optional: apply the configured AI proxy when enabled, otherwise
+    // download directly. A config read failure must not block the install.
+    let proxy = match state.config_service.get_config::<GlobalConfig>(None).await {
+        Ok(global_config) => global_config
+            .ai
+            .proxy
+            .enabled
+            .then_some(global_config.ai.proxy),
+        Err(e) => {
+            warn!(
+                "Failed to load proxy config for skill market download: {}",
+                e
+            );
+            None
         }
-    }
+    };
 
-    command.stdout(Stdio::piped());
-    command.stderr(Stdio::piped());
-
-    let output = command
-        .output()
-        .await
-        .map_err(|e| format!("Failed to execute skills installer: {}", e))?;
-
-    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-
-    if !output.status.success() {
-        let exit_code = output.status.code().unwrap_or(-1);
-        let detail = if !stderr.trim().is_empty() {
-            truncate_preview(stderr.trim())
-        } else if !stdout.trim().is_empty() {
-            truncate_preview(stdout.trim())
-        } else {
-            "Unknown installer error".to_string()
-        };
-        return Err(format!(
-            "Failed to download skill package '{}' (exit code {}): {}",
-            package, exit_code, detail
-        ));
-    }
+    // Native installer: downloads the GitHub tarball with pure Rust
+    // (reqwest + flate2 + tar) instead of shelling out to `npx -y skills add`.
+    // The npm CLI bundles a prebuilt bun binary that aborts on HarmonyOS PC,
+    // and the OHOS sandbox forbids the symlinks `node_modules/.bin` needs.
+    crate::skill_market_downloader::install_skill_from_market(
+        &package,
+        level,
+        workspace_path.as_deref(),
+        proxy.as_ref(),
+    )
+    .await?;
 
     registry
         .refresh_for_workspace(workspace_path.as_deref())
@@ -1911,7 +1878,7 @@ pub async fn download_skill_market(
         package,
         level,
         installed_skills,
-        output: summarize_command_output(&stdout, &stderr),
+        output: "Skill downloaded successfully.".to_string(),
     })
 }
 
@@ -2153,29 +2120,6 @@ async fn fetch_skill_market(
     fill_market_descriptions(&client, base_url, &mut items).await;
 
     Ok(items)
-}
-
-fn summarize_command_output(stdout: &str, stderr: &str) -> String {
-    let primary = if !stdout.trim().is_empty() {
-        stdout.trim()
-    } else {
-        stderr.trim()
-    };
-
-    if primary.is_empty() {
-        return "Skill downloaded successfully.".to_string();
-    }
-
-    truncate_preview(primary)
-}
-
-fn truncate_preview(text: &str) -> String {
-    if text.chars().count() <= MAX_OUTPUT_PREVIEW_CHARS {
-        return text.to_string();
-    }
-
-    let truncated: String = text.chars().take(MAX_OUTPUT_PREVIEW_CHARS).collect();
-    format!("{}...", truncated)
 }
 
 fn market_description_cache() -> &'static RwLock<HashMap<String, String>> {

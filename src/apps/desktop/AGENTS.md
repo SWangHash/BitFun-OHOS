@@ -80,6 +80,15 @@ the OHOS side instead of dropping it:
   `ArkWebBrowserHost` / `HaitaiBrowserLaunchHost` registered in `lib.rs`.
   `arkweb_host.rs` is reachable only through its `mod.rs` gate, so a merge that
   takes the upstream `mod.rs` orphans it while the tree still compiles.
+- Skill market installs must not fall back to `npx -y skills add`. The `skills`
+  npm CLI ships a prebuilt bun binary that aborts on OHOS PC, and the sandbox
+  forbids the `node_modules/.bin` symlinks it needs. `api/skill_api.rs`
+  (`download_skill_market`) therefore calls the pure-Rust
+  `api/skill_market_downloader.rs` (`install_skill_from_market`, reqwest +
+  flate2 + tar, optional AI proxy). A merge that takes the upstream
+  `download_skill_market` silently restores the npx path while the native
+  downloader stays compiled and unused; keep the native call and its proxy
+  plumbing.
 - The pinned Tauri fork classifies `target_env = "ohos"` as mobile, so
   `#[cfg(desktop)]` window APIs are unavailable there. Keep the
   `cfg(not(target_env = "ohos"))` gates and add an OHOS fallback; do not delete

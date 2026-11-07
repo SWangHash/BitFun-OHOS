@@ -61,6 +61,13 @@ OHOS 产品目标由本目录与 `src/apps/ohos` 维护，上游仓库不包含�
   `BrowserWebviewService`；自动化走 `lib.rs` 中注册的 `ArkWebBrowserHost` /
   `HaitaiBrowserLaunchHost`。`arkweb_host.rs` 只有通过 `mod.rs` 的门控才会被编译，
   合并时若整体采用上游 `mod.rs`，它会变成孤儿文件而编译仍然通过。
+- Skill 市场安装不得回退到 `npx -y skills add`。`skills` npm CLI 自带预编译 bun
+  二进制，在 OHOS PC 上会崩溃，且鸿蒙沙箱禁止 `node_modules/.bin` 所需的符号链接。
+  因此 `api/skill_api.rs` 的 `download_skill_market` 必须调用纯 Rust 实现
+  `api/skill_market_downloader.rs`（`install_skill_from_market`，reqwest +
+  flate2 + tar，并透传 AI 代理）。若合并时整体采用上游
+  `download_skill_market`，npx 路径会静默回归，而原生下载器仍参与编译却无人调用；
+  请保留原生调用及其代理装配。
 - 固定的 Tauri fork 把 `target_env = "ohos"` 当作 mobile，因此
   `#[cfg(desktop)]` 窗口 API 在 OHOS 上不存在。必须保留
   `cfg(not(target_env = "ohos"))` 门控并提供 OHOS 分支，不能为了编译通过直接删掉
