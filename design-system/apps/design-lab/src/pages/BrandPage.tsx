@@ -13,7 +13,7 @@ import {
 import { useI18n, type MessageKey } from "../i18n";
 import { SUBAGENT_AVATAR_CATALOG } from "../assets/subagentAvatars";
 import silverUrl from "../../../../packages/ui/src/brand/assets/bitfun-app-mark.png?url";
-import outlineUrl from "../../../../packages/ui/src/brand/assets/bitfun-mark.svg?url";
+import outlineUrl from "../../../../packages/ui/src/brand/assets/bitfun-mark-silhouette.svg?url";
 import appPngUrl from "../../../../../assets/brand/exports/bitfun-app-icon-512.png?url";
 import appIcoUrl from "../../../../../assets/brand/exports/bitfun-app-icon.ico?url";
 import appIcnsUrl from "../../../../../assets/brand/exports/bitfun-app-icon.icns?url";

@@ -28,6 +28,9 @@ const MARK_TONE_LIGHT = '#e8e8e8';
 const OHOS_START_WINDOW_SIZE = 240;
 
 const DESKTOP_HICOLOR_SIZES = [16, 32, 48, 64, 96, 128, 256, 512];
+// The design-system brand package imports its artwork from inside the package
+// (`?url` / `?raw`), so it keeps its own copies of the same files.
+const DESIGN_SYSTEM_ICON_SIZES = [16, 32, 128, 256, 512];
 const EXPORT_SIZES = [16, 24, 32, 48, 64, 96, 128, 192, 256, 512, 1024, 2048];
 // Every browser entry point in the workspace pins the same two favicon sizes.
 const FAVICON_SIZES = [16, 32];
@@ -391,6 +394,19 @@ async function generateBrandAssets() {
   await writePng(path.join(webBrandDir, 'bitfun-mark-light-128.png'), lightMarkSmall);
   await writePng(path.join(webBrandDir, 'bitfun-app-icon.png'), applicationIcon);
   await writeFile(path.join(webBrandDir, 'bitfun-mark.svg'), createReusableWebMark(svg), 'utf8');
+
+  // Design-system brand artwork. `BitFunAppIcon` / `BitFunSolidMark` claim the
+  // installed application artwork and `BitFunMark` paints the current mark, so
+  // the package must ship the generated files rather than an older copy of the
+  // mark: an in-app logo that disagrees with the window icon is the regression
+  // this sink prevents. The package keeps its authored contour master
+  // (`bitfun-mark.svg`) for the motion variants, which trace those contours.
+  const designSystemBrandDir = outputPath('design-system', 'packages', 'ui', 'src', 'brand', 'assets');
+  await writeFile(path.join(designSystemBrandDir, 'bitfun-mark-silhouette.svg'), createReusableWebMark(svg), 'utf8');
+  await writePng(path.join(designSystemBrandDir, 'bitfun-app-mark.png'), applicationSourceMark);
+  for (const size of DESIGN_SYSTEM_ICON_SIZES) {
+    await writePng(path.join(designSystemBrandDir, `bitfun-app-icon-${size}.png`), await renderIcon(size));
+  }
 
   const desktopIconDir = outputPath('src', 'apps', 'desktop', 'icons');
   await writePng(path.join(desktopIconDir, 'bitfun-app-icon.png'), applicationIconLarge);

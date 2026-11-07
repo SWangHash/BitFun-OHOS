@@ -15,8 +15,11 @@
     width: 120px;
     height: 120px;
     background: currentColor;
-    -webkit-mask: url('./assets/bitfun-mark.svg') center / contain no-repeat;
-    mask: url('./assets/bitfun-mark.svg') center / contain no-repeat;
+    /* The generated silhouette, so a flat mark renders the same artwork as the
+       installed application icon. The authored contour master beside it only
+       feeds the motion variants. */
+    -webkit-mask: url('./assets/bitfun-mark-silhouette.svg') center / contain no-repeat;
+    mask: url('./assets/bitfun-mark-silhouette.svg') center / contain no-repeat;
     user-select: none;
   }
 

@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react';
 import type { IconSize } from '@bitfun/ui';
 
 export type ChatAppBrand = 'telegram' | 'feishu' | 'weixin';
@@ -21,18 +22,23 @@ const ICON_TOKEN_SIZE: Record<IconSize, string> = {
  * theme without replacing the recognizable brand silhouettes.
  * References: telegram.org/tour/screenshots, feishu.cn, and the CC0
  * simple-icons WeChat/Telegram vectors.
+ *
+ * Size is a declaration rather than the SVG `width`/`height` attributes, for
+ * the reason stated in `DeviceSystemGlyph`: a token is a `var()` reference, and
+ * an attribute an engine cannot parse leaves the mark with no size at all, so
+ * it fills the row it sits in instead of matching the icons beside it.
  */
 export const ChatAppBrandIcon = ({ app, size = 'lg' }: ChatAppBrandIconProps) => {
-  const resolvedSize = typeof size === 'number' ? size : ICON_TOKEN_SIZE[size];
+  const resolvedSize = typeof size === 'number' ? `${size}px` : ICON_TOKEN_SIZE[size];
+  const box: CSSProperties = { width: resolvedSize, height: resolvedSize };
 
   if (app === 'telegram') {
     return (
       <svg
         aria-hidden="true"
         focusable="false"
-        height={resolvedSize}
+        style={box}
         viewBox="0 0 24 24"
-        width={resolvedSize}
         xmlns="http://www.w3.org/2000/svg"
       >
         <path
@@ -48,9 +54,8 @@ export const ChatAppBrandIcon = ({ app, size = 'lg' }: ChatAppBrandIconProps) =>
       <svg
         aria-hidden="true"
         focusable="false"
-        height={resolvedSize}
+        style={box}
         viewBox="0 0 24 24"
-        width={resolvedSize}
         xmlns="http://www.w3.org/2000/svg"
       >
         <path
@@ -73,9 +78,8 @@ export const ChatAppBrandIcon = ({ app, size = 'lg' }: ChatAppBrandIconProps) =>
     <svg
       aria-hidden="true"
       focusable="false"
-      height={resolvedSize}
+      style={box}
       viewBox="0 0 24 24"
-      width={resolvedSize}
       xmlns="http://www.w3.org/2000/svg"
     >
       <path
