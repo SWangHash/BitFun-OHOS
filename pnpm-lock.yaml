@@ -753,15 +753,6 @@ importers:
         specifier: ^3.0.3
         version: 3.0.3(@wdio/types@8.41.0)
 
-  website:
-    dependencies:
-      '@bitfun/design-tokens':
-        specifier: workspace:^
-        version: link:../design-system/packages/design-tokens
-      '@bitfun/theme-bitfun':
-        specifier: workspace:^
-        version: link:../design-system/packages/theme-bitfun
-
 packages:
 
   '@antfu/install-pkg@1.1.0':

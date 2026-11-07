@@ -120,17 +120,6 @@
       }
     },
     {
-      "id": "website",
-      "label": "Public website",
-      "kind": "canonical-web",
-      "owner": "@bitfun/theme-bitfun",
-      "root": "website",
-      "audit": {
-        "engine": "theme",
-        "baseline": "scripts/theme-color-governance-baseline.website.json"
-      }
-    },
-    {
       "id": "mobile-web",
       "label": "Mobile Web and Remote Control",
       "kind": "canonical-web",

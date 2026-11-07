@@ -274,9 +274,9 @@ function validateProductControlWorkflowGate() {
     (step) => step?.name === 'Validate interactive capability contract',
   );
   const requiredGeneratedCommand =
-    'pnpm run capabilities:check && pnpm run capabilities:test && pnpm run website:test && pnpm run website:build';
+    'pnpm run capabilities:check && pnpm run capabilities:test';
   if (!generatedGate) {
-    errors.push('.github/workflows/ci.yml: the blocking interactive capability generation/Playbook gate is missing.');
+    errors.push('.github/workflows/ci.yml: the blocking interactive capability generation gate is missing.');
   } else {
     if (generatedGate.run !== requiredGeneratedCommand) {
       errors.push(`.github/workflows/ci.yml: interactive capability gate must run exactly ${JSON.stringify(requiredGeneratedCommand)}.`);

@@ -540,7 +540,7 @@ jobs:
   # its first Windows execution ever was a release build, and it failed there
   # (`spawnSync npm ENOENT`: npm is a `.cmd` shim Node will not spawn without
   # a shell). This job is the cheapest thing that exercises the whole
-  # packaging path â€?npm install, tsc, `npm pack`, tar, tree copy â€?on the
+  # packaging path ï¿½?npm install, tsc, `npm pack`, tar, tree copy ï¿½?on the
   # platform whose path and process rules differ.
   dsh-profile-windows:
     name: DSH Profile Packaging (windows-latest)
@@ -618,7 +618,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Validate interactive capability contract
-        run: pnpm run capabilities:check && pnpm run capabilities:test && pnpm run website:test && pnpm run website:build
+        run: pnpm run capabilities:check && pnpm run capabilities:test
 
       - name: Test core boundary contracts
         run: pnpm run check:core-boundaries:test

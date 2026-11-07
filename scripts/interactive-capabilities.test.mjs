@@ -411,8 +411,7 @@ test('docs, runtime, and technical views are generated projections of one semant
   assert.equal(docs.length, sourceIds.length);
 });
 
-test('website, global search, and agent control consume generated semantic projections', async () => {
-  const websiteBuild = await read('website/scripts/build.mjs');
+test('global search and agent control consume generated semantic projections', async () => {
   const frontendCatalog = await read('src/web-ui/src/app/global-search/interactiveCapabilityCatalog.ts');
   const searchProvider = await read(
     'src/web-ui/src/app/global-search/providers/interactiveCapabilitySearchProvider.ts',
@@ -423,7 +422,6 @@ test('website, global search, and agent control consume generated semantic proje
     'src/crates/assembly/core/src/agentic/tools/implementations/bitfun_control_tool.rs',
   );
 
-  assert.match(websiteBuild, /docs\/interactive-capabilities\/capabilities\.json/u);
   assert.match(frontendCatalog, /generated\/interactive-capabilities\.json/u);
   assert.match(searchProvider, /INTERACTIVE_CAPABILITY_CATALOG/u);
   assert.doesNotMatch(searchProviders, /settingsSearchProvider/u);
