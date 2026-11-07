@@ -192,7 +192,9 @@ const PersistentFooterActions: React.FC = () => {
       deviceInfo: typeof navigator === 'undefined' ? undefined : navigator.userAgent,
     });
     if (!url) {
-      notificationService.error(t('nav.settingsMenu.feedbackUnavailable'));
+      void systemAPI.openExternal('https://gitcode.com/OpenBitFun/bitfun_ade/issues').catch(() => {
+        notificationService.error(t('nav.settingsMenu.feedbackOpenFailed'));
+      });
       return;
     }
     void systemAPI.openExternal(url).catch(() => {
