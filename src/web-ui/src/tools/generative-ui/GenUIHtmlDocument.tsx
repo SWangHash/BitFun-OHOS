@@ -3,6 +3,8 @@ import { useEffect, useRef } from 'react';
 import { useColorScheme } from './components/openui/scheme';
 import { genUICatalog, canonicalGenUIIdentity, type GenUIDesignSpec } from './genUIContract';
 import type { GenUIHtmlDocumentSource } from './genUITypes';
+import { HARMONY_STYLE_RESOURCE_CSS, HARMONY_STYLE_RESOURCE_IDS } from './components/vendor/harmonyStyles';
+import { FLUENT_EMOJI_3D_CSP_SOURCE, fluentEmoji3dUrl } from './components/vendor/fluentEmoji3d';
 
 export interface GenUIHtmlSanitizeResult {
   document: string;
@@ -46,6 +48,14 @@ export interface GenUIHtmlFrameReport {
 
 export interface GenUIHtmlInspection {
   onReport: (report: GenUIHtmlFrameReport) => void;
+}
+
+/** Parent-owned presentation selected by the Harmony library profile. */
+export interface GenUIHarmonyPresentation {
+  theme: string;
+  // typography-audit: allow -- selected family identifier, not a CSS declaration
+  font: string;
+  scheme: string;
 }
 
 /** Versioned host capabilities are part of HTML delivery evidence. */
@@ -227,11 +237,20 @@ function inspectionBootstrap(): string {
  * retained in the source record but are deliberately disabled by this static
  * renderer until a host has negotiated the controlled bridge capability.
  */
-export function sanitizeGenUIHtmlSource(source: GenUIHtmlDocumentSource, specification?: GenUIDesignSpec, hostStyleResourceCss = '', scriptEnabled = false, inspectionEnabled = false, inlineScriptEnabled = false, colorScheme: 'light' | 'dark' = 'light'): GenUIHtmlSanitizeResult {
+export function sanitizeGenUIHtmlSource(source: GenUIHtmlDocumentSource, specification?: GenUIDesignSpec, hostStyleResourceCss = '', scriptEnabled = false, inspectionEnabled = false, inlineScriptEnabled = false, colorScheme: 'light' | 'dark' = 'light', harmonyPresentation?: GenUIHarmonyPresentation): GenUIHtmlSanitizeResult {
   const diagnostics: string[] = [];
   const allowControlledScript = scriptEnabled && !inspectionEnabled;
   const scriptNonce = allowControlledScript || inspectionEnabled ? createCspNonce() : undefined;
   const parsed = new DOMParser().parseFromString(source.html, 'text/html');
+  const harmony = Boolean(specification?.styleResources.some(resource => HARMONY_STYLE_RESOURCE_IDS.includes(resource as typeof HARMONY_STYLE_RESOURCE_IDS[number])));
+  if (harmony) {
+    const rootTheme = parsed.documentElement.getAttribute('data-hm-theme') || parsed.querySelector('[data-hm-theme]')?.getAttribute('data-hm-theme') || harmonyPresentation?.theme || 'blue';
+    const rootFont = parsed.documentElement.getAttribute('data-hm-font') || parsed.querySelector('[data-hm-font]')?.getAttribute('data-hm-font') || harmonyPresentation?.font || 'sans';
+    const rootScheme = parsed.documentElement.getAttribute('data-hm-scheme') || parsed.querySelector('[data-hm-scheme]')?.getAttribute('data-hm-scheme') || harmonyPresentation?.scheme || 'light';
+    parsed.documentElement.setAttribute('data-hm-theme', rootTheme);
+    parsed.documentElement.setAttribute('data-hm-font', rootFont);
+    parsed.documentElement.setAttribute('data-hm-scheme', rootScheme);
+  }
   // HtmlView is a trusted product component with a separate opt-in for its
   // local animation script. Free HTML documents keep scripts in their own
   // source.script field, so inline document scripts remain disabled there.
@@ -266,6 +285,26 @@ export function sanitizeGenUIHtmlSource(source: GenUIHtmlDocumentSource, specifi
       }
     }
   });
+  if (harmony) {
+    parsed.querySelectorAll<HTMLElement>('.hm-icon3d[data-emoji]').forEach(icon => {
+      const emoji = icon.getAttribute('data-emoji')?.trim() ?? '';
+      if (!emoji) return;
+      const src = fluentEmoji3dUrl(emoji);
+      icon.replaceChildren();
+      icon.setAttribute('data-hm-icon3d', src ? 'external' : 'fallback');
+      if (!src) {
+        icon.textContent = emoji;
+        return;
+      }
+      const image = parsed.createElement('img');
+      image.src = src;
+      image.alt = emoji;
+      image.loading = 'eager';
+      image.decoding = 'async';
+      image.setAttribute('referrerpolicy', 'no-referrer');
+      icon.appendChild(image);
+    });
+  }
   parsed.querySelectorAll('style').forEach(style => {
     style.textContent = sanitizeCss(style.textContent ?? '');
   });
@@ -294,7 +333,8 @@ export function sanitizeGenUIHtmlSource(source: GenUIHtmlDocumentSource, specifi
   }
   const policy = parsed.createElement('meta');
   policy.httpEquiv = 'Content-Security-Policy';
-  policy.content = `default-src 'none'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; script-src 'none'`;
+  const imageSources = harmony ? `data: blob: ${FLUENT_EMOJI_3D_CSP_SOURCE}` : 'data: blob:';
+  policy.content = `default-src 'none'; style-src 'unsafe-inline'; img-src ${imageSources}; font-src data:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; script-src 'none'`;
   parsed.head.prepend(policy);
   const scripts = [source.script?.trim() ?? '', inlineScript.trim()].filter(Boolean).join('\n');
   if (scripts) {
@@ -312,9 +352,12 @@ export function sanitizeGenUIHtmlSource(source: GenUIHtmlDocumentSource, specifi
     script.textContent = inspectionBootstrap();
     parsed.body.appendChild(script);
   }
-  if (scriptNonce) policy.setAttribute('content', `default-src 'none'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; script-src 'nonce-${scriptNonce}'`);
+  if (scriptNonce) policy.setAttribute('content', `default-src 'none'; style-src 'unsafe-inline'; img-src ${imageSources}; font-src data:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; script-src 'nonce-${scriptNonce}'`);
+  const rootAttributes = ['data-hm-theme', 'data-hm-font', 'data-hm-scheme']
+    .map(name => parsed.documentElement.getAttribute(name) ? ` ${name}="${parsed.documentElement.getAttribute(name)!.replace(/&/g, '&amp;').replace(/"/g, '&quot;')}"` : '')
+    .join('');
   return {
-    document: `<!doctype html><html data-bitfun-appearance-mode="${colorScheme}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">${parsed.head.innerHTML}</head><body>${parsed.body.innerHTML}</body></html>`,
+    document: `<!doctype html><html data-bitfun-appearance-mode="${colorScheme}"${rootAttributes}><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">${parsed.head.innerHTML}</head><body>${parsed.body.innerHTML}</body></html>`,
     diagnostics,
   };
 }
@@ -342,7 +385,7 @@ export function inspectGenUIHtmlSource(source: GenUIHtmlDocumentSource, specific
   return issues;
 }
 
-export default function GenUIHtmlDocument({ source, specification, designSpecId, appId = 'unknown', sourceKey = 'unknown', bridge, scriptEnabled = false, inspection }: {
+export default function GenUIHtmlDocument({ source, specification, designSpecId, appId = 'unknown', sourceKey = 'unknown', bridge, scriptEnabled = false, inspection, harmonyPresentation }: {
   source: GenUIHtmlDocumentSource;
   specification?: GenUIDesignSpec;
   designSpecId?: string;
@@ -351,6 +394,7 @@ export default function GenUIHtmlDocument({ source, specification, designSpecId,
   bridge?: GenUIHtmlBridge;
   scriptEnabled?: boolean;
   inspection?: GenUIHtmlInspection;
+  harmonyPresentation?: GenUIHarmonyPresentation;
 }) {
   const frameRef = useRef<HTMLIFrameElement>(null);
   const themeRef = useRef<HTMLDivElement>(null);
@@ -367,11 +411,13 @@ export default function GenUIHtmlDocument({ source, specification, designSpecId,
       // into the opaque document's inline stylesheet.
       if (value && !/[{};]/.test(value)) tokens.push(`${name}:${value};`);
     }
-    return `:root{color-scheme:${colorScheme};${tokens.join('')}}html,body{margin:0;min-height:100%;color:var(--bitfun-color-content-primary);background:var(--bitfun-color-surface-canvas);font-family:var(--bitfun-type-body-md-font-family);font-size:var(--bitfun-type-body-md-font-size);line-height:var(--bitfun-type-body-md-line-height);}`;
-  }, [colorScheme]);
+    const base = `:root{color-scheme:${colorScheme};${tokens.join('')}}html,body{margin:0;min-height:100%;color:var(--bitfun-color-content-primary);background:var(--bitfun-color-surface-canvas);font-family:var(--bitfun-type-body-md-font-family);font-size:var(--bitfun-type-body-md-font-size);line-height:var(--bitfun-type-body-md-line-height);}`;
+    const harmony = Boolean(specification?.styleResources.some(resource => HARMONY_STYLE_RESOURCE_IDS.includes(resource as typeof HARMONY_STYLE_RESOURCE_IDS[number])));
+    return harmony ? HARMONY_STYLE_RESOURCE_CSS + base : base;
+  }, [specification, colorScheme]);
   const inspectionEnabled = Boolean(inspection);
   const canRunScript = Boolean(scriptEnabled && bridge && source.script?.trim() && !inspectionEnabled);
-  const sanitized = useMemo(() => sanitizeGenUIHtmlSource(source, specification, hostStyleResourceCss, canRunScript, inspectionEnabled, false, colorScheme), [source, specification, hostStyleResourceCss, canRunScript, inspectionEnabled, colorScheme]);
+  const sanitized = useMemo(() => sanitizeGenUIHtmlSource(source, specification, hostStyleResourceCss, canRunScript, inspectionEnabled, false, colorScheme, harmonyPresentation), [source, specification, hostStyleResourceCss, canRunScript, inspectionEnabled, colorScheme, harmonyPresentation]);
   useEffect(() => {
     if (!canRunScript || !bridge) return;
     const frame = frameRef.current;

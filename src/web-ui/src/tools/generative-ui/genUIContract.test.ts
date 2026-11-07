@@ -4,7 +4,7 @@ import examples from '../../../../shared/generative-ui/examples.json';
 import source from '../../../../shared/generative-ui/library.json';
 // @ts-expect-error product build module is shared with the Node contract generator
 import { compileCatalog, extendLibrary } from '../../../../shared/generative-ui/library.mjs';
-import { preflightGenUIApp, genUICatalog } from './genUIContract';
+import { designSpecForApp, libraryFor, preflightGenUIApp, genUICatalog } from './genUIContract';
 import { genUIProduct } from './genUIProduct';
 import { validateGenUIState } from './genUIState';
 import type { GenUIAppDefinition } from './genUITypes';
@@ -80,6 +80,58 @@ describe('product library generation contract', () => {
     } as GenUIAppDefinition;
     expect(preflightGenUIApp(legacy).accepted).toBe(true);
     expect(legacy.libraryId).toBe('openbitfun.composable.v1');
+  });
+  it('binds the Harmony phone delivery surface through legacy identities', () => {
+    const app = {
+      schemaVersion: 2,
+      id: 'harmony-phone',
+      title: 'Harmony phone app',
+      template: 'openbitfun.harmony.app',
+      libraryId: 'openbitfun.harmony.v1',
+      libraryRevision: 3,
+      designSpec: { id: 'harmony.phone.v1', revision: 1 },
+      source: { kind: 'openui-lang', content: 'root = Col([])' },
+      state: {},
+    } as GenUIAppDefinition;
+    expect(preflightGenUIApp(app).accepted).toBe(true);
+    expect(genUICatalog.profiles?.harmony).toEqual({
+      label: 'Harmony phone',
+      templates: ['bitfun.harmony.app'],
+      designSpec: 'harmony.phone.v1',
+    });
+    expect(libraryFor(app)).toMatchObject({
+      id: 'bitfun.harmony.v1',
+      metadata: { revision: 3, adapterKind: 'harmony-genui', designSpecIds: ['harmony.phone.v1'] },
+    });
+    expect(designSpecForApp(app)).toMatchObject({
+      revision: 1,
+      viewport: { mode: 'fixed', width: 360, height: 764, unit: 'css-px' },
+      shell: {
+        kind: 'phone',
+        statusBarHeight: 36,
+        contentInsets: { top: 16, right: 16, bottom: 16, left: 16 },
+      },
+    });
+    // The profile is only real when every identity it names resolves: the
+    // template, both library revisions, the adapter kind and the read-only
+    // counterpart. Keep this guard so a half-added Harmony surface fails here
+    // instead of at render time on a phone target.
+    for (const [template, libraryId] of [
+      ['bitfun.harmony.app', 'bitfun.harmony.v1'],
+      ['bitfun.harmony.reference', 'bitfun.harmony.readonly.v1'],
+    ]) {
+      expect(genUICatalog.templates?.[template]?.library).toBe(libraryId);
+      expect(genUICatalog.libraryAdapters?.[libraryId]).toMatchObject({
+        adapterKind: 'harmony-genui',
+        designSpecIds: ['harmony.phone.v1'],
+      });
+      expect(genUICatalog.designSpecs?.['harmony.phone.v1'].componentLibraries).toContain(libraryId);
+    }
+    expect(preflightGenUIApp({
+      ...app,
+      template: 'openbitfun.harmony.reference',
+      libraryId: 'openbitfun.harmony.readonly.v1',
+    }).accepted).toBe(true);
   });
   it('rejects undeclared schema semantics and invalid template roots at product build time', () => {
     const invalid = structuredClone(source) as any;

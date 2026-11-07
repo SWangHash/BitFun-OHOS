@@ -53,7 +53,7 @@ describe('generative widget projection', () => {
       toolCall: { id: 'call', input: {} },
       _genUIStream: { messageId: 'source', format: 'openui-lang', content: '', nextSeq: 1, template: 'openbitfun.harmony.app' },
     }));
-    expect(projection).toMatchObject({ deliveryMode: 'transient', libraryId: 'openbitfun.harmony.v1', sourceAvailable: false });
+    expect(projection).toMatchObject({ deliveryMode: 'transient', libraryId: 'bitfun.harmony.v1', sourceAvailable: false });
   });
 
   it.each([false, true])('projects a source document while parameters stream, deferred=%s', deferred => {

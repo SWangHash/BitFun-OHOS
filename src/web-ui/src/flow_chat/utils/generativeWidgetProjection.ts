@@ -194,7 +194,7 @@ export function projectGenerativeWidgetTool(
     // A retry can expose only the template metadata before the catalog entry
     // arrives in the partial tool payload. Keep the profile identity stable so
     // its delivery mode and loading surface do not disappear mid-retry.
-    ?? (declaredTemplate?.includes('.harmony.') ? 'openbitfun.harmony.v1' : undefined);
+    ?? (declaredTemplate?.includes('.harmony.') ? 'bitfun.harmony.v1' : undefined);
   const streamedOpenUI = !isComplete && projected._genUIStream?.content
     ? projected._genUIStream
     : undefined;

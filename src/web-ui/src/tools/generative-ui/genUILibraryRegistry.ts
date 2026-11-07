@@ -8,7 +8,7 @@ export interface GenUILibraryAdapter {
   id: string;
   revision: number;
   label: string;
-  adapterKind: 'openui' | 'bitfun' | string;
+  adapterKind: 'openui' | 'bitfun' | 'harmony-genui' | string;
   readonly: boolean;
   contract: GenUILibraryContract;
   designSpecIds: string[];

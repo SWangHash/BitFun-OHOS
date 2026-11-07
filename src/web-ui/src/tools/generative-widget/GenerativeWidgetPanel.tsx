@@ -5,7 +5,9 @@ import {
 } from '@/flow_chat/utils/generativeWidgetProjection';
 import { useGenerativeWidgetProjection } from '@/flow_chat/hooks/useGenerativeWidgetProjection';
 import GenUIApplication from '@/tools/generative-ui/GenUIApplication';
-import { isGenUIAppEnvelope, type GenUIAppEnvelope, type GenUIAppState } from '@/tools/generative-ui/genUITypes';
+import GenUIPhoneSkeleton from '@/tools/generative-ui/GenUIPhoneSkeleton';
+import { useGenUIPhoneLoading } from '@/tools/generative-ui/useGenUIPhoneLoading';
+import { isGenUIAppEnvelope, type GenUIAppDefinition, type GenUIAppEnvelope, type GenUIAppState } from '@/tools/generative-ui/genUITypes';
 import { resolveGenUIInteractionState } from '@/tools/generative-ui/genUIInteractionState';
 import { useChatMcpCatalog } from '@/flow_chat/hooks/useChatMcpCatalog';
 import { flowChatStore } from '@/flow_chat/store/FlowChatStore';
@@ -41,6 +43,7 @@ export const GenerativeWidgetPanel: React.FC<GenerativeWidgetPanelProps> = ({
 }) => {
   const { t } = useI18n('flow-chat');
   const projection = useGenerativeWidgetProjection(origin);
+  const phoneLoading = useGenUIPhoneLoading(projection);
   const app = origin ? projection?.app : (isGenUIAppEnvelope(suppliedApp) ? suppliedApp : undefined);
   const appState = origin ? projection?.appState : suppliedState;
   const session = origin ? flowChatStore.getState().sessions.get(origin.sessionId) : undefined;
@@ -120,10 +123,26 @@ export const GenerativeWidgetPanel: React.FC<GenerativeWidgetPanelProps> = ({
   });
   const terminalStatus = t(`toolCards.generativeUI.state.${interactionState}`);
   const showToolbar = presentation === 'panel' || requiresDelivery;
+  // The phone skeleton is only the pre-source placeholder. Once the native
+  // OpenUI stream has supplied any source text, mount GenUIApplication so the
+  // parser can reveal completed statements while later statements arrive.
+  const streamedSource = (app as GenUIAppDefinition | undefined)?.source;
+  const hasStreamSource = Boolean(streamedSource && (
+    (streamedSource.kind === 'openui-lang' && streamedSource.content.trim().length > 0)
+    || (streamedSource.kind === 'html-document' && streamedSource.html.trim().length > 0)
+  ));
 
   // Keep the tool failure available to the model without surfacing a failed
   // candidate while it repairs the source. Owner/save errors remain visible.
   if (projection?.isFailed || projection?.status === 'rejected') return null;
+  if (phoneLoading.pending) return null;
+
+  if (phoneLoading.phone && !hasStreamSource) {
+    return <div className={`bitfun-generative-widget-panel bitfun-generative-widget-panel--${presentation}`}
+      data-bitfun-component="generative-widget" data-bitfun-part="app" data-bitfun-state={interactionState}>
+      <GenUIPhoneSkeleton app={app} label={terminalStatus} />
+    </div>;
+  }
   const currentVerification = app && verification?.definitionKey === genUIContentKey(app) ? verification : undefined;
   const fatalRender = currentVerification?.render === 'failed';
   let repairControl: React.ReactNode = null;
