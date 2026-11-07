@@ -1,4 +1,4 @@
-/** Build the public Feishu questionnaire URL used by the product feedback entry. */
+/** Build the public feedback URL used by the product feedback entry. */
 
 export interface PublicFeedbackContext {
   uid?: string | number | null;
@@ -7,7 +7,7 @@ export interface PublicFeedbackContext {
   deviceInfo?: string | null;
 }
 
-/** Read and validate the build-time public questionnaire URL. */
+/** Read and validate the build-time public feedback URL. */
 export function resolvePublicFeedbackFormUrl(
   rawUrl: string | undefined = import.meta.env.VITE_BITFUN_FEEDBACK_FORM_URL,
 ): URL | null {
