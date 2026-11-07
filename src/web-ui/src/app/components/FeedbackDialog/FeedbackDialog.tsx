@@ -47,7 +47,7 @@ import { useRejectedInsertionCaret } from './useRejectedInsertionCaret';
 import './FeedbackDialog.scss';
 
 const log = createLogger('FeedbackDialog');
-const GITCODE_ISSUES_URL = 'https://gitcode.com/BitFun/bitfun_ade/issues';
+const GITCODE_ISSUES_URL = 'https://gitcode.com/OpenBitFun/bitfun_ade/issues';
 let submissionRetryUntilMs = 0;
 
 function submissionRetrySecondsRemaining(): number {
