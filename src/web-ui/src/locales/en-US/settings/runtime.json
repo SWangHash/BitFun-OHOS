@@ -285,7 +285,7 @@
     "unknown": "This collection is unavailable. Its selection is preserved; choose an installed collection to continue.",
     "collections": {
       "openui": "Open Intelligent UI: streamed OpenUI Lang answers with local state and actions in FlowChat.",
-      "openbitfun": "BitFun: the current BitFun component library and desktop styling."
+      "bitfun": "BitFun: the current BitFun component library and desktop styling."
     },
     "specification": "UI specification",
     "viewport": "Target viewport",

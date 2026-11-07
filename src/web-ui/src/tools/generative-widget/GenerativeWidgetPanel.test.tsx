@@ -30,8 +30,8 @@ function mountProjection(item: FlowToolItem) {
 
 const bitfunApp: GenUIAppDefinition = {
   schemaVersion: 2, id: 'loading-app', title: 'Plant garden',
-  template: 'openbitfun.app', libraryId: 'openbitfun.composable.v1', libraryRevision: 2,
-  designSpec: { id: 'openbitfun.desktop.v1', revision: 1 },
+  template: 'bitfun.app', libraryId: 'bitfun.composable.v1', libraryRevision: 2,
+  designSpec: { id: 'bitfun.desktop.v1', revision: 1 },
   source: { kind: 'openui-lang', content: 'root = Col([Text("Garden is ready")])' }, state: {},
 };
 
@@ -94,13 +94,13 @@ describe('GenerativeWidgetPanel', () => {
     }
   });
 
-  it.each(['openui.v1', 'openbitfun.composable.v1'])('preserves live source preview for %s without a phone skeleton', libraryId => {
+  it.each(['openui.v1', 'bitfun.composable.v1'])('preserves live source preview for %s without a phone skeleton', libraryId => {
     const root = createRoot(container);
     const app: GenUIAppDefinition = {
       schemaVersion: 2, id: `preview-${libraryId}`, title: 'Preview',
-      template: libraryId === 'openui.v1' ? 'openui.app' : 'openbitfun.app',
+      template: libraryId === 'openui.v1' ? 'openui.app' : 'bitfun.app',
       libraryId, libraryRevision: libraryId === 'openui.v1' ? 1 : 2,
-      designSpec: { id: 'openbitfun.desktop.v1', revision: 1 },
+      designSpec: { id: 'bitfun.desktop.v1', revision: 1 },
       source: { kind: 'openui-lang', content: 'root = Col([Text("Live source")])' }, state: {},
     };
     const origin = mountProjection(streamingItem(app, 'root = Col([Text("Live source")])'));

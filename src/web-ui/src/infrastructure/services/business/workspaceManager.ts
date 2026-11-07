@@ -1076,12 +1076,20 @@ class WorkspaceManager {
     }
   }
 
-  public async removeRemoteWorkspace(connectionId: string, remotePath?: string): Promise<void> {
+  /**
+   * Close and forget one remote workspace record by its workspace ID.
+   * Connection IDs and remote paths are not identity: two records may share a
+   * connection, so callers must name the record they mean.
+   */
+  public async removeRemoteWorkspace(workspaceId: string): Promise<void> {
     const surface = this.captureSurface();
     try {
-      const workspace = this.findRemoteWorkspace(connectionId, remotePath);
+      const workspace = this.state.openedWorkspaces.get(workspaceId);
       if (!workspace) {
         return;
+      }
+      if (workspace.workspaceKind !== WorkspaceKind.Remote) {
+        throw new Error(`Workspace ${workspaceId} is not a remote workspace`);
       }
 
       await this.cancelRunningSessionsForWorkspace(workspace, surface);
@@ -1118,28 +1126,11 @@ class WorkspaceManager {
       if (!this.isSurfaceUnchanged(surface)) {
         throw error;
       }
-      log.error('Failed to remove remote workspace', { connectionId, remotePath, error });
+      log.error('Failed to remove remote workspace', { workspaceId, error });
       const errorMessage = describeFileAccessError(error);
       this.updateState({ error: errorMessage }, { type: 'workspace:error', error: errorMessage });
       throw error;
     }
-  }
-
-  private findRemoteWorkspace(connectionId: string, remotePath?: string): WorkspaceInfo | undefined {
-    const normalizedRemotePath = remotePath ? normalizeRemoteWorkspacePath(remotePath) : null;
-    for (const [, ws] of this.state.openedWorkspaces) {
-      if (ws.workspaceKind !== WorkspaceKind.Remote) {
-        continue;
-      }
-      if (ws.connectionId !== connectionId) {
-        continue;
-      }
-      if (normalizedRemotePath && normalizeRemoteWorkspacePath(ws.rootPath) !== normalizedRemotePath) {
-        continue;
-      }
-      return ws;
-    }
-    return undefined;
   }
 
   public async createAssistantWorkspace(): Promise<WorkspaceInfo> {

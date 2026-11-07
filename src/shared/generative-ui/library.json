@@ -1,6 +1,6 @@
 {
   "base": {
-    "id": "openbitfun.composable.v1",
+    "id": "bitfun.composable.v1",
     "components": {
       "Col": {
         "description": "Vertical layout. Without gap it spaces blocks like an article.",
@@ -3884,20 +3884,20 @@
     "metadata": {
       "revision": 2,
       "label": "BitFun",
-      "adapterKind": "openbitfun",
+      "adapterKind": "bitfun",
       "designSpecIds": [
-        "openbitfun.desktop.v1"
+        "bitfun.desktop.v1"
       ],
       "styleResources": [
-        "openbitfun-theme-tokens",
-        "openbitfun-genui-components"
+        "bitfun-theme-tokens",
+        "bitfun-genui-components"
       ],
       "rootComponent": "Col"
     }
   },
   "extensions": {
-    "openbitfun.composable.readonly.v1": {
-      "extends": "openbitfun.composable.v1",
+    "bitfun.composable.readonly.v1": {
+      "extends": "bitfun.composable.v1",
       "removeComponents": [
         "Button",
         "IconButton",
@@ -3915,13 +3915,13 @@
       "metadata": {
         "revision": 2,
         "label": "BitFun read-only",
-        "adapterKind": "openbitfun",
+        "adapterKind": "bitfun",
         "designSpecIds": [
-          "openbitfun.desktop.v1"
+          "bitfun.desktop.v1"
         ],
         "styleResources": [
-          "openbitfun-theme-tokens",
-          "openbitfun-genui-components"
+          "bitfun-theme-tokens",
+          "bitfun-genui-components"
         ],
         "readonly": true
       }
@@ -3958,15 +3958,15 @@
     }
   },
   "templates": {
-    "openbitfun.app": {
-      "library": "openbitfun.composable.v1",
+    "bitfun.app": {
+      "library": "bitfun.composable.v1",
       "description": "BitFun interactive component application; root is Col.",
       "roots": [
         "Col"
       ]
     },
-    "openbitfun.reference": {
-      "library": "openbitfun.composable.readonly.v1",
+    "bitfun.reference": {
+      "library": "bitfun.composable.readonly.v1",
       "description": "BitFun read-only component application; root is Col.",
       "roots": [
         "Col"
@@ -3989,10 +3989,12 @@
   },
   "legacyTemplateLibraries": {
     "openui.app": [
-      "openbitfun.composable.v1"
+      "openbitfun.composable.v1",
+      "bitfun.composable.v1"
     ],
     "openui.reference": [
-      "openbitfun.composable.readonly.v1"
+      "openbitfun.composable.readonly.v1",
+      "bitfun.composable.readonly.v1"
     ]
   },
   "rules": [
@@ -4022,20 +4024,20 @@
     "root = Col([head, kpis, controls, progress, plan, review])\n$focus = \"Career\"\n$energy = 7\n$weeks = 12\n$done = []\nhead = Row([Col([Title(\"Life plan\", \"xl\"), Text(\"Choose one direction, turn it into a 12-week system, and review the actions every Sunday.\", \"sm\", \"muted\")], 2), Spacer(), Badge(\"12-week cycle\", \"info\")], 3, \"start\")\nkpis = Grid([Card([Caption(\"Focus area\"), Title($focus, \"lg\"), Text(\"One direction for this cycle\", \"xs\", \"muted\")], \"soft\", 3, 1), Card([Caption(\"Energy budget\"), Title($energy + \"/10\", \"lg\"), Text(\"A realistic pace beats a perfect plan\", \"xs\", \"muted\")], \"soft\", 3, 1), Card([Caption(\"Actions checked\"), Title(@Count($done) + \"/4\", \"lg\"), Text(\"Keep the weekly loop small\", \"xs\", \"muted\")], \"soft\", 3, 1)], 3, 150, 3)\ncontrols = Card([Title(\"Set the shape of the plan\", \"md\"), SegmentedControl($focus, [\"Career\", \"Health\", \"Money\", \"Relationships\", \"Learning\"]), Slider($energy, 1, 10, 1, \"Weekly energy\", \"points\"), Row([Caption(\"Cycle length\"), Spacer(), Text($weeks + \" weeks\", \"sm\", null, \"semibold\")], 2)], \"soft\", 4, 3)\nrows = @Each(@Range(0, $weeks + 1), \"i\", {week: \"W\" + i, progress: @Round(@Clamp(i * $energy * 1.3, 0, 100))})\nprogress = Card([Row([Title(\"Progress view\", \"md\"), Spacer(), Badge($focus, \"purple\")], 2), Chart(\"area\", rows, \"week\", [\"progress\"], \"percent\", null, false, 180), Caption(\"The curve is a planning model, not a prediction. Adjust the actions when your real week gives you new information.\")], null, 4, 3)\nactions = [{area: \"Direction\", action: \"Write one sentence describing the outcome\", cadence: \"Once\"}, {area: \"Practice\", action: \"Block two 45-minute sessions\", cadence: \"Weekly\"}, {area: \"Evidence\", action: \"Record one measurable result\", cadence: \"Weekly\"}, {area: \"Review\", action: \"Keep, change or drop one action\", cadence: \"Sunday\"}]\nplan = Card([Row([Title(\"The next four actions\", \"md\"), Spacer(), Text(@Count(actions) + \" actions\", \"sm\", \"muted\")], 2), Table([\"Area\", \"Action\", \"Cadence\"], @Each(actions, \"a\", [a.area, a.action, a.cadence]))], null, 4, 3)\nreview = Card([Row([Title(\"Sunday review\", \"md\"), Spacer(), Text(@Count($done) + \" of 4 checked\", \"sm\", \"muted\")], 2), Col(@Each(actions, \"a\", Pressable([Row([Icon(@Includes($done, a.area) ? \"check-circle\" : \"circle\", \"sm\"), Text(a.area + \" · \" + a.action, \"sm\", null, \"semibold\", false, @Includes($done, a.area))], 2)], @Set($done, @Toggle($done, a.area)), @Includes($done, a.area), 2)), 2), Text(\"Keep the direction stable; change the next action when the evidence changes.\", \"xs\", \"muted\")], \"soft\", 4, 3)"
   ],
   "designSpecs": {
-    "openbitfun.desktop.v1": {
+    "bitfun.desktop.v1": {
       "revision": 1,
       "label": "BitFun desktop",
       "componentLibraries": [
-        "openbitfun.composable.v1",
-        "openbitfun.composable.readonly.v1"
+        "bitfun.composable.v1",
+        "bitfun.composable.readonly.v1"
       ],
       "sourceKinds": [
         "openui-lang",
         "html-document"
       ],
       "styleResources": [
-        "openbitfun-theme-tokens",
-        "openbitfun-genui-components"
+        "bitfun-theme-tokens",
+        "bitfun-genui-components"
       ],
       "rules": [
         "Use the host BitFun design tokens.",
@@ -4121,12 +4123,12 @@
       ],
       "designSpec": "openui.desktop.v1"
     },
-    "openbitfun": {
+    "bitfun": {
       "label": "BitFun",
       "templates": [
-        "openbitfun.app"
+        "bitfun.app"
       ],
-      "designSpec": "openbitfun.desktop.v1"
+      "designSpec": "bitfun.desktop.v1"
     }
   },
   "htmlRuntime": {
@@ -8172,5 +8174,13 @@
       }
     }
   },
-  "profileSystemPrompts": {}
+  "profileSystemPrompts": {},
+  "legacyIdentities": {
+    "openbitfun": "bitfun",
+    "openbitfun.composable.v1": "bitfun.composable.v1",
+    "openbitfun.composable.readonly.v1": "bitfun.composable.readonly.v1",
+    "openbitfun.app": "bitfun.app",
+    "openbitfun.reference": "bitfun.reference",
+    "openbitfun.desktop.v1": "bitfun.desktop.v1"
+  }
 }

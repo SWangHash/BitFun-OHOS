@@ -228,7 +228,7 @@ mod tests {
         if let Some(design_spec) = app.get("designSpec") {
             create["designSpec"] = design_spec.clone();
         }
-        json!({"protocol":"openbitfun.genui.v1","messages":[
+        json!({"protocol":"bitfun.genui.v1","messages":[
             {"createSurface":create},
             {"updateDataModel":{"state":app["state"],"values":{"future":false}}}
         ]})

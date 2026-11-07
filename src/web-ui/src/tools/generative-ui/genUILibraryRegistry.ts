@@ -1,4 +1,5 @@
 import type { GenUICatalogContract, GenUILibraryContract } from './genUIContract';
+import { canonicalGenUIIdentity } from './genUIContract';
 import type { GenUIAppDefinition } from './genUITypes';
 import type { GenUIImplementations } from './genUILibrary';
 
@@ -7,7 +8,7 @@ export interface GenUILibraryAdapter {
   id: string;
   revision: number;
   label: string;
-  adapterKind: 'openui' | 'openbitfun' | string;
+  adapterKind: 'openui' | 'bitfun' | string;
   readonly: boolean;
   contract: GenUILibraryContract;
   designSpecIds: string[];
@@ -29,7 +30,7 @@ export function listGenUILibraryAdapters(catalog: GenUICatalogContract): GenUILi
 }
 
 export function getGenUILibraryAdapter(id: string, revision: number | undefined, catalog: GenUICatalogContract): GenUILibraryAdapter | undefined {
-  const adapter = createGenUILibraryRegistry(catalog)[id];
+  const adapter = createGenUILibraryRegistry(catalog)[canonicalGenUIIdentity(id, catalog)];
   return adapter && (revision === undefined || adapter.revision === revision) ? adapter : undefined;
 }
 

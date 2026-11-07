@@ -30,6 +30,9 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import kotlinx.serialization.json.encodeToJsonElement
 import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.jsonObject
@@ -78,7 +81,7 @@ class CloudAccountClientTest {
     fun githubLoginRegistersOnlyThePublicDeviceKey() = runTest {
         val bodies = mutableListOf<kotlinx.serialization.json.JsonObject>()
         val engine = MockEngine { request ->
-            assertEquals("https://remote.bitfun.com/v/1.0.1/api/auth/login", request.url.toString())
+            assertEquals("https://remote.bitfun.com/v/1.0.2/api/auth/login", request.url.toString())
             bodies += RelayJson.parseToJsonElement(request.text()).jsonObject
             json("""{"token":"token-1","user_id":"123"}""")
         }
@@ -272,7 +275,7 @@ class CloudAccountClientTest {
         val engine = MockEngine { respond("upstream is down", HttpStatusCode.ServiceUnavailable) }
         val transport = AccountDeviceCommandTransport(
             CloudAccountClient(relayHttpClient(engine), realtimeFactory = { _, _, _ ->
-                FakeRpc { _, _ -> error("Failed key lookup must prevent RPC dispatch") }
+                FakeRpc(emptyFlow()) { _, _ -> error("Failed key lookup must prevent RPC dispatch") }
             }),
             "http://192.168.1.2:9700",
             session,
@@ -442,14 +445,20 @@ class CloudAccountClientTest {
         override fun close() {}
     }
 
-    private fun rpcClient(peerPublic: ByteArray, reply: suspend (String, JsonElement) -> JsonElement): CloudAccountClient =
+    private fun rpcClient(
+        peerPublic: ByteArray,
+        notifications: Flow<JsonObject> = emptyFlow(),
+        onKeyRead: () -> Unit = {},
+        reply: suspend (String, JsonElement) -> JsonElement,
+    ): CloudAccountClient =
         CloudAccountClient(relayHttpClient(MockEngine { request ->
             assertEquals("Bearer token-1", request.headers[HttpHeaders.Authorization])
             assertTrue(request.url.encodedPath.endsWith("/key"), "HTTP must only read the authenticated public key")
+            onKeyRead()
             json("""{"public_key":"${Base64.Default.encode(peerPublic)}"}""")
         }), processingDispatcher = kotlinx.coroutines.Dispatchers.Unconfined, realtimeFactory = { _, _, token ->
             assertEquals("token-1", token)
-            FakeRpc(reply)
+            FakeRpc(notifications, reply)
         })
 
     private suspend fun encryptedReply(key: ByteArray, response: CommandStatusResponse): JsonElement {

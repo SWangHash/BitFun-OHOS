@@ -42,6 +42,8 @@ workspace connections remain independent of Relay sign-in.
 
 - Do not call Tauri APIs directly from UI components; go through the adapter / infrastructure layer
 - Reuse `@bitfun/ui`, design tokens, theme, i18n, and Zustand stores before adding new frontend primitives
+- Floating UI uses `Portal` / `createOverlayPortal` from `@bitfun/ui`, never raw React portals or category z-index overrides. Declare `ownerRef` for sibling/coordinate child surfaces, pass `open` during retained exits, and use `useDismissibleLayer` or `subscribeOverlayInteraction` for shared event ownership. Notification stacks use neutral `OverlayRegion` layout with independently ranked cards.
+- Menu and Listbox own row spacing through `overlay.menu.rowGap`. Use `MenuList` for menu rows inside custom scroll/animation wrappers, rather than local item margins or private list-gap overrides. Check menu composition changes with `pnpm --dir src/web-ui run test:run src/shared/ui/MenuComposition.contract.test.ts`.
 - Prefer the design system's `OverflowText` for single-line labels over local ellipsis rules or sliced strings. Plain text defaults to fade plus hover/focus marquee; set `behavior="marquee"` for text-only highlights and keep icons/actions outside. Put `data-overflow-trigger` on the owning control; standard component label slots already provide overflow handling. Keep multiline, touch-first, and editable content in their appropriate layout.
 - Theme and color-token changes must follow
   `docs/architecture/theme-token-optimization.md`: failing audits should be

@@ -37,7 +37,7 @@ describe('OpenUI source adapter', () => {
     const onAction = vi.fn();
     await act(async () => root.render(<GenUIOpenUIDocument
       source={{ kind: 'openui-lang', content: 'root = Col([label, button])\nlabel = Title("OpenUI")\nbutton = Button("Ping", @ToAssistant("Ping from OpenUI"))' }}
-      library={genUIProduct.libraries['openbitfun.composable.v1']}
+      library={genUIProduct.libraries['bitfun.composable.v1']}
       onAction={onAction}
     />));
 
@@ -55,7 +55,7 @@ describe('OpenUI source adapter', () => {
     const onAction = vi.fn();
     await act(async () => root.render(<GenUIOpenUIDocument
       source={{ kind: 'openui-lang', content: 'root = Button("Copy", @CopyToClipboard("hello"))' }}
-      library={genUIProduct.libraries['openbitfun.composable.v1']}
+      library={genUIProduct.libraries['bitfun.composable.v1']}
       onAction={onAction}
     />));
 
@@ -76,7 +76,7 @@ describe('OpenUI source adapter', () => {
     Object.defineProperty(document, 'execCommand', { configurable: true, value: execCommand });
     await act(async () => root.render(<GenUIOpenUIDocument
       source={{ kind: 'openui-lang', content: 'root = Button("Copy", @CopyToClipboard("fallback"))' }}
-      library={genUIProduct.libraries['openbitfun.composable.v1']}
+      library={genUIProduct.libraries['bitfun.composable.v1']}
     />));
     await act(async () => {
       container.querySelector<HTMLButtonElement>('button')?.click();
@@ -91,7 +91,7 @@ describe('OpenUI source adapter', () => {
     const provider = vi.fn(async () => ({ value: 'from owner' }));
     await act(async () => root.render(<GenUIOpenUIDocument
       source={{ kind: 'openui-lang', content: 'root = Col([label])\nresult = Query("read_value", {}, {value: "fallback"})\nlabel = Text(result.value)' }}
-      library={genUIProduct.libraries['openbitfun.composable.v1']}
+      library={genUIProduct.libraries['bitfun.composable.v1']}
       toolProvider={{ read_value: provider }}
     />));
     await act(async () => { await Promise.resolve(); await Promise.resolve(); });
@@ -114,7 +114,7 @@ describe('OpenUI source adapter', () => {
     };
     await act(async () => root.render(<GenUIOpenUIDocument
       source={{ kind: 'openui-lang', content: 'root = Text(result.value)\nresult = Query("read_value", {}, {value: "fallback"})' }}
-      library={genUIProduct.libraries['openbitfun.composable.v1']}
+      library={genUIProduct.libraries['bitfun.composable.v1']}
       asyncProvider={asyncProvider}
       asyncPermissions={['data.read']}
       appId="async-app"
@@ -138,7 +138,7 @@ describe('OpenUI source adapter', () => {
     };
     await act(async () => root.render(<GenUIOpenUIDocument
       source={{ kind: 'openui-lang', content: 'root = Col([button, result])\n$value = "draft"\nresult = Mutation("save_value", {value: $value})\nbutton = Button("Save", @Run(result))' }}
-      library={genUIProduct.libraries['openbitfun.composable.v1']}
+      library={genUIProduct.libraries['bitfun.composable.v1']}
       asyncProvider={asyncProvider}
       asyncPermissions={['data.write']}
       onError={vi.fn()}
@@ -164,7 +164,7 @@ describe('OpenUI source adapter', () => {
     };
     await act(async () => root.render(<GenUIOpenUIDocument
       source={{ kind: 'openui-lang', content: 'root = Col([photo, map])\nphoto = SearchImage("a city")\nmap = Map([], false, null, null, "Shanghai")' }}
-      library={genUIProduct.libraries['openbitfun.composable.v1']}
+      library={genUIProduct.libraries['bitfun.composable.v1']}
       asyncProvider={asyncProvider}
       onTargetEvent={event => events.push(event)}
     />));
@@ -182,7 +182,7 @@ describe('OpenUI source adapter', () => {
     };
     await act(async () => root.render(<GenUIOpenUIDocument
       source={{ kind: 'openui-lang', content: 'root = Image("https://example.com/broken.jpg", "A city")' }}
-      library={genUIProduct.libraries['openbitfun.composable.v1']}
+      library={genUIProduct.libraries['bitfun.composable.v1']}
       asyncProvider={asyncProvider}
     />));
     await act(async () => { await new Promise(resolve => window.setTimeout(resolve, 20)); });
@@ -201,7 +201,7 @@ describe('OpenUI source adapter', () => {
     };
     await act(async () => root.render(<GenUIOpenUIDocument
       source={{ kind: 'openui-lang', content: 'root = SearchImage("A city")' }}
-      library={genUIProduct.libraries['openbitfun.composable.v1']}
+      library={genUIProduct.libraries['bitfun.composable.v1']}
       isStreaming
       asyncProvider={asyncProvider}
     />));
@@ -217,7 +217,7 @@ describe('OpenUI source adapter', () => {
     };
     await act(async () => root.render(<GenUIOpenUIDocument
       source={{ kind: 'openui-lang', content: 'root = Map([{label: "Home", lat: 31.2, lng: 121.5}, {label: "Work", lat: 31.3, lng: 121.6}], true)' }}
-      library={genUIProduct.libraries['openbitfun.composable.v1']}
+      library={genUIProduct.libraries['bitfun.composable.v1']}
       isStreaming
       asyncProvider={asyncProvider}
     />));
@@ -236,7 +236,7 @@ describe('OpenUI source adapter', () => {
     };
     await act(async () => root.render(<GenUIOpenUIDocument
       source={{ kind: 'openui-lang', content: 'root = Map([{label: "Home", lat: 31.2, lng: 121.5}, {label: "Work", lat: 31.3, lng: 121.6}], true)' }}
-      library={genUIProduct.libraries['openbitfun.composable.v1']}
+      library={genUIProduct.libraries['bitfun.composable.v1']}
       isStreaming
       asyncProvider={asyncProvider}
     />));
@@ -248,7 +248,7 @@ describe('OpenUI source adapter', () => {
   it('uses the selected product library for OpenUI functions', async () => {
     await act(async () => root.render(<GenUIOpenUIDocument
       source={{ kind: 'openui-lang', content: 'root = Col([total, sine])\ntotal = Text(@Sum([2, 3]))\nsine = Text(@Round(@Sin(1.5707963267948966), 2))' }}
-      library={genUIProduct.libraries['openbitfun.composable.v1']}
+      library={genUIProduct.libraries['bitfun.composable.v1']}
     />));
     expect(container.textContent).toContain('5');
     expect(container.textContent).toContain('1');
@@ -259,7 +259,7 @@ describe('OpenUI source adapter', () => {
     const onAction = vi.fn();
     await act(async () => root.render(<GenUIOpenUIDocument
       source={{ kind: 'openui-lang', content: 'root = Col([input, text])\ninput = Input($name, "Name", "text", @ToAssistant("Name changed"))\ntext = Text($name)' }}
-      library={genUIProduct.libraries['openbitfun.composable.v1']}
+      library={genUIProduct.libraries['bitfun.composable.v1']}
       initialState={{ $name: 'Initial' }}
       onStateUpdate={onStateUpdate}
       onAction={onAction}
@@ -284,7 +284,7 @@ describe('OpenUI source adapter', () => {
     const onStateUpdate = vi.fn();
     await act(async () => root.render(<GenUIOpenUIDocument
       source={{ kind: 'openui-lang', content: 'root = Col([input, text])\ninput = Input($name, "Name", "text")\ntext = Text($name)' }}
-      library={genUIProduct.libraries['openbitfun.composable.v1']}
+      library={genUIProduct.libraries['bitfun.composable.v1']}
       initialState={{ name: 'Initial' }}
       isStreaming
       onStateUpdate={onStateUpdate}
@@ -303,7 +303,7 @@ describe('OpenUI source adapter', () => {
   it('matches OpenUI action control semantics while streaming', async () => {
     await act(async () => root.render(<GenUIOpenUIDocument
       source={{ kind: 'openui-lang', content: 'root = Col([button, input])\nbutton = Button("Continue")\ninput = Input($name, "Name", "text")' }}
-      library={genUIProduct.libraries['openbitfun.composable.v1']}
+      library={genUIProduct.libraries['bitfun.composable.v1']}
       initialState={{ name: 'Initial' }}
       isStreaming
     />));
@@ -315,7 +315,7 @@ describe('OpenUI source adapter', () => {
   it('keeps read-only completed documents out of streaming mode', async () => {
     await act(async () => root.render(<GenUIOpenUIDocument
       source={{ kind: 'openui-lang', content: 'root = Col([button, html])\nbutton = Button("Continue")\nhtml = HtmlView("<p>Ready</p>")' }}
-      library={genUIProduct.libraries['openbitfun.composable.v1']}
+      library={genUIProduct.libraries['bitfun.composable.v1']}
       readOnly
     />));
 
@@ -327,7 +327,7 @@ describe('OpenUI source adapter', () => {
     const onError = vi.fn();
     await act(async () => root.render(<GenUIOpenUIDocument
       source={{ kind: 'openui-lang', content: 'root = Col([text])\ntext = Text("Already visible")\nbroken = Text(' }}
-      library={genUIProduct.libraries['openbitfun.composable.v1']}
+      library={genUIProduct.libraries['bitfun.composable.v1']}
       isStreaming
       onError={onError}
     />));
@@ -338,7 +338,7 @@ describe('OpenUI source adapter', () => {
   it('defers HtmlView execution until the OpenUI source stream completes', async () => {
     await act(async () => root.render(<GenUIOpenUIDocument
       source={{ kind: 'openui-lang', content: 'root = HtmlView("<script>window.bad = true</script><p>Ready</p>")' }}
-      library={genUIProduct.libraries['openbitfun.composable.v1']}
+      library={genUIProduct.libraries['bitfun.composable.v1']}
       isStreaming
     />));
     expect(container.querySelector('.gen-ui-oi-html')).toBeNull();
@@ -348,7 +348,7 @@ describe('OpenUI source adapter', () => {
   it('runs an opted-in HtmlView inline script after the source completes', async () => {
     await act(async () => root.render(<GenUIOpenUIDocument
       source={{ kind: 'openui-lang', content: 'root = HtmlView("<canvas id=\\"pendulum\\"></canvas><script>requestAnimationFrame(() => {})</script>", 360, "Pendulum")' }}
-      library={genUIProduct.libraries['openbitfun.composable.v1']}
+      library={genUIProduct.libraries['bitfun.composable.v1']}
       htmlScriptEnabled
     />));
     const frame = container.querySelector<HTMLIFrameElement>('.gen-ui-oi-html');
@@ -363,10 +363,10 @@ describe('OpenUI source adapter', () => {
       schemaVersion: 2,
       id: 'streaming-app',
       title: 'Streaming app',
-      template: 'openbitfun.app',
-      libraryId: 'openbitfun.composable.v1',
+      template: 'bitfun.app',
+      libraryId: 'bitfun.composable.v1',
       libraryRevision: 2,
-      designSpec: { id: 'openbitfun.desktop.v1', revision: 1 },
+      designSpec: { id: 'bitfun.desktop.v1', revision: 1 },
       source: {
         kind: 'openui-lang',
         content: 'root = Col([input])\ninput = Input($name, "Name", "text")',
@@ -395,7 +395,7 @@ describe('OpenUI source adapter', () => {
   it('renders SegmentedControl with owner state defaults', async () => {
     await act(async () => root.render(<GenUIOpenUIDocument
       source={{ kind: 'openui-lang', content: 'root = SegmentedControl($stage, [{"value":"探索","label":"探索"},{"value":"建设","label":"建设"}])' }}
-      library={genUIProduct.libraries['openbitfun.composable.v1']}
+      library={genUIProduct.libraries['bitfun.composable.v1']}
       initialState={{ stage: '探索' }}
     />));
     expect(container.textContent).toContain('探索');
@@ -404,7 +404,7 @@ describe('OpenUI source adapter', () => {
   it('renders the Open Intelligent UI layout and title primitives', async () => {
     await act(async () => root.render(<GenUIOpenUIDocument
       source={{ kind: 'openui-lang', content: 'root = Col([heading, body])\nheading = Title("Overview")\nbody = Row([Text("A"), Box([Text("B")])])' }}
-      library={genUIProduct.libraries['openbitfun.composable.v1']}
+      library={genUIProduct.libraries['bitfun.composable.v1']}
     />));
     expect(container.querySelector('.gen-ui-oi-col')).not.toBeNull();
     expect(container.querySelector('.gen-ui-oi-row')).not.toBeNull();
@@ -441,7 +441,7 @@ describe('OpenUI source adapter', () => {
   it('mounts BitFun controls through @bitfun/ui while keeping GenUI visuals local', async () => {
     await act(async () => root.render(<GenUIOpenUIDocument
       source={{ kind: 'openui-lang', content: 'root = Col([card, chart])\ncard = Card([Button("Continue"), Input($name, "Name", "text")], "soft")\nchart = Chart("line", [{label: "A", value: 1}, {label: "B", value: 2}], "label", ["value"])' }}
-      library={genUIProduct.libraries['openbitfun.composable.v1']}
+      library={genUIProduct.libraries['bitfun.composable.v1']}
       initialState={{ name: 'BitFun' }}
     />));
     expect(container.querySelector('[data-bitfun-component="card"]')).not.toBeNull();
@@ -453,7 +453,7 @@ describe('OpenUI source adapter', () => {
   it('keeps the transient OpenUI tree free of inspector boundaries', async () => {
     await act(async () => root.render(<GenUIOpenUIDocument
       source={{ kind: 'openui-lang', content: 'root = Col([drawing])\ndrawing = Svg([circle], "0 0 20 20")\ncircle = Circle(10, 10, 5, "accent")' }}
-      library={genUIProduct.libraries['openbitfun.composable.v1']}
+      library={genUIProduct.libraries['bitfun.composable.v1']}
     />));
     expect(container.querySelector('[data-gen-ui-node]')).toBeNull();
     expect(container.querySelector('svg > circle')).not.toBeNull();
@@ -463,7 +463,7 @@ describe('OpenUI source adapter', () => {
     for (const type of ['line', 'pie', 'scatter'] as const) {
       await act(async () => root.render(<GenUIOpenUIDocument
         source={{ kind: 'openui-lang', content: `root = Chart("${type}", [{label: "A", x: 1, value: 2}, {label: "B", x: 2, value: 3}], "${type === 'scatter' ? 'x' : 'label'}", ["value"])` }}
-        library={genUIProduct.libraries['openbitfun.composable.v1']}
+        library={genUIProduct.libraries['bitfun.composable.v1']}
       />));
       expect(container.querySelector(`[data-chart-type="${type}"]`)).not.toBeNull();
     }

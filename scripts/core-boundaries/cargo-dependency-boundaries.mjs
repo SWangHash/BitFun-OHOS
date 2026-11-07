@@ -152,6 +152,10 @@ const SERVICES_INTEGRATIONS_TOKIO_FEATURES = new Map([
   ['browser-control', ['rt', 'time']],
   ['feedback', ['fs', 'sync']],
   ['canvas-runtime', ['fs']],
+  // Diagnostic log upload uses async HTTP; it owns no filesystem or process work.
+  ['debug-log', ['rt']],
+  // Privacy bookkeeping reads local state files only.
+  ['privacy', ['fs']],
   ['deep-research', []],
   ['git', ['fs', 'io-util', 'macros', 'rt', 'time']],
   ['file-watch', ['rt', 'sync']],
@@ -192,6 +196,12 @@ const SERVICES_CORE_TOKIO_FEATURES = new Map([
   ['workspace-text-runtime', ['rt']],
   ['workspace-runtime', ['fs', 'io-util', 'process', 'rt', 'sync', 'time']],
   ['workspace-transfer', ['fs', 'io-util', 'rt', 'sync']],
+  // Host-injected credential vault. The OS keyring backend composes the same
+  // async trait surface, so `system-vault` adds no other Tokio capability.
+  ['secure-credentials', ['rt']],
+  ['system-vault', ['rt']],
+  // Screen-capture traits are implemented by the host; this owner only awaits them.
+  ['screen-capture', ['rt']],
 ]);
 const SERVICES_CORE_BASE_TOKIO_FEATURES = [];
 const SERVICES_INTEGRATIONS_TOKIO_AGGREGATES = new Set(['product-full']);

@@ -1,7 +1,7 @@
 //! GenOfficeFile: incremental Word, Excel, and PowerPoint generation.
 //!
 //! The document model and package writers live in
-//! `openbitfun-office-documents`; this tool resolves paths, loads referenced
+//! `bitfun-office-documents`; this tool resolves paths, loads referenced
 //! images, and moves bytes through the session's workspace file system so it
 //! works the same for local and remote workspaces.
 //! GenOffice reference attribution and licenses are kept beside the engine
@@ -14,7 +14,7 @@ use crate::agentic::tools::framework::{
 use crate::agentic::tools::ToolPathOperation;
 use crate::util::errors::{BitFunError, BitFunResult};
 use async_trait::async_trait;
-use openbitfun_office_documents::{
+use bitfun_office_documents::{
     collect_image_sources, guide, operation_recovery_hint, operation_schema, settings_schema,
     validate_font_input, validate_operation_headers, Detail, ImageSources, OfficeDocument,
     OfficeError, OfficeFormat, OpenOptions, ReadRequest,

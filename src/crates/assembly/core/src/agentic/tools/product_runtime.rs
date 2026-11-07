@@ -202,6 +202,7 @@ mod tests {
 
         assert_eq!(owner_registry.get_tool_names(), expected_names);
         assert!(owner_registry.get_tool("CodeReview").is_none());
+        assert!(owner_registry.get_tool("CreateCanvas").is_none());
         assert!(owner_registry.get_tool("InitMiniApp").is_none());
     }
 
@@ -226,6 +227,7 @@ mod tests {
 
         assert_eq!(owner_registry.get_tool_names(), expected_names);
         assert!(owner_registry.get_tool("CodeReview").is_none());
+        assert!(owner_registry.get_tool("CreateCanvas").is_none());
         assert!(owner_registry.get_tool("InitMiniApp").is_none());
     }
 
@@ -311,6 +313,7 @@ mod baseline_tests {
         for excluded in [
             "view_image",
             "GetFileDiff",
+            "CreateCanvas",
             "WebSearch",
             "ListMCPResources",
             "Worktree",

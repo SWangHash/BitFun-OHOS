@@ -1,4 +1,5 @@
 import { isReducedMotionPreferred } from '@/shared/utils/motionPreference';
+import { handOverHostWindowChromeToAppSurface } from './hostWindowChrome';
 import { STARTUP_OVERLAY_HIDDEN_EVENT } from './startupSignals';
 
 const STARTUP_OVERLAY_ID = 'bitfun-startup-overlay';
@@ -176,22 +177,32 @@ export function hideStartupOverlay(): Promise<void> {
   const pending = pendingExits.get(overlay);
   if (pending) return pending;
 
+  // Start the logo flight and the exit listeners synchronously so the mark
+  // begins moving on the frame the caller observes and a visibility change or
+  // invalidation cannot slip through the gap. The host window-chrome handover
+  // only gates the backdrop exit: the launch surface gives way to an interface
+  // whose buttons are already there. The request itself is started much earlier,
+  // at the first React render, so it usually resolves without waiting — see
+  // hostWindowChrome.ts.
   const handoff = startLogoHandoff(overlay);
-  const exited = waitForOverlayExitAnimation(overlay, handoff).then(() => {
+  const completion = waitForOverlayExitAnimation(overlay, handoff);
+  const exited = (async () => {
+    await handOverHostWindowChromeToAppSurface();
+    overlay.classList.add(EXIT_CLASS);
+    // Static startup window controls can still own focus when the React shell
+    // becomes ready. Release that focus before hiding the overlay from the
+    // accessibility tree, then make the exiting surface non-interactive so it
+    // cannot reclaim focus during its final animation.
+    const activeElement = document.activeElement;
+    if (activeElement instanceof HTMLElement && overlay.contains(activeElement)) {
+      activeElement.blur();
+    }
+    overlay.setAttribute('inert', '');
+    overlay.setAttribute('aria-hidden', 'true');
+    await completion;
     pendingExits.delete(overlay);
     window.dispatchEvent(new CustomEvent(STARTUP_OVERLAY_HIDDEN_EVENT));
-  });
+  })();
   pendingExits.set(overlay, exited);
-  overlay.classList.add(EXIT_CLASS);
-  // Static startup window controls can still own focus when the React shell
-  // becomes ready. Release that focus before hiding the overlay from the
-  // accessibility tree, then make the exiting surface non-interactive so it
-  // cannot reclaim focus during its final animation.
-  const activeElement = document.activeElement;
-  if (activeElement instanceof HTMLElement && overlay.contains(activeElement)) {
-    activeElement.blur();
-  }
-  overlay.setAttribute('inert', '');
-  overlay.setAttribute('aria-hidden', 'true');
   return exited;
 }

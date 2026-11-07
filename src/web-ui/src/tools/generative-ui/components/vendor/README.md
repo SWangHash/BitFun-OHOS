@@ -9,7 +9,7 @@ dynamic code loader is imported.
   is vendored from `task_genui/open-intelligent-ui/src/lib/library.ts`,
   including `components/*`, actions, functions and registered CSS. This profile
   uses the native `@openuidev/react-lang` library directly.
-- BitFun (`bitfun`): `openbitfunComponents.tsx` adapts the OpenUI Lang
+- BitFun (`bitfun`): `bitfunComponents.tsx` adapts the OpenUI Lang
   contract to product controls. Chart, Map, Svg, HtmlView, Table and media remain
   GenUI-owned implementations in `oiComponents.tsx`, with explicit host event
   and inspection adapters.

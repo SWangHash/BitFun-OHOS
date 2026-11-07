@@ -57,7 +57,7 @@ describe('generative widget projection', () => {
   });
 
   it.each([false, true])('projects a source document while parameters stream, deferred=%s', deferred => {
-    const app = { schemaVersion: 2, id: 'stream-source', title: 'Stream source', template: 'openbitfun.app', libraryId: 'openbitfun.composable.v1', libraryRevision: 2, designSpec: { id: 'openbitfun.desktop.v1', revision: 1 }, root: 'root', state: {}, source: { kind: 'openui-lang', content: 'root = Col([Text("Hello")])' } } as GenUIAppDefinition;
+    const app = { schemaVersion: 2, id: 'stream-source', title: 'Stream source', template: 'bitfun.app', libraryId: 'bitfun.composable.v1', libraryRevision: 2, designSpec: { id: 'bitfun.desktop.v1', revision: 1 }, root: 'root', state: {}, source: { kind: 'openui-lang', content: 'root = Col([Text("Hello")])' } } as GenUIAppDefinition;
     const parsed = deferred ? { tool_name: 'GenerativeUI', args: { app } } : { app };
     const item = tool({
       toolName: deferred ? 'CallDeferredTool' : 'GenerativeUI',
@@ -69,13 +69,13 @@ describe('generative widget projection', () => {
     expect(preview).toMatchObject({ isStreaming: true, readOnly: false });
   });
   it('rejects a removed graph message instead of previewing it', () => {
-    const generation = describeGenUIApp({ schemaVersion: 2, id: 'source', title: 'Source', template: 'openbitfun.app', libraryId: 'openbitfun.composable.v1', libraryRevision: 2, designSpec: { id: 'openbitfun.desktop.v1', revision: 1 }, root: 'root', state: {}, source: { kind: 'openui-lang', content: 'root = Col([])' } } as GenUIAppDefinition);
+    const generation = describeGenUIApp({ schemaVersion: 2, id: 'source', title: 'Source', template: 'bitfun.app', libraryId: 'bitfun.composable.v1', libraryRevision: 2, designSpec: { id: 'bitfun.desktop.v1', revision: 1 }, root: 'root', state: {}, source: { kind: 'openui-lang', content: 'root = Col([])' } } as GenUIAppDefinition);
     generation.messages.push({ updateLogic: {} });
     const item = tool({ _paramsBuffer: JSON.stringify(generation), partialParams: generation, toolCall: { id: 'call', input: generation } });
     expect(projectGenerativeWidgetTool(session(), item)?.app).toBeUndefined();
   });
   it('hydrates source initial values only after their complete message arrives', () => {
-    const app = { schemaVersion: 2, id: 'source-state', title: 'Source state', template: 'openbitfun.app', libraryId: 'openbitfun.composable.v1', libraryRevision: 2, designSpec: { id: 'openbitfun.desktop.v1', revision: 1 }, root: 'root', state: { name: { type: 'string', default: '' } }, source: { kind: 'openui-lang', content: 'root = Col([])' } } as GenUIAppDefinition;
+    const app = { schemaVersion: 2, id: 'source-state', title: 'Source state', template: 'bitfun.app', libraryId: 'bitfun.composable.v1', libraryRevision: 2, designSpec: { id: 'bitfun.desktop.v1', revision: 1 }, root: 'root', state: { name: { type: 'string', default: '' } }, source: { kind: 'openui-lang', content: 'root = Col([])' } } as GenUIAppDefinition;
     const item = tool({
       status: 'completed',
       isParamsStreaming: false,

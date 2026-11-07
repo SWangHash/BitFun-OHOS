@@ -22,6 +22,15 @@ const relayEncoding = await loadSource('../src/services/relayMessageEncoding.ts'
 const encryptionImports = { './relayMessageEncoding': relayEncoding.url };
 const selection = await loadSource('../src/services/accountDeviceSelection.ts');
 const { selectAccountDevice } = await import(selection.url);
+// The shared build module reads the workspace version from package.json; the
+// transpile loader cannot import JSON, so hand it an equivalent JS module.
+const workspacePackage = JSON.parse(await readFile(new URL('../../../package.json', import.meta.url), 'utf8'));
+const packageJsonStub = `data:text/javascript;base64,${Buffer.from(
+  `export const version = ${JSON.stringify(workspacePackage.version)};`,
+).toString('base64')}`;
+const clientBuild = await loadSource('../../shared/relay-transport/ClientBuild.ts', { '../../../package.json': packageJsonStub });
+const { CLIENT_PROTOCOL_VERSION, CLIENT_VERSION } = await import(clientBuild.url);
+const clientBuildImports = { '../../../shared/relay-transport/ClientBuild': clientBuild.url };
 const offline = { device_id: 'desktop-a', device_name: 'Offline desktop', online: false };
 const online = { device_id: 'desktop-b', device_name: 'Online desktop', online: true };
 const controller = { device_id: 'browser', device_name: 'Browser', online: true };
@@ -89,7 +98,7 @@ test('GitHub login registers the browser store key without generating another id
   const encryption = await loadSource('../src/services/E2EEncryption.ts', encryptionImports);
   const { deriveDeviceMessageKey } = await import(encryption.url);
   const { x25519 } = await import('@noble/curves/ed25519.js');
-  const authModule = await loadSource('../src/services/CloudAccountClient.ts', { './E2EEncryption': encryption.url, './pairingLink': links.url });
+  const authModule = await loadSource('../src/services/CloudAccountClient.ts', { './E2EEncryption': encryption.url, './pairingLink': links.url, ...clientBuildImports });
   const { CloudAccountClient } = await import(authModule.url);
   const originalFetch = globalThis.fetch;
   const originalWindow = globalThis.window;
@@ -137,7 +146,7 @@ test('account UI entry precedes discovery and mounts no remote workspace surface
   assert.match(app, /!accountDirectoryOpen && page !== 'pairing' && isWideLayout/);
   assert.match(app, /!accountDirectoryOpen && !isWideLayout/);
   const devices = await readFile(new URL('../src/pages/DevicesPage.tsx', import.meta.url), 'utf8');
-  assert.match(devices, /if \(!d.online \|\| switchingId\) return/);
+  assert.match(devices, /if \(!d\.online \|\| !isDeviceControllable\(d\) \|\| switchingId\) return/);
   assert.match(devices, /automaticSelectionAttemptedRef\.current = true/);
   assert.match(devices, /selectDevice\(target, false\)/, 'initial account selection must not require a new peer command');
   assert.ok(devices.indexOf('await client.sendDeviceRpc') < devices.indexOf('client.setTargetDeviceId(d.device_id)'));

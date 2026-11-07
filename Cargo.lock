@@ -1129,6 +1129,7 @@ dependencies = [
  "bitfun-external-sources",
  "bitfun-legacy-migration-adapters",
  "bitfun-observability",
+ "bitfun-office-documents",
  "bitfun-opencode-adapter",
  "bitfun-opencode-plugin-host",
  "bitfun-pi-adapter",
@@ -1166,7 +1167,6 @@ dependencies = [
  "napi-ohos",
  "notify",
  "once_cell",
- "openbitfun-office-documents",
  "parking_lot",
  "regex",
  "reqwest 0.13.4",
@@ -1590,6 +1590,20 @@ dependencies = [
  "uuid",
  "windows-native-keyring-store",
  "zbus-secret-service-keyring-store",
+]
+
+[[package]]
+name = "bitfun-office-documents"
+version = "2.0.0"
+dependencies = [
+ "base64 0.22.1",
+ "math-core",
+ "pulldown-cmark",
+ "roxmltree",
+ "serde",
+ "serde_json",
+ "sha2",
+ "zip 4.6.1",
 ]
 
 [[package]]
@@ -7622,20 +7636,6 @@ dependencies = [
  "dunce",
  "is-wsl",
  "libc",
-]
-
-[[package]]
-name = "openbitfun-office-documents"
-version = "2.0.0"
-dependencies = [
- "base64 0.22.1",
- "math-core",
- "pulldown-cmark",
- "roxmltree",
- "serde",
- "serde_json",
- "sha2",
- "zip 4.6.1",
 ]
 
 [[package]]

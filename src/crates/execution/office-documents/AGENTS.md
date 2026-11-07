@@ -1,6 +1,6 @@
 # office-documents
 
-Cargo package: `openbitfun-office-documents`. Owns the portable OOXML engine
+Cargo package: `bitfun-office-documents`. Owns the portable OOXML engine
 behind the `GenOfficeFile` tool: Word (`.docx`), Excel (`.xlsx`), and
 PowerPoint (`.pptx`) document models, atomic edit operations, structure reads
 with paging, and package writers. The models follow GenOffice's agent-facing
@@ -37,8 +37,8 @@ shapes (Markdown/blocks for Word, the workbook cell DSL for Excel, the
 ## Verification
 
 ```bash
-cargo test -p openbitfun-office-documents
+cargo test -p bitfun-office-documents
 ```
 
-`OFFICE_DOCUMENTS_SAMPLE_DIR=/some/dir cargo test -p openbitfun-office-documents --test end_to_end`
+`OFFICE_DOCUMENTS_SAMPLE_DIR=/some/dir cargo test -p bitfun-office-documents --test end_to_end`
 also writes the generated samples there for manual inspection in Office.

@@ -28,7 +28,7 @@ describe('GenUI HTML documents', () => {
       kind: 'html-document',
       html: '<section onclick="alert(1)"><svg viewBox="0 0 10 10"><a href="javascript:alert(1)"><path /></a></svg><script>window.bad = true</script></section>',
       css: '@import url(https://example.invalid/style.css); section { width: 100%; }',
-      script: 'window.openbitfunWidget.send({ kind: "event" })',
+      script: 'window.bitfunWidget.send({ kind: "event" })',
     });
     expect(result.document).toContain('<svg');
     expect(result.document).not.toContain('<script');
@@ -41,11 +41,12 @@ describe('GenUI HTML documents', () => {
   });
 
   it('only emits executable script and the bridge CSP when the owner enables it', () => {
-    const source = { kind: 'html-document' as const, html: '<p>bridge</p>', script: 'window.openbitfunWidget.request("echo", {value: 1}); eval("blocked")' };
-    const disabled = sanitizeGenUIHtmlSource(source, genUICatalog.designSpecs?.['openbitfun.desktop.v1']);
+    const source = { kind: 'html-document' as const, html: '<p>bridge</p>', script: 'window.bitfunWidget.request("echo", {value: 1}); eval("blocked")' };
+    const disabled = sanitizeGenUIHtmlSource(source, genUICatalog.designSpecs?.['bitfun.desktop.v1']);
     expect(disabled.document).toContain("script-src 'none'");
     expect(disabled.diagnostics).toContain('Controlled script execution is disabled on this host');
-    const enabled = sanitizeGenUIHtmlSource(source, genUICatalog.designSpecs?.['openbitfun.desktop.v1'], '', true);
+    const enabled = sanitizeGenUIHtmlSource(source, genUICatalog.designSpecs?.['bitfun.desktop.v1'], '', true);
+    expect(enabled.document).toContain('bitfunWidget');
     expect(enabled.document).toContain('openbitfunWidget');
     expect(enabled.document).toMatch(/script-src 'nonce-[0-9a-f]+'/);
     expect(enabled.document).toMatch(/<script nonce="[0-9a-f]+">/);
@@ -76,12 +77,12 @@ describe('GenUI HTML documents', () => {
   it('adds only a host-owned inspection probe when delivery checking is enabled', () => {
     const result = sanitizeGenUIHtmlSource(
       { kind: 'html-document', html: '<section><svg viewBox="0 0 10 10" /></section>', script: 'window.bad = true' },
-      genUICatalog.designSpecs?.['openbitfun.desktop.v1'],
+      genUICatalog.designSpecs?.['bitfun.desktop.v1'],
       '',
       false,
       true,
     );
-    expect(result.document).toContain('openbitfun.genui.inspection.report');
+    expect(result.document).toContain('bitfun.genui.inspection.report');
     expect(result.document).not.toContain('window.bad = true');
     expect(result.document).toMatch(/script-src 'nonce-[0-9a-f]+'/);
     expect(result.document).toMatch(/<script nonce="[0-9a-f]+">/);

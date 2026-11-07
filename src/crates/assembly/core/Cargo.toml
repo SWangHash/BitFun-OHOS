@@ -87,7 +87,7 @@ bitfun-agent-tools = { path = "../../execution/tool-contracts", optional = true 
 
 # Tool pack provider plan
 bitfun-tool-packs = { path = "../../execution/tool-provider-groups", optional = true }
-openbitfun-office-documents = { path = "../../execution/office-documents", optional = true }
+bitfun-office-documents = { path = "../../execution/office-documents", optional = true }
 
 # Core service owner crate
 bitfun-services-core = { path = "../../services/services-core", features = ["json-io", "product-identity", "workspace-identity"] }
@@ -424,7 +424,7 @@ tools-image-generation = [
 ]
 tools-office-documents = [
     "bitfun-tool-packs/office-documents",
-    "dep:openbitfun-office-documents",
+    "dep:bitfun-office-documents",
 ]
 tools-miniapp = [
     "dep:bitfun-product-domains",

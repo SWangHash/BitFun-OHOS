@@ -130,8 +130,8 @@ try {
   assert(freeFrame, 'Free document iframe did not expose a browser frame');
   await freeFrame.waitForSelector('svg[aria-label="Decorative chart"]');
   assert.match(await freeFrame.$eval('body', element => element.textContent ?? ''), /Free SVG/);
-  assert.equal(await freeFrame.$eval('meta[name="openbitfun-design-spec"]', element => element.content), 'Harmony phone@1');
-  assert.equal(await freeFrame.$eval('meta[name="openbitfun-style-resources"]', element => element.content), 'openbitfun-theme-tokens,openbitfun-harmony-components');
+  assert.equal(await freeFrame.$eval('meta[name="bitfun-design-spec"]', element => element.content), 'Harmony phone@1');
+  assert.equal(await freeFrame.$eval('meta[name="bitfun-style-resources"]', element => element.content), 'bitfun-theme-tokens,openbitfun-harmony-components');
   const scriptFrameElement = await page.$('[data-testid="script-live-document"] iframe[data-gen-ui-html-frame]');
   assert(scriptFrameElement, 'Controlled script iframe did not mount');
   const scriptFrame = await scriptFrameElement.contentFrame();

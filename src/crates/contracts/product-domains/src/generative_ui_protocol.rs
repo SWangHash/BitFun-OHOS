@@ -3,7 +3,9 @@
 //! A generation is an ordered source document followed by optional state
 //! values. The former graph protocol was deliberately removed: accepting it
 //! here would keep the old renderer and its failure modes alive.
-use super::generative_ui::{catalog, safe, validate, validate_generation, validate_state};
+use super::generative_ui::{
+    canonicalize_app_identities, catalog, safe, validate, validate_generation, validate_state,
+};
 use serde_json::{json, Map, Value};
 
 pub fn assemble(input: &Value) -> Result<(Value, Value), String> {
@@ -11,7 +13,7 @@ pub fn assemble(input: &Value) -> Result<(Value, Value), String> {
     // arguments as a JSON string. Accept that wire-level representation at
     // this boundary, then validate and assemble the canonical array shape.
     let mut normalized_input = input.clone();
-    let messages = match input.get("messages") {
+    let mut messages = match input.get("messages") {
         Some(Value::Array(messages)) => messages.clone(),
         Some(Value::String(serialized)) => serde_json::from_str::<Value>(serialized)
             .ok()
@@ -19,7 +21,23 @@ pub fn assemble(input: &Value) -> Result<(Value, Value), String> {
             .ok_or("generation.messages must be an array")?,
         _ => return Err("generation.messages must be an array".into()),
     };
+    for message in &mut messages {
+        if let Some(surface) = message.get_mut("createSurface") {
+            *surface = canonicalize_app_identities(surface);
+        }
+    }
     normalized_input["messages"] = Value::Array(messages.clone());
+    if normalized_input
+        .get("protocol")
+        .and_then(Value::as_str)
+        .is_some_and(|protocol| {
+            catalog()["legacyProtocols"]
+                .as_array()
+                .is_some_and(|items| items.iter().any(|item| item.as_str() == Some(protocol)))
+        })
+    {
+        normalized_input["protocol"] = Value::String(catalog()["protocol"].as_str().unwrap_or("bitfun.genui.v1").to_owned());
+    }
     if messages.iter().any(|message| {
         message.get("updateComponents").is_some() || message.get("updateLogic").is_some()
     }) {
@@ -91,8 +109,8 @@ mod tests {
 
     #[test]
     fn assembles_source_and_values() {
-        let input = json!({"protocol":"openbitfun.genui.v1","messages":[
-            {"createSurface":{"id":"a","title":"A","template":"openbitfun.app","libraryId":"openbitfun.composable.v1","libraryRevision":2,"designSpec":{"id":"openbitfun.desktop.v1","revision":1},"source":{"kind":"openui-lang","content":"root = Col([])"}}},
+        let input = json!({"protocol":"bitfun.genui.v1","messages":[
+            {"createSurface":{"id":"a","title":"A","template":"bitfun.app","libraryId":"bitfun.composable.v1","libraryRevision":2,"designSpec":{"id":"bitfun.desktop.v1","revision":1},"source":{"kind":"openui-lang","content":"root = Col([])"}}},
             {"updateDataModel":{"values":{"name":"Ada"}}}
         ]});
         let (app, state) = assemble(&input).unwrap();
@@ -102,9 +120,21 @@ mod tests {
     }
 
     #[test]
-    fn rejects_graph_messages() {
+    fn accepts_legacy_protocol_and_identities_then_emits_canonical_app() {
         let input = json!({"protocol":"openbitfun.genui.v1","messages":[
-            {"createSurface":{"id":"a","title":"A","template":"openbitfun.app","libraryId":"openbitfun.composable.v1","libraryRevision":2,"designSpec":{"id":"openbitfun.desktop.v1","revision":1},"source":{"kind":"openui-lang","content":"root = Col([])"}}},
+            {"createSurface":{"id":"a","title":"A","template":"openbitfun.app","libraryId":"openbitfun.composable.v1","libraryRevision":2,"designSpec":{"id":"openbitfun.desktop.v1","revision":1},"source":{"kind":"openui-lang","content":"root = Col([])"}}}
+        ]});
+        let (app, state) = assemble(&input).unwrap();
+        assert_eq!(app["template"], "bitfun.app");
+        assert_eq!(app["libraryId"], "bitfun.composable.v1");
+        assert_eq!(app["designSpec"]["id"], "bitfun.desktop.v1");
+        assert_eq!(state, json!({}));
+    }
+
+    #[test]
+    fn rejects_graph_messages() {
+        let input = json!({"protocol":"bitfun.genui.v1","messages":[
+            {"createSurface":{"id":"a","title":"A","template":"bitfun.app","libraryId":"bitfun.composable.v1","libraryRevision":2,"designSpec":{"id":"bitfun.desktop.v1","revision":1},"source":{"kind":"openui-lang","content":"root = Col([])"}}},
             {"updateComponents":{"components":[]}}
         ]});
         let error = assemble(&input).unwrap_err();
@@ -115,14 +145,14 @@ mod tests {
     fn accepts_stringified_messages_from_compatible_tool_bridges() {
         let messages = json!([
             {"createSurface": {
-                "id":"a", "title":"A", "template":"openbitfun.app",
-                "libraryId":"openbitfun.composable.v1", "libraryRevision":2,
-                "designSpec":{"id":"openbitfun.desktop.v1","revision":1},
+                "id":"a", "title":"A", "template":"bitfun.app",
+                "libraryId":"bitfun.composable.v1", "libraryRevision":2,
+                "designSpec":{"id":"bitfun.desktop.v1","revision":1},
                 "source":{"kind":"openui-lang","content":"root = Col([])"}
             }}
         ]);
         let input = json!({
-            "protocol":"openbitfun.genui.v1",
+            "protocol":"bitfun.genui.v1",
             "messages": serde_json::to_string(&messages).unwrap(),
         });
         let (app, state) = assemble(&input).unwrap();

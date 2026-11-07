@@ -972,7 +972,7 @@ mod tests {
             ToolCallStreamKey::Indexed(0),
             Some("call_genui".into()),
             Some("GenerativeUI".into()),
-            Some(r#"{"id":"app","title":"Demo","template":"openbitfun.app","libraryId":"openbitfun.composable.v1","libraryRevision":2,"source":{"kind":"openui-lang","content":"root = Text("#.into()),
+            Some(r#"{"id":"app","title":"Demo","template":"bitfun.app","libraryId":"bitfun.composable.v1","libraryRevision":2,"source":{"kind":"openui-lang","content":"root = Text("#.into()),
             false,
         );
         assert_eq!(
@@ -1036,7 +1036,7 @@ mod tests {
             ToolCallStreamKey::Indexed(0),
             None,
             None,
-            Some(r#","libraryId":"openbitfun.composable.v1"}"#.into()),
+            Some(r#","libraryId":"bitfun.composable.v1"}"#.into()),
             false,
         );
         assert!(after_content.genui_stream.is_none());

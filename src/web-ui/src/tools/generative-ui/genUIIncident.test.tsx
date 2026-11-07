@@ -12,10 +12,10 @@ const app: GenUIAppDefinition = {
   schemaVersion: 2,
   id: 'source-incident',
   title: 'Source incident',
-  template: 'openbitfun.app',
-  libraryId: 'openbitfun.composable.v1',
+  template: 'bitfun.app',
+  libraryId: 'bitfun.composable.v1',
   libraryRevision: 2,
-  designSpec: { id: 'openbitfun.desktop.v1', revision: 1 },
+  designSpec: { id: 'bitfun.desktop.v1', revision: 1 },
   source: { kind: 'openui-lang', content: 'root = Col([Title("Amount")])' },
   state: {},
 };

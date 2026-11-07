@@ -17,11 +17,11 @@ describe('product library generation contract', () => {
     expect(genUICatalog.genuiSystemPrompts?.openui).toContain('root = Card([title, stepper, list, copy])');
     expect(genUICatalog.genuiSystemPrompts?.openui).not.toContain('Life plan');
     expect(genUICatalog.genuiSystemPrompts?.bitfun).not.toContain('Icon3D');
-    expect(genUICatalog.libraries['openbitfun.composable.v1'].components.Icon3D).toBeUndefined();
+    expect(genUICatalog.libraries['bitfun.composable.v1'].components.Icon3D).toBeUndefined();
     expect(genUICatalog.genuiSystemPrompts?.openui).toContain('## Important Rules');
     expect(genUICatalog.profiles?.openui?.templates).toEqual(['openui.app']);
-    expect(genUICatalog.profiles?.bitfun?.templates).toEqual(['openbitfun.app']);
-    const library = genUICatalog.libraries['openbitfun.composable.v1'];
+    expect(genUICatalog.profiles?.bitfun?.templates).toEqual(['bitfun.app']);
+    const library = genUICatalog.libraries['bitfun.composable.v1'];
     const runtime = genUIProduct.libraries[library.id];
     expect(runtime.contract).toEqual(library);
     expect(Object.keys(runtime.components).sort()).toEqual(Object.keys(library.components).sort());
@@ -66,12 +66,27 @@ describe('product library generation contract', () => {
     } as GenUIAppDefinition;
     expect(preflightGenUIApp(legacy).accepted).toBe(true);
   });
+  it('accepts legacy template, library, profile and design-spec identities', () => {
+    const legacy = {
+      schemaVersion: 2,
+      id: 'legacy-bitfun',
+      title: 'Legacy BitFun app',
+      template: 'openbitfun.app',
+      libraryId: 'openbitfun.composable.v1',
+      libraryRevision: 2,
+      designSpec: { id: 'openbitfun.desktop.v1', revision: 1 },
+      source: { kind: 'openui-lang', content: 'root = Col([])' },
+      state: {},
+    } as GenUIAppDefinition;
+    expect(preflightGenUIApp(legacy).accepted).toBe(true);
+    expect(legacy.libraryId).toBe('openbitfun.composable.v1');
+  });
   it('rejects undeclared schema semantics and invalid template roots at product build time', () => {
     const invalid = structuredClone(source) as any;
     invalid.base.components.Text.props.properties.text.minimum = 1;
     expect(() => compileCatalog(invalid)).toThrow('Unsupported schema keyword');
     const wrongRoot = structuredClone(source);
-    wrongRoot.templates['openbitfun.app'].roots = ['Missing'];
+    wrongRoot.templates['bitfun.app'].roots = ['Missing'];
     expect(() => compileCatalog(wrongRoot)).toThrow('root components');
   });
 });

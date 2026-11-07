@@ -31,7 +31,7 @@ or operation compatibility.
 
 The complete upstream [license](LICENSE-GENOFFICE.txt) and
 [NOTICE](NOTICE-GENOFFICE.txt) are preserved here. GenOffice-derived material
-remains subject to Apache-2.0; OpenBitFun-authored additions use the repository's
+remains subject to Apache-2.0; BitFun-authored additions use the repository's
 MIT license. This attribution does not relicense the rest of BitFun.
 The upstream NOTICE describes components in GenOffice's own distribution;
 those references do not mean BitFun bundles those components.

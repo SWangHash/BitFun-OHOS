@@ -1701,7 +1701,7 @@ const MarkdownSurface = React.memo<MarkdownRendererProps & { thinking?: boolean;
             data-bitfun-part="imageFallback"
             title={label}
           >
-            {props.alt ? `${props.alt} ??${label}` : label}
+            {props.alt ? `${props.alt} — ${label}` : label}
           </span>
         );
       }

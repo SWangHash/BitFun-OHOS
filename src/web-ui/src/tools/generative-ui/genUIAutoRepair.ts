@@ -7,7 +7,8 @@ import { getActiveSurfaceScope } from '@/infrastructure/peer-device/deviceSurfac
 import { flowChatStore } from '@/flow_chat/store/FlowChatStore';
 
 const MAX_ATTEMPTS_PER_APP = 2;
-const STORAGE_KEY = 'openbitfun.genui.auto-repair.v1';
+const STORAGE_KEY = 'bitfun.genui.auto-repair.v1';
+const LEGACY_STORAGE_KEY = 'openbitfun.genui.auto-repair.v1';
 type Entry = { attempts: number; errors: string[] };
 type State = Record<string, Entry>;
 
@@ -17,8 +18,11 @@ function repairErrorKey(errors: GenUIRenderDiagnostic[]): string {
 }
 
 function readState(): State {
-  try { return JSON.parse(window.localStorage.getItem(STORAGE_KEY) ?? '{}') as State; }
-  catch { return {}; }
+  const read = (key: string): State => {
+    try { return JSON.parse(window.localStorage.getItem(key) ?? '{}') as State; }
+    catch { return {}; }
+  };
+  return { ...read(LEGACY_STORAGE_KEY), ...read(STORAGE_KEY) };
 }
 
 function appIdentity(value: string): string {

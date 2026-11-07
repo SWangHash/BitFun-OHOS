@@ -91,7 +91,7 @@ BitFun's Office document engine was developed with reference to GenOffice's
 agent-facing Word operations, Excel cell DSL, and PowerPoint page specification.
 BitFun implements a Rust engine with atomic batches, embedded editable models,
 OOXML package writers, and local/remote workspace integration. GenOffice-derived
-material remains subject to Apache-2.0; OpenBitFun-authored additions use MIT.
+material remains subject to Apache-2.0; BitFun-authored additions use MIT.
 
 Applicable upstream notice:
 

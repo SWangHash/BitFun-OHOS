@@ -167,7 +167,7 @@ const openuiLangReference = [
     object({ createSurface: object({ id: str, title: str, description: { type: 'string' }, template: { enum: Object.keys(source.templates) }, libraryId: { enum: libraryIds }, libraryRevision: { type: 'integer' }, designSpec: designSpecIdentity, source: { anyOf: [ref('openuiDocument'), ref('htmlDocument')] } }, ['id', 'title', 'template', 'libraryId', 'libraryRevision', 'designSpec', 'source']) }),
     object({ updateDataModel: object({ state: app.properties.state, values: { type: 'object' } }, []) }),
   ] };
-  const generation = object({ protocol: { const: 'openbitfun.genui.v1' }, messages: { type: 'array', minItems: 1, items: message } });
+  const generation = object({ protocol: { const: 'bitfun.genui.v1' }, messages: { type: 'array', minItems: 1, items: message } });
   const generationInstructions = 'Write protocol first, then messages. For a new component application, prefer createSurface.source.kind = openui-lang and stream the raw OpenUI Lang program in source.content as it is produced; keep stable statement IDs so completed statements can render before the enclosing transport object closes. Use only the selected library. For a free design request, use source.kind = html-document with HTML/CSS/SVG. The host renders both source kinds in the selected design specification and rejects TSX or per-app compilation. updateDataModel only provides initial state values and must not be required for the first render. ' + openuiLangReference;
   generation.description = generationInstructions + ' ' + app.description;
   const profiles = structuredClone(source.profiles ?? {});
@@ -195,5 +195,5 @@ const openuiLangReference = [
     return [profileId, override ?? generated];
   }));
   const libraryAdapters = Object.fromEntries(Object.entries(libraries).map(([id, library]) => [id, { ...structuredClone(library.metadata), id }]));
-  return { contractVersion: 4, $defs: { state, htmlDocument, openuiDocument }, app, generation, generationInstructions, openuiLangReference, openuiPrompts, genuiSystemPrompts, libraries, libraryAdapters, templates: source.templates, legacyTemplateLibraries: source.legacyTemplateLibraries ?? {}, designSpecs: source.designSpecs ?? {}, profiles, rules: source.rules, htmlRuntime: source.htmlRuntime };
+  return { contractVersion: 4, protocol: 'bitfun.genui.v1', legacyProtocols: ['openbitfun.genui.v1'], legacyIdentities: source.legacyIdentities ?? {}, $defs: { state, htmlDocument, openuiDocument }, app, generation, generationInstructions, openuiLangReference, openuiPrompts, genuiSystemPrompts, libraries, libraryAdapters, templates: source.templates, legacyTemplateLibraries: source.legacyTemplateLibraries ?? {}, designSpecs: source.designSpecs ?? {}, profiles, rules: source.rules, htmlRuntime: source.htmlRuntime };
 }

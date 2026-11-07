@@ -39,7 +39,7 @@ describe('default OpenUI component catalog', () => {
         'svg = Svg([line, circle, caption], "0 0 100 100")',
         'html = HtmlView("<p>Safe</p>")',
       ].join('\n') }}
-      library={genUIProduct.libraries['openbitfun.composable.v1']}
+      library={genUIProduct.libraries['bitfun.composable.v1']}
       initialState={{ range: 5, date: '2026-10-31' }}
       onError={next => errors(...next)}
     />));
@@ -62,7 +62,7 @@ describe('default OpenUI component catalog', () => {
   it('honors an explicit SVG height instead of deriving it from the wide card', async () => {
     await act(async () => root.render(<GenUIOpenUIDocument
       source={{ kind: 'openui-lang', content: 'root = Svg([Line(0, 0, 100, 100, "accent", 2)], "0 0 100 100", "100%", 180)' }}
-      library={genUIProduct.libraries['openbitfun.composable.v1']}
+      library={genUIProduct.libraries['bitfun.composable.v1']}
     />));
     const svg = container.querySelector<SVGSVGElement>('.gen-ui-oi-svg');
     expect(svg?.getAttribute('height')).toBe('180');

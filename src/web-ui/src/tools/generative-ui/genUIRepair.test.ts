@@ -6,7 +6,7 @@ import { genUIContentKey } from './genUIState';
 import type { GenUIVerification } from './genUIVerification';
 import type { GenerativeWidgetOrigin } from '@/flow_chat/utils/generativeWidgetProjection';
 const fixture = vi.hoisted(() => ({
-  projection: { app: { schemaVersion: 2, id: 'app', title: 'Original', template: 'openbitfun.app', libraryId: 'openbitfun.composable.v1', libraryRevision: 2, designSpec: { id: 'openbitfun.desktop.v1', revision: 1 }, source: { kind: 'openui-lang', content: 'root = Col([])' }, state: {} }, appState: { completed: false }, isStreaming: false },
+  projection: { app: { schemaVersion: 2, id: 'app', title: 'Original', template: 'bitfun.app', libraryId: 'bitfun.composable.v1', libraryRevision: 2, designSpec: { id: 'bitfun.desktop.v1', revision: 1 }, source: { kind: 'openui-lang', content: 'root = Col([])' }, state: {} }, appState: { completed: false }, isStreaming: false },
   sendMessage: vi.fn().mockResolvedValue(undefined),
   supported: true,
   refresh: vi.fn().mockResolvedValue({ items: [], activeTurnId: 'running-turn' }),

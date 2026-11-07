@@ -10,7 +10,7 @@ pnpm --dir src/web-ui run lint
 pnpm --dir src/web-ui run test:run <the files below that your change touches>
 ```
 
-Pick by what you changed rather than running the whole column â€?but this is the
+Pick by what you changed rather than running the whole column â€” but this is the
 whole column, and it is the only list. Two divergent copies of it used to exist,
 each missing what the other had.
 
@@ -184,7 +184,7 @@ pixel-overscan stage measured:
 
 These runs executed four real shell commands and four real edits, retained the
 reader position while output grew, and persisted every paragraph. Most frames
-were already 16â€?8ms before optimization; the improvement is removal of the
+were already 16â€“18ms before optimization; the improvement is removal of the
 large isolated stall, not a several-fold speedup of every frame. The earlier
 160ms combined tool/startup sample is not comparable to isolated text arrival.
 The fixture now also records a separate 24-paragraph sustained-follow phase.
@@ -216,7 +216,7 @@ The old readiness check waited for the offscreen/unmounted user bubble, exhausti
 subsequently removed that polling entirely in `06e3472a6`; this branch retains
 main's settled-viewport handoff. The measurements below predate that integration
 and have not been repeated on the rebased branch.
-The sampled backend restore took only 26â€?1ms, conversion 0ms and store commit
+The sampled backend restore took only 26â€“31ms, conversion 0ms and store commit
 2ms; it was the UI readiness wait that dominated this fixture. This does not
 establish every provider, cold-disk, remote or whole-document opening latency.
 
@@ -238,13 +238,13 @@ The eight-leaf overscan cap (`0ee4a7b250c892ca`) was then measured three times
 
 | Phase | Active intervals/run | P50 | P95 range | >33.33ms | Maximum |
 |---|---:|---:|---:|---:|---:|
-| Reading up/down | 122â€?24 | 17ms | 18â€?9ms | 0â€?.8% | 21â€?0ms |
-| Fast up, 1,800px steps | 125â€?28 | 17ms | 34â€?6ms | 5.5â€?.2% | 74â€?9ms |
-| Fast down, 1,800px steps | 124â€?26 | 17ms | 23â€?6ms | 1.6% | 44â€?1ms |
+| Reading up/down | 122â€“124 | 17ms | 18â€“19ms | 0â€“0.8% | 21â€“40ms |
+| Fast up, 1,800px steps | 125â€“128 | 17ms | 34â€“36ms | 5.5â€“7.2% | 74â€“79ms |
+| Fast down, 1,800px steps | 124â€“126 | 17ms | 23â€“26ms | 1.6% | 44â€“61ms |
 
 Peak tool rows fell to 34. No run had a painted reversal >4px or uncovered gap
 >48px. Two of the three runs still failed the unchanged whole-phase P95 <34ms
-gate. Fast-up consecutive stalls lasted 231â€?56ms in aggregate: this remains an
+gate. Fast-up consecutive stalls lasted 231â€“256ms in aggregate: this remains an
 optimization target, and the stage must not be described as universally smooth.
 CPU-contended runs (`6XF2Bv`, `Dqp3ur`) are retained but excluded from isolated
 performance conclusions; an unrelated encoder was consuming multiple cores.
@@ -476,11 +476,11 @@ checks; mobile Remote Control uses its own message renderer.
    The transcript must come to rest with the surviving last Turn at the
    *content end*, not at the old reveal position.
 6. Roll a Turn back from further up a transcript, having scrolled to reach it.
-   The surviving last Turn must end at the bottom here too â€?scrolling to reach
+   The surviving last Turn must end at the bottom here too â€” scrolling to reach
    the button hands the viewport to the reader, and the answer has to run
    anyway. Leaving it to the anchor is what showed Turns 2..6 of an 8-Turn
    session with the new last Turn's answer below the fold.
-7. Edit a message and rerun it. There must be one movement, not two â€?the
+7. Edit a message and rerun it. There must be one movement, not two â€” the
    truncation is silent and the rerun's Turn reveals as usual.
 8. A new message gently settles, followed by its timestamp and action group,
    within about 300ms. A quick reply appears immediately. Scroll the message out
@@ -506,19 +506,19 @@ checks; mobile Remote Control uses its own message renderer.
    the gesture is recent, and must resume once it goes quiet.
 3. Jump to latest from a screen or two up is animated rather than an instant
    jump. It must glide the whole way, with at most a small catch-up for content
-   that arrived while it travelled â€?a stand-down counted in frames rather than
+   that arrived while it travelled â€” a stand-down counted in frames rather than
    milliseconds used to cut this short.
 4. Jump to latest from the top of a long transcript lands outright. Half an
    animation followed by a jump is the failure to look for, and it is what the
    distance cap exists to prevent; `followOutput.jumpBehavior` says which of the
    two was chosen and how many viewports away the target was.
 5. While reading a history window, let output arrive from somewhere else. The
-   viewport must not move â€?this is the case the submission event exists to
+   viewport must not move â€” this is the case the submission event exists to
    stay out of.
 6. Watch a Markdown answer stream past the bottom of the viewport. It must
    scroll rather than step: no move of a whole line, and none of the ease's
    lag left behind once the stream stops.
-7. Stream a burst â€?a code fence or a table arriving at once â€?and confirm it
+7. Stream a burst â€” a code fence or a table arriving at once â€” and confirm it
    goes the whole way in one move rather than gliding through content nobody
    has seen, and that the jump-to-latest bar does not flash while it does.
 8. Turn on `prefers-reduced-motion` and stream again. The follow must step
@@ -549,20 +549,20 @@ checks; mobile Remote Control uses its own message renderer.
 ### Output catching up with a reader in the blank
 
 1. Send a message so its one-shot reveal has blank below it, then wheel up a
-   little â€?far enough to leave the tail, not far enough to push the blank off
-   screen â€?and take your hand off. As the answer grows past the bottom edge the
+   little â€” far enough to leave the tail, not far enough to push the blank off
+   screen â€” and take your hand off. As the answer grows past the bottom edge the
    transcript must resume following, easing rather than snapping, and the
    jump-to-latest affordance must disappear with it.
 2. The same scroll, but keep wheeling. The transcript must not take the viewport
    back mid-gesture, and once you are above the end of content it must leave you
-   there however much more arrives â€?until you go back down yourself.
+   there however much more arrives â€” until you go back down yourself.
 3. Scroll up past the end of content, stop, and let output arrive. Nothing may
    move. This is the case the rule must never claim.
-4. From there â€?above the end of content, follow long gone â€?scroll back *down*
+4. From there â€” above the end of content, follow long gone â€” scroll back *down*
    until the blank shows again and stop. Follow must resume as output reaches
    the bottom edge. Repeat it a third time. Nothing about this is once-only.
-5. With no blank on screen at all â€?a transcript that fills the viewport, mid
-   answer â€?scroll up a little. Follow must not resume until you bring the blank
+5. With no blank on screen at all â€” a transcript that fills the viewport, mid
+   answer â€” scroll up a little. Follow must not resume until you bring the blank
    back on screen; nothing was crossed.
 
 ### The scrollbar
@@ -582,8 +582,8 @@ checks; mobile Remote Control uses its own message renderer.
 
 ### Resizing
 
-1. With the viewport resting at the end but *not* following â€?scroll away and
-   back, and check the jump-to-latest affordance is hidden â€?resizing the
+1. With the viewport resting at the end but *not* following â€” scroll away and
+   back, and check the jump-to-latest affordance is hidden â€” resizing the
    window keeps content against the bottom in every direction: taller reveals
    more history above, shorter does not cut the last lines off, and narrower
    does not push them off screen as the text rewraps. Repeat while reading
@@ -613,7 +613,7 @@ IO timing.
    Turn, with no run of pages and no point where scrolling up stops doing
    anything.
 3. Open a long `isPartial` session and scroll up slowly through several paging
-   junctions. The Turn under the cursor must not move â€?not backwards, not
+   junctions. The Turn under the cursor must not move â€” not backwards, not
    forwards, and not for a single frame. A stall while a page is measured is a
    known gap and reads differently from a jump: the picture freezes and
    resumes in place, rather than showing different content and snapping back.
@@ -622,7 +622,7 @@ IO timing.
 4. During that scroll, check that a paging junction does not leave the viewport
    stuck: keep scrolling past it, then wheel back down, and confirm the
    transcript still tracks the gesture in both directions. Nothing on screen may
-   fade or slide as rows come back â€?a row entering the rendered window is not
+   fade or slide as rows come back â€” a row entering the rendered window is not
    its content arriving.
 5. Navigate to the first Turn of a long session, then jump to latest. The tail
    window it lands on can be short enough to fit inside the viewport, which
@@ -631,7 +631,7 @@ IO timing.
    wheel emits no scroll event and the gesture is the only thing to go on.
 6. In an `isPartial` session that paged on open and is now streaming, scroll
    down into the reserved blank and use jump-to-latest to return. No history
-   status may appear at either end of the transcript â€?the transcript already
+   status may appear at either end of the transcript â€” the transcript already
    reaches the newest Turn, so there is nothing past its bottom to load. This
    is the case that showed "preparing the conversation history" under a
    complete transcript, permanently, and survived cancelling the Turn.
@@ -666,22 +666,22 @@ Keyboard focus has its own outline and does not navigate until activation.
 
 1. Turn Rail and Usage Report navigation can top-align the final Turns.
 2. Click the last Turn on the Turn Rail while it is short. It must land in one
-   movement at the end of the transcript â€?no top-align followed by a slide
+   movement at the end of the transcript â€” no top-align followed by a slide
    back down. Do it from near the tail *and* from the top of a long session:
    those are the rendered and unrendered branches, and they take different
    paths. Then click a final Turn whose answer is longer than the viewport: it
    must still top-align.
-3. Navigate to a Turn from the Turn Rail â€?a near one, a far one, and one close
+3. Navigate to a Turn from the Turn Rail â€” a near one, a far one, and one close
    enough to the end that the window loaded for it reaches the newest Turn. All
    three must come to rest on that Turn at the viewport top and stay there.
 4. Navigate to a far Turn and start scrolling with the wheel before it comes to
    rest. The gesture wins immediately and nothing pulls the viewport back to
    the Turn afterwards, including several seconds later.
 5. From the Session Usage report, click a tool call and a slow span. Each must
-   come to rest with that item centred, in **one** movement â€?no landing on the
+   come to rest with that item centred, in **one** movement â€” no landing on the
    Turn followed by a slide onto the item a few frames later.
 6. **While a Turn is streaming**, click a Turn well up the history. It must land
-   on that Turn and stay there â€?not drift back to where you were reading half a
+   on that Turn and stay there â€” not drift back to where you were reading half a
    second later, which is when the navigation's hold lapses. Then click the same
    Turn again from where you land: the second and later clicks used to fail
    where the first appeared to work.
@@ -690,7 +690,7 @@ Keyboard focus has its own outline and does not navigate until activation.
    keep going after streaming ends: the failure was a scroll that came to rest
    and was then returned, in full, to where that gesture had started.
 8. Scroll **down** through a long answer in several flicks, in a session with
-   enough history to keep re-measuring. Each flick keeps its distance â€?the
+   enough history to keep re-measuring. Each flick keeps its distance â€” the
    failure was arriving and then sliding back part of the way, every time, so
    that a given point in the transcript could not be passed at all.
 9. With several short Turns visible together, only the current Turn's rail marker

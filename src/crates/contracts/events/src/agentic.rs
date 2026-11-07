@@ -1076,8 +1076,8 @@ mod tests {
             reset: false,
             app_id: Some("app-1".to_string()),
             title: Some("Hello".to_string()),
-            template: Some("openbitfun.app".to_string()),
-            library_id: Some("openbitfun.composable.v1".to_string()),
+            template: Some("bitfun.app".to_string()),
+            library_id: Some("bitfun.composable.v1".to_string()),
             library_revision: Some(2),
         };
 

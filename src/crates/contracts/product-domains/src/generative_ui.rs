@@ -16,18 +16,57 @@ pub fn catalog() -> &'static Value {
 /// library selected in settings, while this prompt supplies shared rules and
 /// worked examples without inflating the tool input schema.
 pub fn system_prompt_for_profile(profile: &str) -> Option<&'static str> {
-    catalog()["genuiSystemPrompts"][profile].as_str()
+    catalog()["genuiSystemPrompts"][canonical_identity(profile).as_str()].as_str()
 }
 
-pub const OPENUI_LANG_RESOURCE_ID_PREFIX: &str = "openbitfun.genui.openui-lang";
+/// Canonical GenUI identity for a value persisted or sent by an older build.
+/// Unknown values are returned unchanged so future identities stay readable.
+pub fn canonical_identity(identity: &str) -> String {
+    catalog()["legacyIdentities"][identity]
+        .as_str()
+        .unwrap_or(identity)
+        .to_owned()
+}
+
+/// Normalize a clone before validation. Persisted application payloads are
+/// never rewritten on read; legacy identities stay intact on disk.
+pub(super) fn canonicalize_app_identities(app: &Value) -> Value {
+    let mut canonical = app.clone();
+    for (field, identity) in [
+        ("template", app["template"].as_str()),
+        ("libraryId", app["libraryId"].as_str()),
+    ] {
+        if let Some(value) = identity {
+            let resolved = canonical_identity(value);
+            if resolved != value {
+                canonical[field] = Value::String(resolved);
+            }
+        }
+    }
+    if let Some(value) = app["designSpec"]["id"].as_str() {
+        let resolved = canonical_identity(value);
+        if resolved != value {
+            canonical["designSpec"]["id"] = Value::String(resolved);
+        }
+    }
+    canonical
+}
+
+pub const OPENUI_LANG_RESOURCE_ID_PREFIX: &str = "bitfun.genui.openui-lang";
+const LEGACY_OPENUI_LANG_RESOURCE_ID_PREFIX: &str = "openbitfun.genui.openui-lang";
 
 pub fn system_prompt_resource_id_for_profile(profile: &str) -> Option<String> {
-    system_prompt_for_profile(profile)?;
+    let profile = canonical_identity(profile);
+    system_prompt_for_profile(&profile)?;
     Some(format!("{OPENUI_LANG_RESOURCE_ID_PREFIX}/{profile}"))
 }
 
 pub fn system_prompt_for_resource_id(resource_id: &str) -> Option<&'static str> {
-    let profile = resource_id.strip_prefix(&format!("{OPENUI_LANG_RESOURCE_ID_PREFIX}/"))?;
+    let profile = resource_id
+        .strip_prefix(&format!("{OPENUI_LANG_RESOURCE_ID_PREFIX}/"))
+        .or_else(|| {
+            resource_id.strip_prefix(&format!("{LEGACY_OPENUI_LANG_RESOURCE_ID_PREFIX}/"))
+        })?;
     system_prompt_for_profile(profile)
 }
 
@@ -40,13 +79,28 @@ mod system_prompt_resource_tests {
 
     #[test]
     fn stable_resource_id_resolves_the_selected_profile_prompt() {
-        let profile = "openbitfun";
+        let profile = "bitfun";
         let resource_id = system_prompt_resource_id_for_profile(profile).unwrap();
         assert_eq!(
             system_prompt_for_resource_id(&resource_id),
             system_prompt_for_profile(profile)
         );
-        assert!(system_prompt_for_resource_id("openbitfun.genui.openui-lang/unknown").is_none());
+        assert!(system_prompt_for_resource_id("bitfun.genui.openui-lang/unknown").is_none());
+    }
+
+    #[test]
+    fn legacy_profile_and_resource_prefix_remain_readable() {
+        let profile = super::canonical_identity("openbitfun");
+        assert_eq!(profile, "bitfun");
+        assert_eq!(
+            super::system_prompt_for_profile("openbitfun"),
+            super::system_prompt_for_profile("bitfun")
+        );
+        let resource_id = "openbitfun.genui.openui-lang/openbitfun";
+        assert_eq!(
+            super::system_prompt_for_resource_id(resource_id),
+            super::system_prompt_for_profile("bitfun")
+        );
     }
 }
 
@@ -59,11 +113,14 @@ fn resolve(schema: &Value) -> &Value {
 
 /// Preferences restrict new generation, never persisted app rendering.
 pub fn generation_schema_for_profile(profile: &str) -> Result<Value, String> {
+    let profile = canonical_identity(profile);
     let catalog = catalog();
-    let selected = catalog["profiles"][profile]["templates"].as_array().ok_or_else(|| {
-        format!("Unsupported GenUI component collection: {profile}; select an installed collection in settings")
-    })?;
-    let design_spec_id = catalog["profiles"][profile]["designSpec"]
+    let selected = catalog["profiles"][profile.as_str()]["templates"]
+        .as_array()
+        .ok_or_else(|| {
+            format!("Unsupported GenUI component collection: {profile}; select an installed collection in settings")
+        })?;
+    let design_spec_id = catalog["profiles"][profile.as_str()]["designSpec"]
         .as_str()
         .ok_or("Selected component collection has no UI design specification")?;
     let design_spec = catalog["designSpecs"][design_spec_id].clone();
@@ -109,8 +166,8 @@ pub fn generation_schema_for_profile(profile: &str) -> Result<Value, String> {
     create["properties"]["designSpec"]["properties"]["revision"] =
         serde_json::json!({"const": design_spec["revision"]});
     schema["description"] = serde_json::json!(format!(
-        "Generate the openbitfun.genui.v1 protocol for the selected GenUI profile. The GenerativeUI tool receives a JSON protocol object and messages must remain a JSON array of message objects, never a JSON-encoded string. When createSurface.source.kind is openui-lang, source.content must contain the raw OpenUI Lang program. Load host resource `{}` for the official OpenUI Lang rules, component signatures and worked examples before generating. Selected adapter collection: {profile}; allowed createSurface.template: {}; selected design specification {design_spec_id}: {}. New applications must send a complete source document in createSurface.source and may send updateDataModel for initial values.",
-        system_prompt_resource_id_for_profile(profile)
+        "Generate the bitfun.genui.v1 protocol for the selected GenUI profile. The GenerativeUI tool receives a JSON protocol object and messages must remain a JSON array of message objects, never a JSON-encoded string. When createSurface.source.kind is openui-lang, source.content must contain the raw OpenUI Lang program. Load host resource `{}` for the official OpenUI Lang rules, component signatures and worked examples before generating. Selected adapter collection: {profile}; allowed createSurface.template: {}; selected design specification {design_spec_id}: {}. New applications must send a complete source document in createSurface.source and may send updateDataModel for initial values.",
+        system_prompt_resource_id_for_profile(&profile)
             .as_deref()
             .ok_or("Selected component collection has no OpenUI Lang prompt resource")?,
         selected[0],
@@ -120,7 +177,10 @@ pub fn generation_schema_for_profile(profile: &str) -> Result<Value, String> {
 }
 
 pub fn validate_profile(profile: &str, app: &Value) -> Result<(), String> {
-    let selected = catalog()["profiles"][profile]["templates"]
+    let profile = canonical_identity(profile);
+    let canonical = canonicalize_app_identities(app);
+    let app = &canonical;
+    let selected = catalog()["profiles"][profile.as_str()]["templates"]
         .as_array()
         .ok_or_else(|| format!("Unsupported GenUI component collection: {profile}"))?;
     if !selected.contains(&app["template"]) {
@@ -153,6 +213,8 @@ pub fn validate_profile(profile: &str, app: &Value) -> Result<(), String> {
     Ok(())
 }
 pub fn validate_library_identity(app: &Value) -> Result<(), String> {
+    let canonical = canonicalize_app_identities(app);
+    let app = &canonical;
     let template = app["template"].as_str().ok_or("app.template: missing")?;
     let library_id = app["libraryId"].as_str().ok_or("app.libraryId: missing")?;
     let expected_library = catalog()["templates"][template]["library"]
@@ -177,13 +239,16 @@ pub fn validate_library_identity(app: &Value) -> Result<(), String> {
     Ok(())
 }
 pub fn design_spec_for_profile(profile: &str) -> Result<Value, String> {
+    let profile = canonical_identity(profile);
     let catalog = catalog();
-    let id = catalog["profiles"][profile]["designSpec"]
+    let id = catalog["profiles"][profile.as_str()]["designSpec"]
         .as_str()
         .ok_or_else(|| format!("Unsupported GenUI UI specification for collection: {profile}"))?;
     Ok(serde_json::json!({"id":id,"revision":catalog["designSpecs"][id]["revision"]}))
 }
 pub fn validate_design_spec(app: &Value) -> Result<(), String> {
+    let canonical = canonicalize_app_identities(app);
+    let app = &canonical;
     let identity = app
         .get("designSpec")
         .ok_or("app.designSpec: missing design specification identity; original data retained")?;
@@ -255,6 +320,8 @@ pub fn validate_state(app: &Value, state: Option<&Value>) -> Result<(), String> 
     Ok(())
 }
 pub fn validate_app(app: &Value) -> Result<(), String> {
+    let canonical = canonicalize_app_identities(app);
+    let app = &canonical;
     validate(&catalog()["app"], app, "app")?;
     for field in ["nodes", "flows", "derived", "checks"] {
         if app.get(field).is_some() {
@@ -454,7 +521,7 @@ mod tests {
     #[test]
     fn generation_rejects_removed_graph_operations() {
         let input =
-            serde_json::json!({"protocol":"openbitfun.genui.v1","messages":[{"updateLogic":{}}]});
+            serde_json::json!({"protocol":"bitfun.genui.v1","messages":[{"updateLogic":{}}]});
         let error = validate(&catalog()["generation"], &input, "generation").unwrap_err();
         assert!(
             error.contains("value does not match") || error.contains("createSurface"),
@@ -507,7 +574,7 @@ mod tests {
                     .as_str()
                     .is_some_and(|text| text.contains("never serialize this array into a string"))
             );
-            assert!(schema_text.contains("official OpenUI lang-core rules"));
+            assert!(schema_text.contains("official OpenUI Lang rules"));
             assert!(schema_text.contains("complete source document"));
             assert!(!schema_text.contains("updateComponents"));
             assert!(!schema_text.contains("updateLogic"));
@@ -546,12 +613,12 @@ mod tests {
 
     #[test]
     fn versioned_design_specs_bind_bitfun_libraries() {
-        let specification = design_spec_for_profile("openbitfun").unwrap();
+        let specification = design_spec_for_profile("bitfun").unwrap();
         assert_eq!(
             specification,
-            serde_json::json!({"id":"openbitfun.desktop.v1","revision":1})
+            serde_json::json!({"id":"bitfun.desktop.v1","revision":1})
         );
-        let mut app = serde_json::json!({"template":"openbitfun.app","libraryId":"openbitfun.composable.v1","libraryRevision":2,"designSpec":specification});
+        let mut app = serde_json::json!({"template":"bitfun.app","libraryId":"bitfun.composable.v1","libraryRevision":2,"designSpec":specification});
         assert!(validate_design_spec(&app).is_ok());
         app["libraryRevision"] = Value::from(1);
         assert!(validate_design_spec(&app)
@@ -565,8 +632,8 @@ mod tests {
             "schemaVersion": 2,
             "id": "missing-spec",
             "title": "Missing spec",
-            "template": "openbitfun.app",
-            "libraryId": "openbitfun.composable.v1",
+            "template": "bitfun.app",
+            "libraryId": "bitfun.composable.v1",
             "libraryRevision": 2,
             "source": {"kind": "openui-lang", "content": "root = Text(\"Hello\")"},
             "state": {}
@@ -582,10 +649,10 @@ mod tests {
             "schemaVersion": 2,
             "id": "desktop-html",
             "title": "Desktop HTML",
-            "template": "openbitfun.app",
-            "libraryId": "openbitfun.composable.v1",
+            "template": "bitfun.app",
+            "libraryId": "bitfun.composable.v1",
             "libraryRevision": 2,
-            "designSpec": {"id": "openbitfun.desktop.v1", "revision": 1},
+            "designSpec": {"id": "bitfun.desktop.v1", "revision": 1},
             "source": {"kind": "html-document", "html": "<section><svg viewBox=\"0 0 10 10\"></svg></section>", "css": "section { width: 100%; }"},
             "state": {}
         });
@@ -599,10 +666,10 @@ mod tests {
             .unwrap_err()
             .contains("must not be empty"));
         invalid["source"]["html"] = Value::String("<div />".into());
-        invalid["template"] = Value::String("openbitfun.app".into());
-        invalid["libraryId"] = Value::String("openbitfun.composable.v1".into());
+        invalid["template"] = Value::String("bitfun.app".into());
+        invalid["libraryId"] = Value::String("bitfun.composable.v1".into());
         invalid["libraryRevision"] = Value::from(2);
-        invalid["designSpec"] = serde_json::json!({"id":"openbitfun.desktop.v1","revision":1});
+        invalid["designSpec"] = serde_json::json!({"id":"bitfun.desktop.v1","revision":1});
         assert!(validate_app(&invalid).is_ok());
     }
 
@@ -612,10 +679,10 @@ mod tests {
             "schemaVersion": 2,
             "id": "openui-document",
             "title": "OpenUI document",
-            "template": "openbitfun.app",
-            "libraryId": "openbitfun.composable.v1",
+            "template": "bitfun.app",
+            "libraryId": "bitfun.composable.v1",
             "libraryRevision": 2,
-            "designSpec": {"id": "openbitfun.desktop.v1", "revision": 1},
+            "designSpec": {"id": "bitfun.desktop.v1", "revision": 1},
             "source": {"kind": "openui-lang", "content": "root = Col([Text(\"Hello\")])"},
             "state": {}
         });
@@ -632,7 +699,7 @@ mod tests {
     }
 
     #[test]
-    fn legacy_openui_template_keeps_the_saved_bitfun_library_identity() {
+    fn legacy_openbitfun_identities_keep_saved_apps_readable() {
         let app = serde_json::json!({
             "schemaVersion": 2,
             "id": "legacy-openui",
@@ -645,6 +712,29 @@ mod tests {
             "state": {}
         });
         assert!(validate_app(&app).is_ok());
+        let canonical = canonicalize_app_identities(&app);
+        assert_eq!(canonical["libraryId"], "bitfun.composable.v1");
+        assert_eq!(canonical["designSpec"]["id"], "bitfun.desktop.v1");
+        assert_eq!(app["libraryId"], "openbitfun.composable.v1");
+    }
+
+    #[test]
+    fn legacy_bitfun_template_and_profile_identities_remain_readable() {
+        let app = serde_json::json!({
+            "schemaVersion": 2,
+            "id": "legacy-bitfun",
+            "title": "Legacy BitFun",
+            "template": "openbitfun.app",
+            "libraryId": "openbitfun.composable.v1",
+            "libraryRevision": 2,
+            "designSpec": {"id": "openbitfun.desktop.v1", "revision": 1},
+            "source": {"kind": "openui-lang", "content": "root = Col([])"},
+            "state": {}
+        });
+        assert!(validate_app(&app).is_ok());
+        assert!(validate_generation(&app).is_ok());
+        assert!(validate_profile("openbitfun", &app).is_ok());
+        assert!(generation_schema_for_profile("openbitfun").is_ok());
     }
 
     #[test]
@@ -671,8 +761,8 @@ mod tests {
             "schemaVersion": 2,
             "id": "graph",
             "title": "Graph",
-            "template": "openbitfun.app",
-            "libraryId": "openbitfun.composable.v1",
+            "template": "bitfun.app",
+            "libraryId": "bitfun.composable.v1",
             "libraryRevision": 2,
             "source": {"kind": "openui-lang", "content": "root = Col([])"},
             "nodes": [],

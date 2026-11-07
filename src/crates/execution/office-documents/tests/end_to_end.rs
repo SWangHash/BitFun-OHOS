@@ -1,7 +1,7 @@
 //! End-to-end: build each format over several batches, reopen it, and check
 //! that every XML part is well formed and carries the expected content.
 
-use openbitfun_office_documents::{
+use bitfun_office_documents::{
     collect_image_sources, Detail, ImageSources, OfficeDocument, OfficeErrorKind, OfficeFormat,
     OpenOptions, ReadRequest,
 };
@@ -77,8 +77,8 @@ fn docx_built_incrementally_and_reopened() {
     images.insert("/tmp/chart.png".to_string(), sample_png());
     let first = ops(json!([
         {"op": "set_properties", "title": "季度报告", "author": "Agent"},
-        {"op": "insert_blocks", "markdown": "# 季度报告\n\n[TOC]\n\n## 概览\n\n收入增长 **23%**，详见 [官网](https://example.com)。\n\n- 第一点\n- 第二点\n  - 子项\n\n| 指标 | 数值 |\n|---|---:|\n| 收入 | 120 |\n\n![图表](/tmp/chart.png)"},
-        {"op": "set_header_footer", "header": "内部资料", "footer": {"text": "第 {PAGE} 页 / 共 {NUMPAGES} 页", "align": "right"}}
+        {"op": "insert_blocks", "markdown": "# 季度报告\n\n[TOC]\n\n## 概览\n\n收入增长 **23%**，详�?[官网](https://example.com)。\n\n- 第一点\n- 第二点\n  - 子项\n\n| 指标 | 数�?|\n|---|---:|\n| 收入 | 120 |\n\n![图表](/tmp/chart.png)"},
+        {"op": "set_header_footer", "header": "内部资料", "footer": {"text": "�?{PAGE} �?/ �?{NUMPAGES} �?, "align": "right"}}
     ]));
     assert_eq!(collect_image_sources(&first), vec!["/tmp/chart.png"]);
     let report = doc.apply(&first, &images).unwrap();
@@ -104,7 +104,7 @@ fn docx_built_incrementally_and_reopened() {
             &ops(json!([
                 {"op": "insert_blocks", "blocks": [
                     {"type": "heading", "level": 2, "text": "风险"},
-                    {"type": "paragraph", "runs": [{"text": "汇率波动", "bold": true}, {"text": " 可能影响利润。"}], "align": "justify"},
+                    {"type": "paragraph", "runs": [{"text": "汇率波动", "bold": true}, {"text": " 可能影响利润�?}], "align": "justify"},
                     {"type": "page_break"},
                     {"type": "table", "rows": [["A", "B"], [1, {"text": "x", "fill": "#FFF2CC", "colspan": 1}]], "column_widths_cm": [4, 6]}
                 ]},
@@ -506,7 +506,7 @@ fn pptx_failed_replacement_recovers_in_place_without_losing_text_or_audit() {
     let parts = assert_well_formed(&deck.to_bytes().unwrap());
     let xml = text_of(&parts, "ppt/slides/slide5.xml");
     assert!(xml.contains("四种模式，按任务选择协作方式"));
-    assert!(xml.contains("已更新卡片"));
+    assert!(xml.contains("已更新卡�?));
     assert!(xml.contains("Second line"));
     assert!(!xml.contains("Original card"));
     assert!(!xml.contains("Replaced"));
@@ -566,7 +566,7 @@ fn pptx_cjk_language_and_fonts_survive_export_reopen_and_edits() {
     let cases = [
         ("四种模式 & <Agent> 🙂", None, "zh-CN"),
         ("日本語の説明", None, "ja-JP"),
-        ("한국어 설명", None, "ko-KR"),
+        ("한국�?설명", None, "ko-KR"),
         ("Plain English", None, "en-US"),
         ("繁體中文", Some("zh-TW"), "zh-TW"),
         ("日本漢字", Some("ja-JP"), "ja-JP"),
@@ -627,7 +627,7 @@ fn pptx_cjk_language_and_fonts_survive_export_reopen_and_edits() {
     for (script, expected) in [
         ("Hans", "等线"),
         ("Hant", "新細明體"),
-        ("Jpan", "游ゴシック"),
+        ("Jpan", "游ゴシッ�?),
         ("Hang", "맑은 고딕"),
     ] {
         let font = theme
@@ -645,7 +645,7 @@ fn pptx_cjk_language_and_fonts_survive_export_reopen_and_edits() {
         {"op":"replace_slide","index":0,"slide":{"elements":[
             {"type":"text","x":40,"y":40,"w":1000,"h":80,"text":"主題語言"},
             {"type":"text","x":40,"y":140,"w":1000,"h":80,"lang":"zh-CN","paragraphs":[{"lang":"ja-JP","runs":[{"text":"漢字"},{"text":"繁體","lang":"zh-HK"}]}]},
-            {"type":"table","x":40,"y":240,"w":600,"h":200,"rows":[[{"runs":[{"text":"한국어","lang":"ko-KR"}]}]]}
+            {"type":"table","x":40,"y":240,"w":600,"h":200,"rows":[[{"runs":[{"text":"한국�?,"lang":"ko-KR"}]}]]}
         ]}}
     ])), &ImageSources::new()).unwrap();
     let bytes = edited.to_bytes().unwrap();
@@ -657,7 +657,7 @@ fn pptx_cjk_language_and_fonts_survive_export_reopen_and_edits() {
         ("主題語言", "zh-TW"),
         ("漢字", "ja-JP"),
         ("繁體", "zh-HK"),
-        ("한국어", "ko-KR"),
+        ("한국�?, "ko-KR"),
     ] {
         let t = dom
             .descendants()
@@ -749,12 +749,12 @@ fn xlsx_native_charts_follow_data_edits_and_keep_editable_references() {
     let mut book = OfficeDocument::new(OfficeFormat::Xlsx, None).unwrap();
     let images = ImageSources::new();
     book.apply(&ops(json!([
-        {"op":"add_sheet","name":"数据'明细","rows":[["项目","数量","营收"],["中文",10,"=B2*2"],["日本語",20,"=B3*2"],["한국어",30,"=B4*2"]]},
+        {"op":"add_sheet","name":"数据'明细","rows":[["项目","数量","营收"],["中文",10,"=B2*2"],["日本�?,20,"=B3*2"],["한국�?,30,"=B4*2"]]},
         {"op":"add_sheet","name":"Charts 图表"}
     ])), &images).unwrap();
     for (kind, anchor, title) in [
         ("column", "A1", "季度营收 · Column"),
-        ("bar", "K1", "条形图 · Bar"),
+        ("bar", "K1", "条形�?· Bar"),
         ("line", "A22", "趋势 · Line"),
         ("pie", "K22", "占比 · Pie"),
     ] {
@@ -771,7 +771,7 @@ fn xlsx_native_charts_follow_data_edits_and_keep_editable_references() {
         assert!(chart.contains("<c:numRef>"));
         assert!(chart.contains("&apos;数据&apos;&apos;明细&apos;!$C$2:$C$4"));
         assert!(chart.contains("<c:v>60</c:v>"));
-        assert!(chart.contains("<c:v>日本語</c:v>"));
+        assert!(chart.contains("<c:v>日本�?/c:v>"));
         if index < 4 {
             // Excel treats an omitted axis delete flag as hidden even though
             // it still reads the series. Keep both axes explicitly visible.
@@ -889,18 +889,18 @@ fn docx_replacement_covers_formatted_text_without_crossing_content_boundaries() 
     )
     .unwrap();
     doc.apply(&ops(json!([
-        {"op":"set_header_footer","header":"旧项目 · Header","footer":"旧项目 · {PAGE}/{NUMPAGES}"},
+        {"op":"set_header_footer","header":"旧项�?· Header","footer":"旧项�?· {PAGE}/{NUMPAGES}"},
         {"op":"insert_blocks","blocks":[
             {"type":"heading","level":1,"text":"中文报告 · Word"},
-            {"type":"paragraph","runs":[{"text":"前缀 旧","bold":true},{"text":"项目 后缀","italic":true}]},
-            {"type":"table","rows":[["指标","数值"],[{"runs":[{"text":"旧","bold":true},{"text":"项目"}]},42]],"caption":"旧项目 · 表格"},
-            {"type":"code","text":"旧项目 = 42"},
-            {"type":"list","items":["旧", "项目"]},
+            {"type":"paragraph","runs":[{"text":"前缀 �?,"bold":true},{"text":"项目 后缀","italic":true}]},
+            {"type":"table","rows":[["指标","数�?],[{"runs":[{"text":"�?,"bold":true},{"text":"项目"}]},42]],"caption":"旧项�?· 表格"},
+            {"type":"code","text":"旧项�?= 42"},
+            {"type":"list","items":["�?, "项目"]},
             {"type":"paragraph","text":"日本語の文章"},
-            {"type":"paragraph","runs":[{"text":"한국어 문장","lang":"ko-KR"}]},
+            {"type":"paragraph","runs":[{"text":"한국�?문장","lang":"ko-KR"}]},
             {"type":"paragraph","text":"Emoji 🙂 · English 123"}
         ]},
-        {"op":"replace_text","find":"旧项目","replace":"新产品"}
+        {"op":"replace_text","find":"旧项�?,"replace":"新产�?}
     ])), &images).unwrap();
     let view = doc
         .read(&ReadRequest {
@@ -908,20 +908,20 @@ fn docx_replacement_covers_formatted_text_without_crossing_content_boundaries() 
             ..Default::default()
         })
         .unwrap();
-    assert_eq!(view["blocks"][1]["runs"][0]["text"], "前缀 新产品");
+    assert_eq!(view["blocks"][1]["runs"][0]["text"], "前缀 新产�?);
     assert_eq!(view["blocks"][1]["runs"][1]["text"], " 后缀");
     assert_eq!(view["blocks"][1]["runs"][0]["bold"], true);
     assert_eq!(view["blocks"][1]["runs"][1]["italic"], true);
-    assert_eq!(view["blocks"][3]["text"], "新产品 = 42");
-    assert_eq!(view["blocks"][4]["items"][0]["runs"][0]["text"], "旧");
+    assert_eq!(view["blocks"][3]["text"], "新产�?= 42");
+    assert_eq!(view["blocks"][4]["items"][0]["runs"][0]["text"], "�?);
     let parts = assert_well_formed(&doc.to_bytes().unwrap());
-    assert!(text_of(&parts, "word/header1.xml").contains("旧项目"));
-    assert!(text_of(&parts, "word/document.xml").contains("新产品 · 表格"));
-    doc.apply(&[json!({"op":"replace_text","find":"旧项目","replace":"新产品","include_headers_footers":true})], &images).unwrap();
+    assert!(text_of(&parts, "word/header1.xml").contains("旧项�?));
+    assert!(text_of(&parts, "word/document.xml").contains("新产�?· 表格"));
+    doc.apply(&[json!({"op":"replace_text","find":"旧项�?,"replace":"新产�?,"include_headers_footers":true})], &images).unwrap();
     let bytes = doc.to_bytes().unwrap();
     keep_sample("word-edits.docx", &bytes);
     let parts = assert_well_formed(&bytes);
-    assert!(text_of(&parts, "word/header1.xml").contains("新产品"));
+    assert!(text_of(&parts, "word/header1.xml").contains("新产�?));
     assert!(text_of(&parts, "word/footer1.xml").contains("NUMPAGES"));
     assert!(text_of(&parts, "word/styles.xml").contains("w:eastAsia=\"zh-CN\""));
     assert!(text_of(&parts, "word/document.xml").contains("w:eastAsia=\"ko-KR\""));
@@ -954,10 +954,10 @@ fn docx_replacement_covers_formatted_text_without_crossing_content_boundaries() 
 
 #[test]
 fn legacy_word_and_excel_models_keep_defaults_and_unknown_fields() {
-    use openbitfun_office_documents::{docx::DocxDocument, xlsx::XlsxDocument};
+    use bitfun_office_documents::{docx::DocxDocument, xlsx::XlsxDocument};
     // Hand-authored old shapes, not snapshots generated by the current writer.
     let word =
-        json!({"blocks":[{"type":"paragraph","runs":[{"text":"旧文档"}]}],"future":{"value":1}});
+        json!({"blocks":[{"type":"paragraph","runs":[{"text":"旧文�?}]}],"future":{"value":1}});
     let doc: DocxDocument = serde_json::from_value(word).unwrap();
     assert!(doc.styles.lang.is_none());
     assert!(serde_json::to_value(&doc).unwrap()["blocks"][0]["runs"][0]
@@ -986,12 +986,11 @@ fn academic_word_preserves_structure_and_native_latex_equations_across_edits() {
         })),
     )
     .unwrap();
-    let source = r#"# 论文排版与公式验证 / Academic Paper
+    let source = r#"# 论文排版与公式验�?/ Academic Paper
 
 ## 摘要
 
-这是一份用于验证文档生成的测试论文，不包含真实研究结论。本文检查行内公式 $E=mc^2$ 与跨页结构。引用标记 [1] 按正文文本保留。
-
+这是一份用于验证文档生成的测试论文，不包含真实研究结论。本文检查行内公�?$E=mc^2$ 与跨页结构。引用标�?[1] 按正文文本保留�?
 [TOC]
 
 <!-- pagebreak -->
@@ -1000,36 +999,29 @@ fn academic_word_preserves_structure_and_native_latex_equations_across_edits() {
 
 ### 1.1 二次方程
 
-独立公式应当生成可编辑的 Word 公式，而不是显示 TeX 源码：
-
+独立公式应当生成可编辑的 Word 公式，而不是显�?TeX 源码�?
 $$x = \frac{-b\pm\sqrt{b^2-4ac}}{2a}$$
 
-### 1.2 求和与积分
-
+### 1.2 求和与积�?
 $$S_n = \sum_{i=1}^{n} x_i^2$$
 
 $$\int_0^1 x^2\,dx = \frac{1}{3}$$
 
-### 1.3 矩阵与符号
-
+### 1.3 矩阵与符�?
 $$A = \begin{pmatrix}a&b\\c&d\end{pmatrix}$$
 
-行内变量 $\hat{x}$、$\alpha$ 与 $\beta$ 保持公式语义。
-
+行内变量 $\hat{x}$�?\alpha$ �?$\beta$ 保持公式语义�?
 ## 2 验证结果
 
 | 检查项 | 预期 |
 | --- | --- |
-| 分式与根号 | 原生公式 |
-| 目录与标题 | 可读结构 |
-| 中文与 English | 原文保留 |
+| 分式与根�?| 原生公式 |
+| 目录与标�?| 可读结构 |
+| 中文�?English | 原文保留 |
 
-表 1：测试场景。这里只验证格式，不代表数学证明。
-
-## 参考文献
-
-[1] BitFun. 文档生成验证样例，2026。此条目为测试数据。
-"#;
+�?1：测试场景。这里只验证格式，不代表数学证明�?
+## 参考文�?
+[1] BitFun. 文档生成验证样例�?026。此条目为测试数据�?"#;
     doc.apply(&ops(json!([
         {"op":"set_header_footer","header":"论文验证 · Academic Paper","footer":"{PAGE} / {NUMPAGES}"},
         {"op":"insert_blocks","markdown":source}
@@ -1099,10 +1091,10 @@ $$A = \begin{pmatrix}a&b\\c&d\end{pmatrix}$$
 
 const FONT_SAMPLE_TEXT: &[(&str, &str)] = &[
     ("en-US", "English: Report & <data>"),
-    ("zh-CN", "简体中文：工程规模与社区增长"),
+    ("zh-CN", "简体中文：工程规模与社区增�?),
     ("zh-TW", "繁體中文：工程規模與社群成長"),
-    ("ja-JP", "日本語：プロジェクトの成長"),
-    ("ko-KR", "한국어: 프로젝트 성장"),
+    ("ja-JP", "日本語：プロジェクトの成�?),
+    ("ko-KR", "한국�? 프로젝트 성장"),
     ("ar", "العربية: تقرير المشروع"),
 ];
 

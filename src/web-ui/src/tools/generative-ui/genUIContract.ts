@@ -121,6 +121,10 @@ export interface GenUILibraryContract {
   examples: string[];
 }
 export interface GenUICatalogContract {
+  protocol?: string;
+  legacyProtocols?: string[];
+  /** Legacy GenUI identity -> current identity, read at every boundary. */
+  legacyIdentities?: Record<string, string>;
   generation?: JsonSchema;
   /** Generated from the same product declarations as the OpenUI adapter. */
   openuiLangReference?: string;
@@ -168,31 +172,54 @@ export interface GenUIDesignSpec {
   acceptance: { checks: string[] };
 }
 export function designSpecForApp(app: Pick<GenUIAppDefinition, 'libraryId' | 'libraryRevision'> & Partial<Pick<GenUIAppDefinition, 'designSpec'>>, product: GenUICatalogContract = genUICatalog): GenUIDesignSpec | undefined {
-  const adapter = product.libraryAdapters?.[app.libraryId] ?? product.libraries[app.libraryId]?.metadata;
+  const libraryId = canonicalGenUIIdentity(app.libraryId, product);
+  const adapter = product.libraryAdapters?.[libraryId] ?? product.libraries[libraryId]?.metadata;
   if (!app.designSpec) return undefined;
-  const id = app.designSpec.id;
+  const id = canonicalGenUIIdentity(app.designSpec.id, product);
   const spec = id ? product.designSpecs?.[id] : undefined;
   return spec && app.designSpec.revision === spec.revision && (!adapter || adapter.revision === app.libraryRevision) ? spec : undefined;
 }
 export function libraryFor(app: GenUIAppDefinition, product: GenUICatalogContract = genUICatalog): GenUILibraryContract | undefined {
-  const library = (product.libraries as Record<string, GenUILibraryContract | undefined>)[app.libraryId];
-  const adapter = product.libraryAdapters?.[app.libraryId] ?? library?.metadata;
+  const libraryId = canonicalGenUIIdentity(app.libraryId, product);
+  const library = (product.libraries as Record<string, GenUILibraryContract | undefined>)[libraryId];
+  const adapter = product.libraryAdapters?.[libraryId] ?? library?.metadata;
   return library && adapter && adapter.revision === app.libraryRevision ? library : undefined;
 }
+/** Read-only canonicalization for validation and lookup. Persisted app payloads
+ * keep their original identities; new generation writes current identities. */
+export function canonicalGenUIIdentity(id: string, product: GenUICatalogContract = genUICatalog): string {
+  return product.legacyIdentities?.[id] ?? id;
+}
+export function canonicalGenUIApp<T>(app: T, product: GenUICatalogContract = genUICatalog): T {
+  if (!app || typeof app !== 'object' || Array.isArray(app)) return app;
+  const source = app as Record<string, unknown>;
+  const next: Record<string, unknown> = { ...source };
+  if (typeof source.template === 'string') next.template = canonicalGenUIIdentity(source.template, product);
+  if (typeof source.libraryId === 'string') next.libraryId = canonicalGenUIIdentity(source.libraryId, product);
+  const designSpec = source.designSpec;
+  if (designSpec && typeof designSpec === 'object' && !Array.isArray(designSpec)) {
+    const spec = designSpec as Record<string, unknown>;
+    if (typeof spec.id === 'string') next.designSpec = { ...spec, id: canonicalGenUIIdentity(spec.id, product) };
+  }
+  return next as T;
+}
 function templateAcceptsLibrary(template: string, libraryId: string, product: GenUICatalogContract): boolean {
-  return product.templates[template]?.library === libraryId
-    || product.legacyTemplateLibraries?.[template]?.includes(libraryId) === true;
+  const canonicalTemplate = canonicalGenUIIdentity(template, product);
+  const canonicalLibrary = canonicalGenUIIdentity(libraryId, product);
+  return product.templates[canonicalTemplate]?.library === canonicalLibrary
+    || product.legacyTemplateLibraries?.[canonicalTemplate]?.some(id => canonicalGenUIIdentity(id, product) === canonicalLibrary) === true;
 }
 export const safeKey = (key: string) => !['__proto__', 'constructor', 'prototype'].includes(key);
 export function preflightGenUIApp(input: unknown, _streaming = false, product: GenUICatalogContract = genUICatalog): {
   accepted: boolean;
   issues: GenUIContractIssue[];
 } {
-  const issues = validateGenUISchema(input, product.app);
+  const canonical = canonicalGenUIApp(input, product);
+  const issues = validateGenUISchema(canonical, product.app);
   const finish = () => ({ accepted: !issues.some(issue => issue.severity === 'error'), issues });
   if (issues.length)
     return finish();
-  const app = input as GenUIAppDefinition;
+  const app = canonical as GenUIAppDefinition;
   for (const field of ['nodes', 'flows', 'derived', 'checks']) {
     if (Object.prototype.hasOwnProperty.call(app, field)) {
       issues.push({ path: `app.${field}`, code: 'retired-graph', severity: 'error', message: 'Retired graph fields are unsupported; original data is retained' });

@@ -1,5 +1,5 @@
 import { oiComponents } from '../components/oiComponents';
-import { openbitfunComponents } from '../components/openbitfunComponents';
+import { bitfunComponents } from '../components/bitfunComponents';
 import { openUILibrary } from '../components/openuiLibrary';
 import { functions } from '../genUIPrimitives';
 import type { GenUIImplementations, GenUIRendererSource } from '../genUILibrary';
@@ -14,13 +14,13 @@ const sourcesFor = (
 // Keep the OpenUI component contract stable while mounting BitFun's product
 // controls for the composable profile. Data visualizations and other GenUI
 // primitives remain owned by oiComponents below.
-const openbitfunAdapterComponents = { ...oiComponents, ...openbitfunComponents };
-const openbitfunRendererSources: Record<string, GenUIRendererSource> = sourcesFor(oiComponents, {
+const bitfunAdapterComponents = { ...oiComponents, ...bitfunComponents };
+const bitfunRendererSources: Record<string, GenUIRendererSource> = sourcesFor(oiComponents, {
   kind: 'openui-react',
   source: 'open-intelligent-ui component contract adapter',
 });
-Object.assign(openbitfunRendererSources, sourcesFor(openbitfunComponents, {
-  kind: 'openbitfun-host',
+Object.assign(bitfunRendererSources, sourcesFor(bitfunComponents, {
+  kind: 'bitfun-host',
   source: '@bitfun/ui component adapter',
 }));
 /**
@@ -28,9 +28,9 @@ Object.assign(openbitfunRendererSources, sourcesFor(openbitfunComponents, {
  * objects own the component renderer, inspector, event and capability bridge
  * for one registered library family.
  */
-export const openbitfunAdapter: GenUIImplementations = {
-  components: openbitfunAdapterComponents,
-  rendererSources: openbitfunRendererSources,
+export const bitfunAdapter: GenUIImplementations = {
+  components: bitfunAdapterComponents,
+  rendererSources: bitfunRendererSources,
   functions,
 };
 
@@ -44,5 +44,5 @@ export const openUIAdapter: GenUIImplementations = {
 
 export const genUIAdapterImplementations: Record<string, GenUIImplementations> = {
   openui: openUIAdapter,
-  bitfun: openbitfunAdapter,
+  bitfun: bitfunAdapter,
 };

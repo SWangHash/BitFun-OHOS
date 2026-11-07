@@ -52,7 +52,7 @@ flowchart TD
 
 ### Library Registry 与组件库适配器
 
-OpenUI 提供共同的 Lang/parser/state/Renderer 运行时，同时注册三套可独立选择的 profile：`openui` 使用上游 `openui.v1` native library，`bitfun` 使用 `openbitfun.composable.v1`，`harmony` 使用 `openbitfun.harmony.v1`。每套 profile 都绑定自己的 adapter、prompt、CSS/style resources、design spec 和 revision；只读契约是同一 adapter 的明确权限变体，不能改变其来源身份。
+OpenUI 提供共同的 Lang/parser/state/Renderer 运行时，同时注册可独立选择的 profile：`openui` 使用上游 `openui.v1` native library，`bitfun` 使用 `bitfun.composable.v1`。历史记录和旧版本消息中的 `openbitfun.*` 身份在读取边界映射到当前身份，但不会被重写回持久化数据。每套 profile 都绑定自己的 adapter、prompt、CSS/style resources、design spec 和 revision；只读契约是同一 adapter 的明确权限变体，不能改变其来源身份。
 
 `bitfun` adapter 用 `@bitfun/ui` 承载 Button、IconButton、Input、Textarea、Select、SegmentedControl、Checkbox、Radio 和 Card 等基础控件，再用 `oiComponents` 保留 Chart、Map、Svg、HtmlView、Table 和媒体等 GenUI 专用 renderer；所有实现都先绑定 BitFun 的 contract 和 positional signature，再经过 adapter 自己的 DOM inspector、action/query bridge、CSS/token scope 和 revision 校验。`openui` profile 则直接使用 vendored `open-intelligent-ui/src/lib/library.ts`、其 `components/*` 和 CSS；它不经过 `oiComponents`。任何 profile 都不会携带第二套 parser、state 或旧 graph runtime。
 

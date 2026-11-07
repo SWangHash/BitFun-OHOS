@@ -10,7 +10,7 @@ deploy a server. Older clients can remain on the GitHub-only authorization flow.
 For connection choices, internet requirements, privacy, service limits, and
 self-hosting, see the user FAQ: [English](FAQ.md) / [中文](FAQ.zh-CN.md).
 
-The official endpoint is `https://remote.bitfun.com/v/1.0.1`. This release is deployed with
+The official endpoint is `https://remote.bitfun.com/v/1.0.2`. This release is deployed with
 its own process, database, assets, and reverse-proxy location. An existing
 `/relay` deployment remains on its existing binary and data directory.
 
@@ -55,7 +55,7 @@ Relay URL. A private Relay therefore needs a matching client build.
    and `src/mobile-web/src/services/pairingLink.ts`. Native clients have
    matching constants in KMP `core-transport/AccountDeviceLink.kt` and HarmonyOS
    `services/AccountDeviceLink.ets`; update the HarmonyOS account-link parser too.
-   Search for `https://remote.bitfun.com/v/1.0.1` to verify every runtime
+   Search for `https://remote.bitfun.com/v/1.0.2` to verify every runtime
    reference and corresponding test before building your distribution.
 3. Decide who owns identity. You can retain the official BitFun identity
    authority, or run the [shared identity service](../../../deploy/miniapp-market/README.md)
@@ -106,7 +106,7 @@ RELAY_PORT=9700 RELAY_DB_PATH=/var/lib/bitfun-relay-v1/relay.db \
 ```
 
 Use the isolated [v1 Compose project](../../../deploy/relay-v1/README.md).
-Set `RELAY_LISTEN_ADDR=127.0.0.1:19701` with host networking so the service can
+Set `RELAY_LISTEN_ADDR=127.0.0.1:19702` with host networking so the service can
 verify the immediate loopback proxy peer. Invalid listener values fail startup.
 Expose only the TLS reverse proxy. Keep the database and asset paths distinct from older deployments.
 `relay-admin` supports listing and explicitly deleting accounts; verified sign-in
@@ -197,8 +197,8 @@ observed source address, and the upstream port must be unreachable externally.
 The Relay trusts forwarded client IPs only from an immediate loopback peer.
 
 ```nginx
-location ^~ /v/1.0.1/ {
-    proxy_pass http://127.0.0.1:19701/;
+location ^~ /v/1.0.2/ {
+    proxy_pass http://127.0.0.1:19702/;
     proxy_http_version 1.1;
     proxy_set_header Host $host;
     proxy_set_header X-Forwarded-For $remote_addr;
@@ -236,12 +236,12 @@ location and process.
 | `POST /api/auth/delegate` | Issue a separately keyed, restricted controller credential |
 | `POST /api/auth/provision-device` | Authorized SSH host bootstrap |
 | `GET /api/devices` | Same-account device directory |
+| `PATCH /api/devices/{id}` | Update an account device alias or self-reported metadata |
 | `GET /api/devices/{id}/key` | Same-account device public key |
 | `DELETE /api/devices/{id}` | Explicit device removal and revocation |
-| `GET /v1/updates` | Authenticated Socket.IO account, machine and session scopes |
-| `POST /v1/sessions`, `GET /v1/sessions/{id}` | Opaque session metadata |
-| `GET/POST /v3/sessions/{id}/messages` | Ordered encrypted session history and catch-up |
-| `POST /v1/rpc/payloads`, `GET /v1/rpc/payloads/{id}` | Account-scoped encrypted bulk RPC bodies |
+| `GET /v1/updates` | Authenticated Socket.IO account and machine scopes |
+| `POST /v1/rpc/payloads`, `GET /v1/rpc/payloads/{id}` | Account-scoped encrypted bulk RPC bodies (short-lived) |
+| `POST /v1/sessions`, `GET /v1/sessions/{id}`, `GET/POST /v3/sessions/{id}/messages` | Retired; answer `410 Gone` with `{"error":"relay_session_history_retired"}` |
 
 Realtime clients authenticate the namespace and wait for `auth-ok` before
 registering or calling methods. Machine-owned RPC methods route inside the

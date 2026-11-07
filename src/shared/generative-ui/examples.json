@@ -3,9 +3,9 @@
     "schemaVersion": 2,
     "id": "ledger",
     "title": "Ledger",
-    "template": "openbitfun.app",
+    "template": "bitfun.app",
     "designSpec": {
-      "id": "openbitfun.desktop.v1",
+      "id": "bitfun.desktop.v1",
       "revision": 1
     },
     "source": {
@@ -18,16 +18,16 @@
         "default": 0
       }
     },
-    "libraryId": "openbitfun.composable.v1",
+    "libraryId": "bitfun.composable.v1",
     "libraryRevision": 2
   },
   "calculator": {
     "schemaVersion": 2,
     "id": "calculator",
     "title": "Calculator",
-    "template": "openbitfun.app",
+    "template": "bitfun.app",
     "designSpec": {
-      "id": "openbitfun.desktop.v1",
+      "id": "bitfun.desktop.v1",
       "revision": 1
     },
     "source": {
@@ -44,16 +44,16 @@
         "default": false
       }
     },
-    "libraryId": "openbitfun.composable.v1",
+    "libraryId": "bitfun.composable.v1",
     "libraryRevision": 2
   },
   "picker": {
     "schemaVersion": 2,
     "id": "equipment-picker",
     "title": "Equipment selection",
-    "template": "openbitfun.app",
+    "template": "bitfun.app",
     "designSpec": {
-      "id": "openbitfun.desktop.v1",
+      "id": "bitfun.desktop.v1",
       "revision": 1
     },
     "source": {
@@ -66,16 +66,16 @@
         "default": ""
       }
     },
-    "libraryId": "openbitfun.composable.v1",
+    "libraryId": "bitfun.composable.v1",
     "libraryRevision": 2
   },
   "reference": {
     "schemaVersion": 2,
     "id": "reference",
     "title": "Reference",
-    "template": "openbitfun.reference",
+    "template": "bitfun.reference",
     "designSpec": {
-      "id": "openbitfun.desktop.v1",
+      "id": "bitfun.desktop.v1",
       "revision": 1
     },
     "source": {
@@ -83,7 +83,7 @@
       "content": "root = Col([title])\ntitle = Title(\"Reference\", \"lg\")"
     },
     "state": {},
-    "libraryId": "openbitfun.composable.readonly.v1",
+    "libraryId": "bitfun.composable.readonly.v1",
     "libraryRevision": 2
   }
 }

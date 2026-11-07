@@ -484,7 +484,7 @@ export const ModelRoundItem = React.memo<ModelRoundItemProps>(
         disableExploreGrouping,
         isCollapsibleTool,
       });
-    }, [disableExploreGrouping, projectedGroups, round.isStreaming, sortedItems]);
+    }, [disableExploreGrouping, isTurnComplete, projectedGroups, round.isStreaming, sortedItems]);
 
     const groupSummary = useMemo(
       () => renderTraceEnabled ? summarizeModelRoundItemGroups(groupedItems) : null,

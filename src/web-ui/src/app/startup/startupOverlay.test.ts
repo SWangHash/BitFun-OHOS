@@ -1,8 +1,12 @@
 // @vitest-environment jsdom
 
 import startupHtml from '../../../index.html?raw';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { STARTUP_OVERLAY_HIDDEN_EVENT } from './startupSignals';
+
+const workspaceAPI = vi.hoisted(() => ({ setDecorationsOhos: vi.fn() }));
+
+vi.mock('@/infrastructure/api/service-api/WorkspaceAPI', () => ({ workspaceAPI }));
 import {
   getStartupOverlayElapsedMs,
   hideStartupOverlay,
@@ -23,6 +27,7 @@ beforeEach(() => {
 afterEach(() => {
   document.body.innerHTML = '';
   delete window.__BITFUN_STARTUP_OVERLAY_STARTED_AT__;
+  setUserAgent(originalUserAgent);
   Reflect.deleteProperty(document, 'fonts');
   vi.restoreAllMocks();
   vi.unstubAllGlobals();

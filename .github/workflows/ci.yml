@@ -331,7 +331,7 @@ jobs:
         run: cargo test --locked -p bitfun-core --lib
 
       - name: Run portable Office document engine tests
-        run: cargo test --locked -p openbitfun-office-documents
+        run: cargo test --locked -p bitfun-office-documents
 
       - name: Run full core library tests on Linux
         if: runner.os == 'Linux'
@@ -540,7 +540,7 @@ jobs:
   # its first Windows execution ever was a release build, and it failed there
   # (`spawnSync npm ENOENT`: npm is a `.cmd` shim Node will not spawn without
   # a shell). This job is the cheapest thing that exercises the whole
-  # packaging path â€” npm install, tsc, `npm pack`, tar, tree copy â€” on the
+  # packaging path â€?npm install, tsc, `npm pack`, tar, tree copy â€?on the
   # platform whose path and process rules differ.
   dsh-profile-windows:
     name: DSH Profile Packaging (windows-latest)

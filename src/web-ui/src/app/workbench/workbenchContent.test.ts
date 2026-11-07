@@ -95,7 +95,7 @@ describe('workbench content navigation', () => {
     const openUi = {
       type: 'generative-widget' as const,
       title: 'OpenUI answer',
-      data: { app: { template: 'openui.app', libraryId: 'openbitfun.composable.v1' } },
+      data: { app: { template: 'openui.app', libraryId: 'bitfun.composable.v1' } },
     };
 
     expect(openWorkbenchContent(openUi, { scope: { surfaceId: 'local', workspaceId: 'project' } })).toBe('');
@@ -121,7 +121,7 @@ describe('workbench content navigation', () => {
     const openUi = {
       type: 'generative-widget' as const,
       title: 'Stale OpenUI answer',
-      data: { app: { template: 'openui.app', libraryId: 'openbitfun.composable.v1' } },
+      data: { app: { template: 'openui.app', libraryId: 'bitfun.composable.v1' } },
     };
     const resourceId = useContentResourceStore.getState().open(openUi, { surfaceId: 'local', workspaceId: 'project' });
     useSceneStore.getState().openContentScene(resourceId);

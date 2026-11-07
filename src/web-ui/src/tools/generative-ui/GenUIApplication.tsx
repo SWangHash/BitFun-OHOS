@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import type { GenUIRenderDiagnostic } from './genUIRenderDiagnostics';
 import { isFatalGenUIError } from './genUIRenderDiagnostics';
 import type { GenUIAppDefinition, GenUIAppEnvelope, GenUIAppState } from './genUITypes';
-import { designSpecForApp, libraryFor, preflightGenUIApp } from './genUIContract';
+import { canonicalGenUIApp, designSpecForApp, libraryFor, preflightGenUIApp } from './genUIContract';
 import { GenUIStateStore, genUIContentKey, validateGenUIState } from './genUIState';
 import type { GenUIVerification } from './genUIVerification';
 import './GenUIApplication.scss';
@@ -45,7 +45,7 @@ export default function GenUIApplication(props: GenUIApplicationProps) {
 function Application({ product = genUIProduct, definition, initialState, readOnly = false, preview = false, streaming = false, restoredFromStorage = false, onStateChange, persistState = true, onAction, toolProvider, asyncProvider, asyncPermissions, asyncTarget = 'local', asyncTargetId, onTargetEvent, htmlBridge, onVerification }: GenUIApplicationProps) {
   const stream = useRef(new GenUIStream());
   const sourceKey = genUIContentKey(definition);
-  const app = useMemo(() => (streaming ? stream.current.project(definition, product.catalog) : definition as GenUIAppDefinition), [definition, streaming, product]);
+  const app = useMemo(() => canonicalGenUIApp(streaming ? stream.current.project(definition, product.catalog) : definition as GenUIAppDefinition), [definition, streaming, product]);
   const definitionKey = sourceKey;
   const preflight = useMemo(() => streaming ? { accepted: true, issues: [] } : preflightGenUIApp(app, false, product.catalog), [app, streaming, product]);
   const designSpec = designSpecForApp(app, product.catalog);

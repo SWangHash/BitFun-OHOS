@@ -7,10 +7,10 @@ const sourceApp = (content = 'root = Col([Title("Hello")])'): GenUIAppDefinition
   schemaVersion: 2,
   id: 'source-app',
   title: 'Source app',
-  template: 'openbitfun.app',
-  libraryId: 'openbitfun.composable.v1',
+  template: 'bitfun.app',
+  libraryId: 'bitfun.composable.v1',
   libraryRevision: 2,
-  designSpec: { id: 'openbitfun.desktop.v1', revision: 1 },
+  designSpec: { id: 'bitfun.desktop.v1', revision: 1 },
   source: { kind: 'openui-lang', content },
   state: { name: { type: 'string', default: '' } },
 });
@@ -26,8 +26,8 @@ describe('source generation protocol', () => {
   });
 
   it('rejects the removed graph operations before rendering', () => {
-    const generation = { protocol: 'openbitfun.genui.v1', messages: [
-      { createSurface: { id: 'x', title: 'X', template: 'openbitfun.app', libraryId: 'openbitfun.composable.v1', libraryRevision: 2, designSpec: { id: 'openbitfun.desktop.v1', revision: 1 }, source: sourceApp().source } },
+    const generation = { protocol: 'bitfun.genui.v1', messages: [
+      { createSurface: { id: 'x', title: 'X', template: 'bitfun.app', libraryId: 'bitfun.composable.v1', libraryRevision: 2, designSpec: { id: 'bitfun.desktop.v1', revision: 1 }, source: sourceApp().source } },
       { updateComponents: { components: [] } },
     ] } as unknown as GenUIGeneration;
     expect(() => reduceGenUIMessages(generation)).toThrow('graph messages were removed');
@@ -43,6 +43,26 @@ describe('source generation protocol', () => {
     expect(reduceGenUIMessages(generation).state).toEqual({ name: 'Grace' });
     generation.messages.push({ updateLogic: {} });
     expect(() => reduceGenUIMessages(generation)).toThrow();
+  });
+
+  it('accepts the legacy protocol and identities while emitting canonical output', () => {
+    const legacy = {
+      protocol: 'openbitfun.genui.v1',
+      messages: [{
+        createSurface: {
+          id: 'legacy', title: 'Legacy', template: 'openbitfun.app',
+          libraryId: 'openbitfun.composable.v1', libraryRevision: 2,
+          designSpec: { id: 'openbitfun.desktop.v1', revision: 1 },
+          source: sourceApp().source,
+        },
+      }],
+    } as unknown as GenUIGeneration;
+    const result = reduceGenUIMessages(legacy);
+    expect(result.app.template).toBe('bitfun.app');
+    expect(result.app.libraryId).toBe('bitfun.composable.v1');
+    expect(result.app.designSpec?.id).toBe('bitfun.desktop.v1');
+    const described = describeGenUIApp({ ...sourceApp(), template: 'openbitfun.app', libraryId: 'openbitfun.composable.v1', designSpec: { id: 'openbitfun.desktop.v1', revision: 1 } });
+    expect(described.messages[0].createSurface).toMatchObject({ template: 'bitfun.app', libraryId: 'bitfun.composable.v1', designSpec: { id: 'bitfun.desktop.v1' } });
   });
 
 });

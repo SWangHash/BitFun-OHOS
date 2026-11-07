@@ -13,9 +13,9 @@ vi.mock('./GenUISourceDocument', () => ({ default: (props: { onError: (errors: G
   return <button disabled={props.readOnly}>Working control</button>;
 } }));
 const app: GenUIAppDefinition = {
-  schemaVersion: 2, id: 'errors', title: 'Errors', template: 'openbitfun.app',
-  libraryId: 'openbitfun.composable.v1', libraryRevision: 2,
-  designSpec: { id: 'openbitfun.desktop.v1', revision: 1 }, state: {},
+  schemaVersion: 2, id: 'errors', title: 'Errors', template: 'bitfun.app',
+  libraryId: 'bitfun.composable.v1', libraryRevision: 2,
+  designSpec: { id: 'bitfun.desktop.v1', revision: 1 }, state: {},
   source: { kind: 'openui-lang', content: 'root = Col([])' },
 };
 const fatal: GenUIRenderDiagnostic = { source: 'parser', code: 'parse-failed', message: 'No statements parsed' };

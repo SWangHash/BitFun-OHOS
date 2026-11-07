@@ -32,8 +32,8 @@ it('selects a collection without rendering a demo preview', async () => {
   expect(container.querySelector('.gen-ui-library-preview')).toBeNull();
   expect(container.querySelector('[data-bitfun-part="profile"]')).toBeNull();
   expect(container.querySelector('[data-bitfun-part="designSpec"]')).toBeNull();
-  await select('openbitfun');
-  expect(ports.save).toHaveBeenCalledExactlyOnceWith('ai.generative_ui_library', 'openbitfun');
+  await select('bitfun');
+  expect(ports.save).toHaveBeenCalledExactlyOnceWith('ai.generative_ui_library', 'bitfun');
 });
 it('locks unavailable settings and preserves unknown future selections', async () => {
   ports.read.mockRejectedValueOnce(new Error('Unsupported host'));
@@ -47,7 +47,7 @@ it('locks unavailable settings and preserves unknown future selections', async (
 });
 it('keeps the committed selection and exposes save failures', async () => {
   ports.save.mockRejectedValueOnce(new Error('Offline'));
-  await mount(); await select('openbitfun');
+  await mount(); await select('bitfun');
   expect(container.textContent).toContain('Offline');
   expect(container.querySelector('select')?.value).toBe('openui');
   expect(container.querySelector('[data-gen-ui-app]')).toBeNull();
@@ -56,24 +56,29 @@ it('discards stale reads after an acknowledged selection', async () => {
   await mount();
   const stale = deferred<string>(); ports.read.mockReturnValueOnce(stale.promise);
   await act(async () => ports.changed!());
-  await select('openbitfun');
+  await select('bitfun');
   await act(async () => stale.resolve('openui'));
-  expect(container.querySelector('select')?.value).toBe('openbitfun');
+  expect(container.querySelector('select')?.value).toBe('bitfun');
+});
+it('displays a legacy saved profile as the canonical BitFun profile', async () => {
+  ports.read.mockResolvedValue('openbitfun');
+  await mount();
+  expect(container.querySelector('select')?.value).toBe('bitfun');
 });
 it('cannot replace a new device selection with an old device save', async () => {
   await mount();
   const pending = deferred<void>(); ports.save.mockReturnValueOnce(pending.promise);
-  await select('openbitfun');
-  ports.read.mockResolvedValue('openbitfun');
+  await select('bitfun');
+  ports.read.mockResolvedValue('bitfun');
   await act(async () => activateSurface('peer-test'));
   await act(async () => pending.resolve());
-  expect(container.querySelector('select')?.value).toBe('openbitfun');
+  expect(container.querySelector('select')?.value).toBe('bitfun');
   expect(container.querySelector('[data-gen-ui-app]')).toBeNull();
 });
 it('cannot hydrate an old device read after a switch', async () => {
   const pending = deferred<string>(); ports.read.mockReturnValueOnce(pending.promise);
-  await mount(); ports.read.mockResolvedValue('openbitfun');
+  await mount(); ports.read.mockResolvedValue('bitfun');
   await act(async () => activateSurface('peer-test'));
-  await act(async () => pending.resolve('openbitfun'));
-  expect(container.querySelector('select')?.value).toBe('openbitfun');
+  await act(async () => pending.resolve('bitfun'));
+  expect(container.querySelector('select')?.value).toBe('bitfun');
 });

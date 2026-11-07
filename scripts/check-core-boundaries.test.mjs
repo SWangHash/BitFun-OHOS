@@ -749,7 +749,7 @@ test('image inspection, image generation, and office documents keep independent 
   const features = parseManifestFeatures(manifest);
   for (const [name, refs] of [
     ['tools-image-analysis', ['bitfun-tool-packs/image-analysis']],
-    ['tools-office-documents', ['bitfun-tool-packs/office-documents', 'dep:openbitfun-office-documents']],
+    ['tools-office-documents', ['bitfun-tool-packs/office-documents', 'dep:bitfun-office-documents']],
     ['tools-image-generation', [
       'bitfun-tool-packs/image-generation',
       'ai-adapter-runtime',
@@ -1107,6 +1107,7 @@ test('contract and AI adapter tests keep reviewed feature and failure-domain top
       name: 'product_domain_contracts',
       path: 'tests/product_domain_contracts.rs',
       leaves: [
+        'tests/product_domain_contracts/canvas_contracts.rs',
         'tests/product_domain_contracts/tool_permission_contracts.rs',
       ],
       forbidRequiredFeatures: true,
@@ -1553,6 +1554,7 @@ test('Core product-full explicitly assembles service and tool capability owners'
     'tools-image-generation',
     'tools-office-documents',
     'tools-miniapp',
+    'tools-canvas',
     'tools-agent-control',
   ]) {
     assert.ok(
@@ -4363,6 +4365,9 @@ test('Services Core accepts only the reviewed feature-owned Tokio runtime graph'
       ],
       'session-git': ['local-storage'],
       'workspace-transfer': ['dep:tokio', 'tokio/fs', 'tokio/io-util', 'tokio/rt', 'tokio/sync'],
+      'secure-credentials': ['dep:tokio', 'tokio/rt'],
+      'system-vault': ['secure-credentials', 'dep:tokio'],
+      'screen-capture': ['dep:tokio', 'tokio/rt'],
     },
   };
 

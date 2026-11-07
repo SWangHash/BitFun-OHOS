@@ -6,6 +6,7 @@ import { configAPI } from '@/infrastructure/api/service-api/ConfigAPI';
 import { getActiveSurfaceScope, onSurfaceActivated } from '@/infrastructure/peer-device/deviceSurface';
 import { useI18n } from '@/infrastructure/i18n';
 import { genUILibraryProfiles } from '@/tools/generative-ui/genUILibraryProfiles';
+import { canonicalGenUIIdentity } from '@/tools/generative-ui/genUIContract';
 import './GenUILibrarySection.scss';
 
 const path = 'ai.generative_ui_library';
@@ -49,9 +50,10 @@ export default function GenUILibrarySection() {
     }
   };
   const ready = loaded?.epoch === scope.epoch;
-  const options = Object.entries(genUILibraryProfiles).map(([value, profile]) => ({ value, label: profile.label }));
-  const known = ready && Object.prototype.hasOwnProperty.call(genUILibraryProfiles, loaded.value);
-  if (ready && !known) options.push({ value: loaded.value, label: loaded.value });
+  const value = ready ? canonicalGenUIIdentity(loaded.value) : '';
+  const options = Object.entries(genUILibraryProfiles).map(([profile, entry]) => ({ value: profile, label: entry.label }));
+  const known = ready && Object.prototype.hasOwnProperty.call(genUILibraryProfiles, value);
+  if (ready && !known) options.push({ value, label: value });
   return <ConfigPageSection id="generative-ui-library" className="gen-ui-library-section" title={t('genui.title')} description={t('genui.description')} bodySurface={false}>
     {!ready ? error
       ? <ConfigRetryState message={error} retryLabel={t('genui.retry')} onRetry={() => void load()} />
@@ -59,7 +61,7 @@ export default function GenUILibrarySection() {
       : <>
         <div className="gen-ui-library-settings-surface" data-bitfun-component="gen-ui-library-settings" data-bitfun-part="settings">
           <ConfigPageRow className="gen-ui-library-selector" label={t('genui.collection')} description={known ? undefined : t('genui.unknown')} align="center">
-            <Select size="sm" aria-label={t('genui.collection')} options={options} value={loaded.value} disabled={saving} onValueChange={value => void save(String(value))} />
+            <Select size="sm" aria-label={t('genui.collection')} options={options} value={value} disabled={saving} onValueChange={next => void save(canonicalGenUIIdentity(String(next)))} />
           </ConfigPageRow>
         </div>
         {error && <ConfigRetryState message={error} retryLabel={t('genui.retry')} onRetry={() => void load()} />}

@@ -462,7 +462,7 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
       // a moment ago. It clears itself, which is why it stays a tooltip note and not a badge.
       workspaceProbePending: Boolean(repoStatus?.workspaceProbePending),
       errorText,
-      ariaLabel: `${tFiles('search.index.indicator.label')}: ${title} ? ${phaseLabel}`,
+      ariaLabel: `${tFiles('search.index.indicator.label')}: ${title} · ${phaseLabel}`,
     };
   }, [
     canShowSearchIndex,
@@ -1218,7 +1218,7 @@ const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
                       status: [
                         searchIndexIndicator.title,
                         searchIndexIndicator.activeTaskLabel ?? searchIndexIndicator.phaseLabel,
-                      ].join(' ? '),
+                      ].join(' · '),
                     })}
                   >
                     <button

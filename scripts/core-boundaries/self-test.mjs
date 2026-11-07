@@ -602,6 +602,7 @@ export function runManifestParserSelfTest({
       'client',
       [
         'bitfun-agent-tools/acp-bridge',
+        'dep:agent-client-protocol-schema',
         'dep:futures',
         'dep:serde',
         // The bundled DeepSeek Harness profile the ACP client materializes:

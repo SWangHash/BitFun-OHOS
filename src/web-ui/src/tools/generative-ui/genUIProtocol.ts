@@ -1,18 +1,23 @@
-import { genUICatalog, preflightGenUIApp, validateGenUISchema, type GenUICatalogContract } from './genUIContract';
+import { canonicalGenUIApp, genUICatalog, preflightGenUIApp, validateGenUISchema, type GenUICatalogContract } from './genUIContract';
 import type { GenUIAppDefinition, GenUIAppState } from './genUITypes';
 
-export const GENUI_PROTOCOL = 'openbitfun.genui.v1';
-export interface GenUIGeneration { protocol: typeof GENUI_PROTOCOL; messages: Record<string, unknown>[] }
+export const GENUI_PROTOCOL = 'bitfun.genui.v1';
+export const LEGACY_GENUI_PROTOCOLS = ['openbitfun.genui.v1'] as const;
+export type GenUIProtocol = typeof GENUI_PROTOCOL | typeof LEGACY_GENUI_PROTOCOLS[number];
+export interface GenUIGeneration { protocol: GenUIProtocol; messages: Record<string, unknown>[] }
 export interface GenUIDocument { app: GenUIAppDefinition; state: GenUIAppState }
 
 /** Reduce only the source protocol. Graph messages are rejected before they
  * can reach a renderer, stream preview, or persistence boundary. */
 export function reduceGenUIMessages(input: GenUIGeneration, product: GenUICatalogContract = genUICatalog, streaming = false): GenUIDocument {
   if (input.messages.some(message => message.updateComponents || message.updateLogic)) throw new Error('GenUI graph messages were removed; send a complete source document');
+  const messages = input.messages.map(message => message.createSurface && typeof message.createSurface === 'object'
+    ? { ...message, createSurface: canonicalGenUIApp(message.createSurface, product) }
+    : message);
+  const normalized: GenUIGeneration = { ...input, protocol: GENUI_PROTOCOL, messages };
   const schema = product.generation ?? genUICatalog.generation;
-  const issues = streaming ? [] : validateGenUISchema(input, schema, 'generation');
+  const issues = streaming ? [] : validateGenUISchema(normalized, schema, 'generation');
   if (issues.length) throw new Error(issues.map(issue => issue.path + ': ' + issue.message).join('; '));
-  const messages = input.messages;
   const first = messages[0];
   if (!first?.createSurface) throw new Error('messages[0]: createSurface is required and must be first');
   if (messages.some(message => message.updateComponents || message.updateLogic)) throw new Error('GenUI graph messages were removed; send a complete source document');
@@ -38,7 +43,7 @@ export function reduceGenUIMessages(input: GenUIGeneration, product: GenUICatalo
 export function describeGenUIApp(app: GenUIAppDefinition, values?: GenUIAppState): GenUIGeneration {
   if (!app.source) throw new Error('GenUI source is required; semantic graph documents were removed');
   return { protocol: GENUI_PROTOCOL, messages: [
-    { createSurface: { id: app.id, title: app.title, template: app.template, libraryId: app.libraryId, libraryRevision: app.libraryRevision, ...(app.description === undefined ? {} : { description: app.description }), ...(app.designSpec === undefined ? {} : { designSpec: app.designSpec }), source: app.source } },
+    { createSurface: canonicalGenUIApp({ id: app.id, title: app.title, template: app.template, libraryId: app.libraryId, libraryRevision: app.libraryRevision, ...(app.description === undefined ? {} : { description: app.description }), ...(app.designSpec === undefined ? {} : { designSpec: app.designSpec }), source: app.source }, genUICatalog) },
     { updateDataModel: { state: app.state, ...(values ? { values } : {}) } },
   ] };
 }

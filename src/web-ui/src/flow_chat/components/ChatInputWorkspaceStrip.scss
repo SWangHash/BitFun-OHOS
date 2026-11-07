@@ -9,16 +9,17 @@
  * The track has exactly two species and shape tells them apart. A *fact* is
  * bare text with a muted 12px glyph and no hover body; an available workspace
  * or branch switcher takes the same pill control as the rest of the track.
- * Both species speak at one size â€?the ladder's meta step, a quiet footnote
- * under the capsule above â€?and in one muted ink, so the row reads as a single
+ * Both species speak at one size â€” the ladder's meta step, a quiet footnote
+ * under the capsule above â€” and in one muted ink, so the row reads as a single
  * hushed line of text and only shape and fill say what can be clicked. State
  * is carried by color, never by an outline, because one bordered item in a
  * borderless row reads as an error rather than a mode.
  *
- * Segments part on a hairline divider â€?a 10px vertical rule that groups
+ * Segments part on a hairline divider â€” a 10px vertical rule that groups
  * without claiming anything about what sits either side of it. A slash stays
  * banned: it claimed a path that a host, a workspace and a branch do not
- * form. Inside one segment, grouping is spacing alone, at a fixed 2.5:1 â€? * $track-item-gap between segments, $track-part-gap inside one.
+ * form. Inside one segment, grouping is spacing alone, at a fixed 2.5:1 â€”
+ * $track-item-gap between segments, $track-part-gap inside one.
  */
 @use '@/shared/styles/overlay-layout' as overlay-layout;
 
@@ -46,7 +47,7 @@ $track-item-gap: 10px;
   color: var(--bitfun-color-content-muted);
   font: inherit;
   // The whole track speaks at one size: facts inherit it from the rail and
-  // controls restate it here. Shape â€?the pill and its hover fill â€?is what
+  // controls restate it here. Shape â€” the pill and its hover fill â€” is what
   // says a control is a control, so a label never needs a size of its own.
   font-size: var(--bitfun-type-flow-meta-font-size);
   line-height: var(--bitfun-type-flow-support-line-height);
@@ -198,7 +199,7 @@ $track-item-gap: 10px;
 
     // Full access is the one mode whose risk must stay visible after the label
     // is dropped on a narrow composer, so its soft body turns to the error
-    // tint â€?the track's only risk-coloured body, which is the point.
+    // tint â€” the track's only risk-coloured body, which is the point.
     &--full_access {
       background: var(--bitfun-color-status-danger-surface);
 
@@ -233,7 +234,7 @@ $track-item-gap: 10px;
   }
 
   // The anchor's label is a state word, so it carries the same weight the
-  // workspace name does on the opposite rail â€?the two subjects of the track.
+  // workspace name does on the opposite rail â€” the two subjects of the track.
   &__permission-label {
     min-width: 0;
     max-width: 88px;
@@ -276,8 +277,8 @@ $track-item-gap: 10px;
 
   // The one control whose subject keeps working while nobody is watching, so
   // its flag is the state: running, parked, or stuck. Only the states that wait
-  // on the user raise their voice â€?a healthy goal stays part of the hushed line
-  // â€?and a raised state keeps its ink through hover, because a blocked goal
+  // on the user raise their voice â€” a healthy goal stays part of the hushed line
+  // â€” and a raised state keeps its ink through hover, because a blocked goal
   // must not soften into the resting hover colour while the user points at it.
   &__goal-btn {
     @include strip-control;
@@ -381,7 +382,7 @@ $track-item-gap: 10px;
   }
 
   // One coordinate, two parts. Held at the inner gap they read as a single
-  // phrase â€?"BitFun on 1.0.0-explore" â€?instead of two facts that happen to
+  // phrase â€” "BitFun on 1.0.0-explore" â€” instead of two facts that happen to
   // be adjacent, and the branch glyph joins them the way the slash used to,
   // except this joiner says what the second part is.
   &__location {
@@ -485,7 +486,7 @@ $track-item-gap: 10px;
     overflow: hidden;
   }
 
-  // Only the interactive form answers a click â€?the hover fill is the whole
+  // Only the interactive form answers a click â€” the hover fill is the whole
   // difference between a fact and a control here.
   &__workspace--switchable {
     cursor: pointer;
@@ -525,7 +526,7 @@ $track-item-gap: 10px;
   }
 
   // Shares the permission menu's floating surface so both popovers off this
-  // strip feel like one family; the layout is simpler â€?a single column of
+  // strip feel like one family; the layout is simpler â€” a single column of
   // workspace names with a check on the active one.
   &__workspace-menu {
     @include overlay-layout.anchored-picker-inline-size;

@@ -93,7 +93,7 @@ const define = (render: GenUIComponentImplementation['render'], exercise?: GenUI
  * keeps its component names and event contract, while the mounted DOM comes
  * from @bitfun/ui and therefore follows the product's tokens and themes.
  */
-export const openbitfunComponents: GenUIImplementations['components'] = {
+export const bitfunComponents: GenUIImplementations['components'] = {
   Card: define(({ slots, view }) => (
     <Card
       appearance={view.props.variant === 'soft' ? 'subtle' : 'neutral'}
@@ -265,4 +265,4 @@ export const openbitfunComponents: GenUIImplementations['components'] = {
   }),
 };
 
-export const openbitfunComponentNames = Object.keys(openbitfunComponents);
+export const bitfunComponentNames = Object.keys(bitfunComponents);

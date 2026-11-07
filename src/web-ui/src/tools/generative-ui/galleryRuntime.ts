@@ -3,7 +3,7 @@ import { genUICatalog, libraryFor } from './genUIContract';
 import { demoTools } from '../../../../shared/generative-ui/gallery/demo-data';
 import type { GenUIGalleryProgram } from '../../../../shared/generative-ui/gallery';
 
-const galleryTemplate = 'openbitfun.app';
+const galleryTemplate = 'bitfun.app';
 
 /** Turn a hand-written OpenUI Lang fixture into the same app envelope used by model output. */
 export function galleryProgramToApp(program: GenUIGalleryProgram): GenUIAppDefinition {

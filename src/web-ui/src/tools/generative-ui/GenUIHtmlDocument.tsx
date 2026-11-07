@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { useEffect, useRef } from 'react';
 import { useColorScheme } from './components/openui/scheme';
-import { genUICatalog, type GenUIDesignSpec } from './genUIContract';
+import { genUICatalog, canonicalGenUIIdentity, type GenUIDesignSpec } from './genUIContract';
 import type { GenUIHtmlDocumentSource } from './genUITypes';
 
 export interface GenUIHtmlSanitizeResult {
@@ -134,11 +134,16 @@ function bridgeBootstrap(): string {
     const request = (capability, payload) => new Promise((resolve, reject) => {
       const requestId = 'genui-' + (++sequence);
       pending.set(requestId, { resolve, reject });
-      parent.postMessage({ kind: 'openbitfun.genui.bridge.request', requestId, capability, payload }, '*');
+      parent.postMessage({ kind: 'bitfun.genui.bridge.request', requestId, capability, payload }, '*');
     });
-    Object.defineProperty(window, 'openbitfunWidget', { value: Object.freeze({ request }), configurable: false, writable: false });
+    const widget = Object.freeze({ request });
+    Object.defineProperty(window, 'bitfunWidget', { value: widget, configurable: false, writable: false });
+    // Saved HTML documents still call the pre-rename global.
+    Object.defineProperty(window, 'openbitfunWidget', { value: widget, configurable: false, writable: false });
     addEventListener('message', event => {
-      if (event.source !== parent || !event.data || event.data.kind !== 'openbitfun.genui.bridge.response') return;
+      if (event.source !== parent || !event.data) return;
+      const kind = event.data.kind;
+      if (kind !== 'bitfun.genui.bridge.response' && kind !== 'openbitfun.genui.bridge.response') return;
       const pendingRequest = pending.get(event.data.requestId);
       if (!pendingRequest) return;
       pending.delete(event.data.requestId);
@@ -190,7 +195,7 @@ function inspectionBootstrap(): string {
         if (!seenRefs.has(ref)) { seenRefs.add(ref); renderedEvidence.push({ ref, text, role: parentElement.getAttribute('role') || parentElement.tagName.toLowerCase() }); }
       }
       parent.postMessage({
-        kind: 'openbitfun.genui.inspection.report',
+        kind: 'bitfun.genui.inspection.report',
         report: {
           viewportWidth: window.innerWidth,
           viewportHeight: window.innerHeight,
@@ -205,7 +210,8 @@ function inspectionBootstrap(): string {
       }, '*');
     };
     addEventListener('message', event => {
-      if (event.source === parent && event.data?.kind === 'openbitfun.genui.inspection.request') {
+      const kind = event.data?.kind;
+      if (event.source === parent && (kind === 'bitfun.genui.inspection.request' || kind === 'openbitfun.genui.inspection.request')) {
         setTimeout(report, 0);
         requestAnimationFrame(() => requestAnimationFrame(report));
       }
@@ -272,11 +278,11 @@ export function sanitizeGenUIHtmlSource(source: GenUIHtmlDocumentSource, specifi
   }
   if (specification) {
     const identity = parsed.createElement('meta');
-    identity.name = 'openbitfun-design-spec';
+    identity.name = 'bitfun-design-spec';
     identity.content = `${specification.label}@${specification.revision}`;
     parsed.head.appendChild(identity);
     const resources = parsed.createElement('meta');
-    resources.name = 'openbitfun-style-resources';
+    resources.name = 'bitfun-style-resources';
     resources.content = specification.styleResources.join(',');
     parsed.head.appendChild(resources);
   }
@@ -373,15 +379,20 @@ export default function GenUIHtmlDocument({ source, specification, designSpecId,
     let windowStart = Date.now();
     let requestCount = 0;
     const requests = new Map<string, AbortController>();
-    const sendError = (requestId: string, error: string) => frame.contentWindow?.postMessage({ kind: 'openbitfun.genui.bridge.response', requestId, ok: false, error }, '*');
+    const sendError = (requestId: string, error: string) => {
+      for (const kind of ['bitfun.genui.bridge.response', 'openbitfun.genui.bridge.response']) {
+        frame.contentWindow?.postMessage({ kind, requestId, ok: false, error }, '*');
+      }
+    };
     const handleMessage = (event: MessageEvent<unknown>) => {
       if (event.source !== frame.contentWindow || !event.data || typeof event.data !== 'object') return;
       const request = event.data as Record<string, unknown>;
-      if (request.kind === 'openbitfun.genui.bridge.cancel' && typeof request.requestId === 'string') {
+      if ((request.kind === 'bitfun.genui.bridge.cancel' || request.kind === 'openbitfun.genui.bridge.cancel') && typeof request.requestId === 'string') {
         requests.get(request.requestId)?.abort();
         return;
       }
-      if (request.kind !== 'openbitfun.genui.bridge.request' || typeof request.requestId !== 'string' || typeof request.capability !== 'string') return;
+      if (request.kind !== 'bitfun.genui.bridge.request' && request.kind !== 'openbitfun.genui.bridge.request') return;
+      if (typeof request.requestId !== 'string' || typeof request.capability !== 'string') return;
       const requestId = request.requestId;
       const capability = request.capability;
       if (!/^[A-Za-z0-9_.:-]{1,96}$/.test(capability) || requestId.length > 128) {
@@ -405,7 +416,12 @@ export default function GenUIHtmlDocument({ source, specification, designSpecId,
       }
       const capabilitySpec = bridge.capabilities[capability];
       const handler = Object.prototype.hasOwnProperty.call(bridge.handlers, capability) ? bridge.handlers[capability] : undefined;
-      const response = (message: Record<string, unknown>) => frame.contentWindow?.postMessage(message, '*');
+      const response = (message: Record<string, unknown>) => {
+        // Saved documents may still listen for the pre-rename response kind.
+        for (const kind of ['bitfun.genui.bridge.response', 'openbitfun.genui.bridge.response']) {
+          frame.contentWindow?.postMessage({ ...message, kind }, '*');
+        }
+      };
       if (!capabilitySpec || !handler || capabilitySpec.remote === 'unsupported') {
         sendError(requestId, 'Unsupported GenUI capability');
         return;
@@ -417,7 +433,7 @@ export default function GenUIHtmlDocument({ source, specification, designSpecId,
       }
       const controller = new AbortController();
       requests.set(requestId, controller);
-      Promise.resolve(handler(request.payload, { appId, sourceKey, designSpec: specification && designSpecId ? { id: designSpecId, revision: specification.revision } : undefined, signal: controller.signal })).then(
+      Promise.resolve(handler(request.payload, { appId, sourceKey, designSpec: specification && designSpecId ? { id: canonicalGenUIIdentity(designSpecId), revision: specification.revision } : undefined, signal: controller.signal })).then(
         value => {
           requests.delete(requestId);
           try {
@@ -429,11 +445,11 @@ export default function GenUIHtmlDocument({ source, specification, designSpecId,
             sendError(requestId, 'GenUI capability response is not serializable');
             return;
           }
-          response({ kind: 'openbitfun.genui.bridge.response', requestId, ok: true, value });
+          response({ requestId, ok: true, value });
         },
         error => {
           requests.delete(requestId);
-          response({ kind: 'openbitfun.genui.bridge.response', requestId, ok: false, error: error instanceof Error ? error.message : String(error) });
+          response({ requestId, ok: false, error: error instanceof Error ? error.message : String(error) });
         },
       );
     };
@@ -448,11 +464,11 @@ export default function GenUIHtmlDocument({ source, specification, designSpecId,
     if (!inspection) return;
     const frame = frameRef.current;
     if (!frame) return;
-    const requestReport = () => frame.contentWindow?.postMessage({ kind: 'openbitfun.genui.inspection.request' }, '*');
+    const requestReport = () => frame.contentWindow?.postMessage({ kind: 'bitfun.genui.inspection.request' }, '*');
     const handleMessage = (event: MessageEvent<unknown>) => {
       if (event.source !== frame.contentWindow || !event.data || typeof event.data !== 'object') return;
       const message = event.data as Record<string, unknown>;
-      if (message.kind !== 'openbitfun.genui.inspection.report' || !message.report || typeof message.report !== 'object') return;
+      if (message.kind !== 'bitfun.genui.inspection.report' && message.kind !== 'openbitfun.genui.inspection.report') return;
       const report = message.report as Record<string, unknown>;
       const numeric = ['viewportWidth', 'viewportHeight', 'clientWidth', 'clientHeight', 'scrollWidth', 'scrollHeight', 'visibleElementCount'];
       if (numeric.some(key => typeof report[key] !== 'number' || !Number.isFinite(report[key] as number))) return;

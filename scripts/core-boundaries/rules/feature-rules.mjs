@@ -192,7 +192,7 @@ export const optionalDependencyFeatureOwnerRules = [
       },
       { depName: 'bitfun-agent-runtime', ownerFeatures: ['agent-runtime', 'ai-adapter-runtime'] },
       { depName: 'bitfun-agent-workflows', ownerFeatures: ['deep-research'] },
-      { depName: 'openbitfun-office-documents', ownerFeatures: ['tools-office-documents'] },
+      { depName: 'bitfun-office-documents', ownerFeatures: ['tools-office-documents'] },
       { depName: 'bitfun-agent-stream', ownerFeatures: ['agent-runtime'] },
       { depName: 'bitfun-agent-tools', ownerFeatures: ['agent-runtime', 'local-storage', 'mcp-runtime'] },
       { depName: 'bitfun-claude-code-adapter', ownerFeatures: ['external-sources'] },
@@ -865,8 +865,7 @@ export const acpClosedFeatureProfileRules = [
       // The bundled DeepSeek Harness profile: `dirs` locates $DSH_HOME,
       // `semver` compares the build's minimum dsh version against the installed
       // one, and `tar` packs the profile for a remote workspace, which receives
-      // it as one stream over its own transport. All three are client-only â€”
-      // the server surface never launches an agent.
+      // it as one stream over its own transport. All three are client-only â€?      // the server surface never launches an agent.
       'dep:dirs',
       'dep:semver',
       'dep:tar',
@@ -1479,7 +1478,7 @@ export const coreClosedFeatureProfileRules = [
     featureName: 'tools-office-documents',
     requiredFeatureRefs: [
       'bitfun-tool-packs/office-documents',
-      'dep:openbitfun-office-documents',
+      'dep:bitfun-office-documents',
     ],
     exact: true,
     reason: 'tools-office-documents owns Office file generation with only its portable OOXML engine',

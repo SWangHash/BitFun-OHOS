@@ -8,7 +8,7 @@ import {
 } from './toolInvocationIdentity';
 import { resolveSessionDriverId } from '../session-drivers/resolve';
 import { isGenUIAppEnvelope, type GenUIAppEnvelope, type GenUIAppState } from '@/tools/generative-ui/genUITypes';
-import { genUICatalog } from '@/tools/generative-ui/genUIContract';
+import { genUICatalog, canonicalGenUIIdentity } from '@/tools/generative-ui/genUIContract';
 import { resolveGenUIInteractionState, type GenUIInteractionState } from '@/tools/generative-ui/genUIInteractionState';
 
 export const GENERATIVE_WIDGET_TOOL_NAME = 'GenerativeUI';
@@ -92,18 +92,20 @@ function parseObject(value: unknown): Record<string, unknown> | undefined {
 }
 
 function firstTemplateForLibrary(libraryId: string): string {
-  const template = Object.entries(genUICatalog.templates).find(([, value]) => value.library === libraryId)?.[0];
+  const canonical = canonicalGenUIIdentity(libraryId);
+  const template = Object.entries(genUICatalog.templates).find(([, value]) => value.library === canonical)?.[0];
   return template ?? 'openui.app';
 }
 
 function defaultDesignSpecForLibrary(libraryId: string): { id: string; revision: number } {
-  if (libraryId.includes('harmony')) return { id: 'harmony.phone.v1', revision: 1 };
-  if (libraryId.startsWith('openui.')) return { id: 'openui.desktop.v1', revision: 1 };
-  return { id: 'openbitfun.desktop.v1', revision: 1 };
+  const canonical = canonicalGenUIIdentity(libraryId);
+  if (canonical.includes('harmony')) return { id: 'harmony.phone.v1', revision: 1 };
+  if (canonical.startsWith('openui.')) return { id: 'openui.desktop.v1', revision: 1 };
+  return { id: 'bitfun.desktop.v1', revision: 1 };
 }
 
 function libraryRevisionFor(libraryId: string): number {
-  const adapter = (genUICatalog.libraryAdapters as Record<string, { revision?: unknown }>)[libraryId];
+  const adapter = (genUICatalog.libraryAdapters as Record<string, { revision?: unknown }>)[canonicalGenUIIdentity(libraryId)];
   const revision = adapter?.revision;
   return Number.isInteger(revision) ? revision as number : 1;
 }
@@ -188,7 +190,7 @@ export function projectGenerativeWidgetTool(
   let appCandidate = parseObject(result?.app ?? input?.app);
   const declaredTemplate = firstString(appCandidate?.template, projected._genUIStream?.template);
   const libraryId = firstString(appCandidate?.libraryId, projected._genUIStream?.libraryId)
-    ?? (declaredTemplate ? genUICatalog.templates[declaredTemplate]?.library : undefined)
+    ?? (declaredTemplate ? genUICatalog.templates[canonicalGenUIIdentity(declaredTemplate)]?.library : undefined)
     // A retry can expose only the template metadata before the catalog entry
     // arrives in the partial tool payload. Keep the profile identity stable so
     // its delivery mode and loading surface do not disappear mid-retry.
