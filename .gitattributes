@@ -2,7 +2,8 @@
 # Line-ending policy.
 #
 # Git for Windows defaults to `core.autocrlf=true`, which rewrites every text
-# file to CRLF on checkout. Two BitFun paths break silently when that happens:
+# file to CRLF on checkout. Several BitFun paths break silently when that
+# happens:
 #
 #   1. `src/apps/relay-server/*.sh` is embedded into the Desktop binary with
 #      `include_str!` and uploaded verbatim to the relay host. A CR turns each
@@ -10,6 +11,11 @@
 #      one-click deploy on the first one.
 #   2. Rust raw string literals (`r#"..."#`) that hold remote bash carry the
 #      checkout's CRLF into the generated scripts the same way.
+#   3. Terminal shell-integration scripts are embedded with `include_str!` and
+#      written to the generated `.zshrc`/`fish.fish`; a CR makes zsh fail to
+#      parse `case ... in`.
+#   4. Deployment artifacts are copied verbatim to POSIX hosts, where crontab
+#      and systemd keep the trailing CR as part of the command or unit value.
 #
 # Force LF for everything that has to run on a POSIX host, regardless of where
 # it was checked out. Windows-only scripts (`*.ps1`) are left alone — PowerShell
@@ -19,6 +25,8 @@
 /.gitattributes     text eol=lf
 *.sh                text eol=lf
 *.bash              text eol=lf
+# Zsh/Fish integration scripts are embedded with `include_str!` and written to
+# the terminal cache. A CR makes zsh fail to parse `case ... in`.
 *.zsh               text eol=lf
 *.fish              text eol=lf
 *.rs                text eol=lf
@@ -72,6 +80,14 @@ gradlew             text eol=lf
 gradlew.bat         text eol=crlf
 *.jar               binary
 
+# Node entrypoints may be executed through their `#!` shebang, where a trailing
+# CR becomes part of the interpreter path (`node\r: not found`). `worker_host.js`
+# is also shipped as a desktop resource, so keep the whole JS corpus LF.
+*.js                text eol=lf
+*.jsx               text eol=lf
+*.mts               text eol=lf
+*.cts               text eol=lf
+
 # Frontend sources keep LF: the web-ui corpus is 99.8% LF and Windows editors
 # have repeatedly flipped whole .ts/.tsx files to CRLF, polluting diffs with
 # thousands of newline-only lines (commit 8db6e0b04 carried 7808 such lines).
@@ -80,6 +96,14 @@ gradlew.bat         text eol=crlf
 *.tsx               text eol=lf
 *.scss              text eol=lf
 *.css               text eol=lf
+
+# Deployment artifacts are copied verbatim to POSIX hosts. crontab and systemd
+# treat a trailing CR as part of the command/unit value, and nginx configs are
+# easier to reason about when every platform produces the same bytes.
+deploy/**           text eol=lf
+*.cron              text eol=lf
+*.service           text eol=lf
+*.timer             text eol=lf
 
 Dockerfile          text eol=lf
 Dockerfile.*        text eol=lf
