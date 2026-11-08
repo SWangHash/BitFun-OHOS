@@ -72,6 +72,26 @@ describe('TitleTooltipHost', () => {
     expect(visibleTooltip()).toBeNull();
   });
 
+  it('ignores frame and opted-out titles that cannot report a pointer exit', async () => {
+    // A MiniApp tab is one full-bleed iframe whose `title` is the app name.
+    // ArkWeb never emits `mouseout` for a frame, so opening a bubble there
+    // pinned the app name above the content area until the host unmounted.
+    const frame = document.createElement('iframe');
+    frame.title = 'Regex Playground';
+    fixture.append(frame);
+
+    const nativeTitle = document.createElement('div');
+    nativeTitle.setAttribute('data-native-title-keep', '');
+    nativeTitle.title = 'Native title';
+    fixture.append(nativeTitle);
+
+    for (const element of [frame, nativeTitle]) {
+      hover(element);
+      await advance(1_000);
+      expect(visibleTooltip()).toBeNull();
+    }
+  });
+
   it('leaves controls with a shared tooltip owner to that tooltip', async () => {
     const normal = titledButton();
     hover(normal);

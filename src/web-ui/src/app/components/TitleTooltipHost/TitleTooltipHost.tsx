@@ -11,6 +11,13 @@ const GAP = 6;
 // also matches labelled elements inside the editor chrome.
 const TOOLTIP_SELECTOR = '[title], .find-widget [aria-label], .monaco-editor [aria-label]';
 
+// Same opt-out contract as `nativeTitleTooltip`: an iframe's `title` is its
+// accessible name, not hover copy. ArkWeb does not dispatch `mouseout` when the
+// pointer leaves a frame, so a bubble opened over a full-bleed MiniApp surface
+// (`title={app.name}`) would stay pinned above the content area until the host
+// unmounts, surviving tab switches.
+const OPT_OUT_SELECTOR = 'iframe, [data-native-title-keep]';
+
 function readTooltipText(element: HTMLElement): string {
   return element.getAttribute('title') ?? element.getAttribute('aria-label') ?? '';
 }
@@ -92,7 +99,7 @@ export const TitleTooltipHost: React.FC = () => {
         return;
       }
       const withLabel = node.closest<HTMLElement>(TOOLTIP_SELECTOR);
-      if (!withLabel) {
+      if (!withLabel || withLabel.matches(OPT_OUT_SELECTOR)) {
         hide();
         return;
       }
