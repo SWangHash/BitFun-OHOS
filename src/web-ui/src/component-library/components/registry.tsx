@@ -63,7 +63,7 @@ function createMockToolItem(
     toolResult: result ? {
       result,
       success: status === 'completed',
-      error: status === 'error' ? '执行失败' : undefined
+      error: status === 'error' ? 'Execution failed' : undefined
     } : undefined,
     config: config || {
       toolName,
@@ -82,28 +82,28 @@ function createMockToolItem(
 export const componentRegistry: ComponentCategory[] = [
   {
     id: 'basic',
-    name: '基础组件',
-    description: '常用的基础UI组件',
+    name: 'Basic Components',
+    description: 'Common basic UI components',
     layoutType: 'grid-4',
     components: [
       {
         id: 'button-primary',
         name: 'Button - Primary',
-        description: '主要按钮',
+        description: 'Primary button',
         category: 'basic',
         component: () => <Button variant="primary">Primary Button</Button>,
       },
       {
         id: 'button-secondary',
         name: 'Button - Secondary',
-        description: '次要按钮',
+        description: 'Secondary button',
         category: 'basic',
         component: () => <Button variant="secondary">Secondary Button</Button>,
       },
       {
         id: 'button-ghost',
         name: 'Button - Ghost',
-        description: '幽灵按钮',
+        description: 'Ghost button',
         category: 'basic',
         component: () => <Button variant="ghost">Ghost Button</Button>,
       },
@@ -122,7 +122,7 @@ export const componentRegistry: ComponentCategory[] = [
       },
       {
         id: 'tag-demo',
-        name: 'Tag - 演示',
+        name: 'Tag - Demo',
         description: 'Demo',
         category: 'basic',
         component: () => (
@@ -149,7 +149,7 @@ export const componentRegistry: ComponentCategory[] = [
       },
       {
         id: 'icon-button-variants',
-        name: 'IconButton - 变体',
+        name: 'IconButton - Variants',
         description: 'Demo',
         category: 'basic',
         component: () => (
@@ -192,7 +192,7 @@ export const componentRegistry: ComponentCategory[] = [
       },
       {
         id: 'icon-button-sizes',
-        name: 'IconButton - 尺寸',
+        name: 'IconButton - Sizes',
         description: 'Demo',
         category: 'basic',
         component: () => (
@@ -217,7 +217,7 @@ export const componentRegistry: ComponentCategory[] = [
       },
       {
         id: 'icon-button-shapes',
-        name: 'IconButton - 形状',
+        name: 'IconButton - Shapes',
         description: 'Demo',
         category: 'basic',
         component: () => (
@@ -237,7 +237,7 @@ export const componentRegistry: ComponentCategory[] = [
       },
       {
         id: 'window-controls-demo',
-        name: 'WindowControls - 窗口控件',
+        name: 'WindowControls - Window controls',
         description: 'Demo',
         category: 'basic',
         component: () => (
@@ -270,20 +270,20 @@ export const componentRegistry: ComponentCategory[] = [
   },
   {
     id: 'feedback',
-    name: '反馈组件',
+    name: 'Feedback Components',
     description: 'Demo',
     layoutType: 'demo',
     components: [
       {
         id: 'cube-loading-variants',
-        name: 'CubeLoading - 所有变体',
-        description: '3x3x3 立方体加载动画展示',
+        name: 'CubeLoading - All variants',
+        description: '3x3x3 cube loading animation demo',
         category: 'feedback',
         component: () => (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '32px', padding: '20px' }}>
             {}
             <div>
-              <div style={{ fontSize: '12px', color: previewTextDisabled, marginBottom: '16px', fontWeight: 500 }}>尺寸</div>
+              <div style={{ fontSize: '12px', color: previewTextDisabled, marginBottom: '16px', fontWeight: 500 }}>Size</div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '48px', alignItems: 'flex-end' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
                   <CubeLoading size="small" />
@@ -303,8 +303,8 @@ export const componentRegistry: ComponentCategory[] = [
             <div>
               <div style={{ fontSize: '12px', color: previewTextDisabled, marginBottom: '16px', fontWeight: 500 }}>With text</div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '48px', alignItems: 'flex-start' }}>
-                <CubeLoading text="加载中.." />
-                <CubeLoading size="large" text="加载中.." />
+                <CubeLoading text="Loading.." />
+                <CubeLoading size="large" text="Loading.." />
               </div>
             </div>
           </div>
@@ -313,17 +313,17 @@ export const componentRegistry: ComponentCategory[] = [
       {
         id: 'modal-basic',
         name: 'Modal - Basic',
-        description: '基础弹窗',
+        description: 'Basic modal',
         category: 'feedback',
         component: () => {
           const [isOpen, setIsOpen] = React.useState(false);
           return (
             <>
-              <Button onClick={() => setIsOpen(true)}>打开弹窗</Button>
+              <Button onClick={() => setIsOpen(true)}>Open modal</Button>
               <Modal
                 isOpen={isOpen}
                 onClose={() => setIsOpen(false)}
-                title="基础弹窗"
+                title="Basic modal"
               >
                 <div style={{ padding: '16px' }}>
                   <p>Modal body content</p>
@@ -335,7 +335,7 @@ export const componentRegistry: ComponentCategory[] = [
       },
       {
         id: 'alert-demo',
-        name: 'Alert - 四种类型',
+        name: 'Alert - Four types',
         description: 'Demo',
         category: 'feedback',
         component: () => (
@@ -349,8 +349,8 @@ export const componentRegistry: ComponentCategory[] = [
       },
       {
         id: 'stream-text-demo',
-        name: 'StreamText - 流式文本演示',
-        description: 'AI 流式文本打字机效果',
+        name: 'StreamText - Streaming text demo',
+        description: 'AI streaming typewriter effect',
         category: 'feedback',
         component: () => {
           const [key, setKey] = React.useState(0);
@@ -380,7 +380,7 @@ export const componentRegistry: ComponentCategory[] = [
                 variant="secondary"
                 onClick={() => setKey(prev => prev + 1)}
               >
-                重新播放
+                Replay
               </Button>
             </div>
           );
@@ -390,8 +390,8 @@ export const componentRegistry: ComponentCategory[] = [
   },
   {
     id: 'form',
-    name: '表单组件',
-    description: '输入类表单组件',
+    name: 'Form Components',
+    description: 'Input form components',
     layoutType: 'grid-2',
     components: [
       {
@@ -404,7 +404,7 @@ name: 'Input - Demo',
             <Input placeholder="Enter text" />
             <Input label="Label" placeholder="Placeholder" />
             <Input
-              label="邮箱"
+              label="Email"
               type="email"
               placeholder="example@email.com"
               prefix="@"
@@ -444,7 +444,7 @@ name: 'Search - Demo',
           return (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', maxWidth: '500px' }}>
               <Search
-                placeholder="搜索关键词.."
+                placeholder="Search keywords.."
                 onChange={(val) => setValue(val)}
               />
               <Search
@@ -515,7 +515,7 @@ name: 'Search - Demo',
       {
         id: 'checkbox-demo',
         name: 'Checkbox - Demo',
-        description: '复选框演示',
+        description: 'Checkbox demo',
         category: 'form',
         component: () => {
           const [checked, setChecked] = React.useState(false);
@@ -603,23 +603,23 @@ name: 'Search - Demo',
                 placeholder="Placeholder..."
               />
               <Textarea
-                label="字数限制"
-                placeholder="最多100字符.."
+                label="Character limit"
+                placeholder="Up to 100 characters.."
                 showCount
                 maxLength={100}
                 value={value}
                 onChange={(e) => setValue(e.target.value)}
               />
               <Textarea
-                label="自动调整高度"
-                placeholder="内容会自动调整高度..."
+                label="Auto-resize height"
+                placeholder="Content auto-resizes height..."
                 autoResize
               />
               <Textarea
                 label="Error"
                 error
-                errorMessage="请输入有效内容"
-                placeholder="输入内容.."
+                errorMessage="Please enter valid content"
+                placeholder="Enter content.."
               />
               <Textarea
                 variant="filled"
@@ -637,8 +637,8 @@ name: 'Search - Demo',
   },
   {
     id: 'content',
-    name: '内容组件',
-    description: '展示内容和媒体的组件',
+    name: 'Content Components',
+    description: 'Components that display content and media',
     layoutType: 'large-card',
     components: [
       {
@@ -648,32 +648,32 @@ description: 'Markdown with GFM support',
         category: 'content',
         component: () => (
           <Markdown
-            content={`# Markdown 演示
+            content={`# Markdown Demo
 
-这是一个**Markdown**渲染示例
+This is a **Markdown** rendering example
 
-## 功能
+## Features
 
-- 代码高亮
-- GFM 支持
-- 数学公式
-- 表格支持
+- Code highlighting
+- GFM support
+- Math formulas
+- Table support
 
 \`\`\`js
 console.log('Hello, BitFun!');
 \`\`\`
 
-> 引用块示例`}
+> Blockquote example`}
           />
         ),
       },
       {
         id: 'code-editor',
         name: 'CodeEditor',
-        description: '基于 Monaco Editor 的代码编辑器',
+        description: 'Code editor based on Monaco Editor',
         category: 'content',
         component: () => {
-          const [code, setCode] = React.useState(`// TypeScript 示例
+          const [code, setCode] = React.useState(`// TypeScript example
 interface User {
   name: string;
   age: number;
@@ -713,7 +713,7 @@ console.log(user.greet());`);
   },
   {
     id: 'navigation',
-    name: '导航组件',
+    name: 'Navigation Components',
     description: 'Demo',
     layoutType: 'grid-2',
     components: [
@@ -726,31 +726,31 @@ console.log(user.greet());`);
           <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
             <Tabs type="line" defaultActiveKey="1">
               <TabPane tabKey="1" label="Tab 1">
-                <div style={{ padding: '16px' }}>Line 类型 - 内容1</div>
+                <div style={{ padding: '16px' }}>Line type - Content 1</div>
               </TabPane>
               <TabPane tabKey="2" label="Tab 2">
-                <div style={{ padding: '16px' }}>Line 类型 - 内容2</div>
+                <div style={{ padding: '16px' }}>Line type - Content 2</div>
               </TabPane>
               <TabPane tabKey="3" label="Tab 3">
-                <div style={{ padding: '16px' }}>Line 类型 - 内容3</div>
+                <div style={{ padding: '16px' }}>Line type - Content 3</div>
               </TabPane>
             </Tabs>
 
             <Tabs type="card" defaultActiveKey="1">
               <TabPane tabKey="1" label="Card 1">
-                <div style={{ padding: '16px' }}>Card 类型 - 内容1</div>
+                <div style={{ padding: '16px' }}>Card type - Content 1</div>
               </TabPane>
               <TabPane tabKey="2" label="Card 2">
-                <div style={{ padding: '16px' }}>Card 类型 - 内容2</div>
+                <div style={{ padding: '16px' }}>Card type - Content 2</div>
               </TabPane>
             </Tabs>
 
             <Tabs type="pill" defaultActiveKey="1">
               <TabPane tabKey="1" label="Pill 1">
-                <div style={{ padding: '16px' }}>Pill 类型 - 内容1</div>
+                <div style={{ padding: '16px' }}>Pill type - Content 1</div>
               </TabPane>
               <TabPane tabKey="2" label="Pill 2">
-                <div style={{ padding: '16px' }}>Pill 类型 - 内容2</div>
+                <div style={{ padding: '16px' }}>Pill type - Content 2</div>
               </TabPane>
             </Tabs>
           </div>
@@ -760,27 +760,27 @@ console.log(user.greet());`);
   },
   {
     id: 'advanced-feedback',
-    name: '高级反馈',
-    description: '高级反馈组件',
+    name: 'Advanced Feedback',
+    description: 'Advanced feedback components',
     layoutType: 'grid-3',
     components: [
       {
         id: 'tooltip-demo',
-        name: 'Tooltip - 位置演示',
-        description: '气泡提示',
+        name: 'Tooltip - Placement demo',
+        description: 'Tooltip',
         category: 'advanced-feedback',
         component: () => (
           <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap', justifyContent: 'center', padding: '40px' }}>
-            <Tooltip content="上方提示" placement="top">
+            <Tooltip content="Top tooltip" placement="top">
               <Button>Top</Button>
             </Tooltip>
-            <Tooltip content="下方提示" placement="bottom">
+            <Tooltip content="Bottom tooltip" placement="bottom">
               <Button>Bottom</Button>
             </Tooltip>
-            <Tooltip content="左侧提示" placement="left">
+            <Tooltip content="Left tooltip" placement="left">
               <Button>Left</Button>
             </Tooltip>
-            <Tooltip content="右侧提示" placement="right">
+            <Tooltip content="Right tooltip" placement="right">
               <Button>Right</Button>
             </Tooltip>
           </div>
@@ -790,18 +790,18 @@ console.log(user.greet());`);
   },
   {
     id: 'flowchat-cards',
-    name: 'FlowChat 卡片',
-    description: '展示 FlowChat 工具调用卡片组件的预览',
+    name: 'FlowChat Cards',
+    description: 'Preview of FlowChat tool-call card components',
     layoutType: 'column',
     components: [
       {
         id: 'read-file-card',
-        name: 'ReadFile - 文件读取卡片',
-        description: '读取文件的工具卡片',
+        name: 'ReadFile - File read card',
+        description: 'Tool card for reading files',
         category: 'flowchat-cards',
         component: () => (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '20px' }}>
-            <h3 style={{ color: 'var(--bf-appearance-token-color-static-white)', marginBottom: '8px' }}>读取文件 - 成功</h3>
+            <h3 style={{ color: 'var(--bf-appearance-token-color-static-white)', marginBottom: '8px' }}>Read file - Success</h3>
             <ReadFileDisplay
               toolItem={createMockToolItem('Read',
                 { target_file: 'src/App.tsx', offset: 1, limit: 50 },
@@ -817,7 +817,7 @@ console.log(user.greet());`);
               sessionId="preview-session"
             />
 
-            <h3 style={{ color: 'var(--bf-appearance-token-color-static-white)', marginTop: '16px', marginBottom: '8px' }}>读取文件 - 执行中</h3>
+            <h3 style={{ color: 'var(--bf-appearance-token-color-static-white)', marginTop: '16px', marginBottom: '8px' }}>Read file - Running</h3>
             <ReadFileDisplay
               toolItem={createMockToolItem('Read',
                 { target_file: 'src/components/Header.tsx' },
@@ -832,12 +832,12 @@ console.log(user.greet());`);
       },
       {
         id: 'file-operation-card',
-        name: 'FileOperation - 文件操作卡片',
-        description: '文件写入、编辑、删除操作的工具卡片',
+        name: 'FileOperation - File operation card',
+        description: 'Tool card for file write, edit, and delete operations',
         category: 'flowchat-cards',
         component: () => (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '20px' }}>
-            <h3 style={{ color: 'var(--bf-appearance-token-color-static-white)', marginBottom: '8px' }}>写入文件</h3>
+            <h3 style={{ color: 'var(--bf-appearance-token-color-static-white)', marginBottom: '8px' }}>Write file</h3>
             <FileOperationToolCard
               toolItem={createMockToolItem('Write',
                 {
@@ -851,7 +851,7 @@ console.log(user.greet());`);
               sessionId="preview-session"
             />
 
-            <h3 style={{ color: 'var(--bf-appearance-token-color-static-white)', marginTop: '16px', marginBottom: '8px' }}>编辑文件</h3>
+            <h3 style={{ color: 'var(--bf-appearance-token-color-static-white)', marginTop: '16px', marginBottom: '8px' }}>Edit file</h3>
             <FileOperationToolCard
               toolItem={createMockToolItem('Edit',
                 {
@@ -866,7 +866,7 @@ console.log(user.greet());`);
               sessionId="preview-session"
             />
 
-            <h3 style={{ color: 'var(--bf-appearance-token-color-static-white)', marginTop: '16px', marginBottom: '8px' }}>删除文件</h3>
+            <h3 style={{ color: 'var(--bf-appearance-token-color-static-white)', marginTop: '16px', marginBottom: '8px' }}>Delete file</h3>
             <FileOperationToolCard
               toolItem={createMockToolItem('Delete',
                 { target_file: 'src/oldFile.ts' },
@@ -881,12 +881,12 @@ console.log(user.greet());`);
       },
       {
         id: 'search-card',
-        name: 'Search - 搜索卡片',
-        description: '搜索工具结果展示',
+        name: 'Search - Search card',
+        description: 'Search tool result display',
         category: 'flowchat-cards',
         component: () => (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '20px' }}>
-            <h3 style={{ color: 'var(--bf-appearance-token-color-static-white)', marginBottom: '8px' }}>Grep 搜索结果</h3>
+            <h3 style={{ color: 'var(--bf-appearance-token-color-static-white)', marginBottom: '8px' }}>Grep search results</h3>
             <GrepSearchDisplay
               toolItem={createMockToolItem('Grep',
                 { pattern: 'function', path: 'src/' },
@@ -904,7 +904,7 @@ console.log(user.greet());`);
               sessionId="preview-session"
             />
 
-            <h3 style={{ color: 'var(--bf-appearance-token-color-static-white)', marginTop: '16px', marginBottom: '8px' }}>Grep - 多结果示例</h3>
+            <h3 style={{ color: 'var(--bf-appearance-token-color-static-white)', marginTop: '16px', marginBottom: '8px' }}>Grep - Multiple results example</h3>
             <GrepSearchDisplay
               toolItem={createMockToolItem('Grep',
                 { pattern: 'import React', path: 'src/components' },
@@ -923,7 +923,7 @@ console.log(user.greet());`);
               sessionId="preview-session"
             />
 
-            <h3 style={{ color: 'var(--bf-appearance-token-color-static-white)', marginTop: '16px', marginBottom: '8px' }}>Glob 搜索结果</h3>
+            <h3 style={{ color: 'var(--bf-appearance-token-color-static-white)', marginTop: '16px', marginBottom: '8px' }}>Glob search results</h3>
             <GlobSearchDisplay
               toolItem={createMockToolItem('Glob',
                 { glob_pattern: '*.tsx' },
@@ -937,7 +937,7 @@ console.log(user.greet());`);
               sessionId="preview-session"
             />
 
-            <h3 style={{ color: 'var(--bf-appearance-token-color-static-white)', marginTop: '16px', marginBottom: '8px' }}>LS 目录列表</h3>
+            <h3 style={{ color: 'var(--bf-appearance-token-color-static-white)', marginTop: '16px', marginBottom: '8px' }}>LS directory listing</h3>
             <LSDisplay
               toolItem={createMockToolItem('LS',
                 { target_directory: 'src/components' },
@@ -961,17 +961,17 @@ console.log(user.greet());`);
       },
       {
         id: 'task-card',
-        name: 'Task - AI任务卡片',
-        description: 'AI 任务执行卡片',
+        name: 'Task - AI task card',
+        description: 'AI task execution card',
         category: 'flowchat-cards',
         component: () => (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '20px' }}>
-            <h3 style={{ color: 'var(--bf-appearance-token-color-static-white)', marginBottom: '8px' }}>AI 任务 - 执行中</h3>
+            <h3 style={{ color: 'var(--bf-appearance-token-color-static-white)', marginBottom: '8px' }}>AI task - Running</h3>
             <TaskToolDisplay
               toolItem={createMockToolItem('Task',
                 {
-                  description: '分析代码库结构',
-                  prompt: '分析当前项目的代码结构',
+                  description: 'Analyze codebase structure',
+                  prompt: 'Analyze the current project code structure',
                   model_name: 'claude-3.5-sonnet',
                   subagent_type: 'code-analyzer'
                 },
@@ -982,25 +982,25 @@ console.log(user.greet());`);
               sessionId="preview-session"
             />
 
-            <h3 style={{ color: 'var(--bf-appearance-token-color-static-white)', marginTop: '16px', marginBottom: '8px' }}>AI 任务 - 已完成</h3>
+            <h3 style={{ color: 'var(--bf-appearance-token-color-static-white)', marginTop: '16px', marginBottom: '8px' }}>AI task - Completed</h3>
             <TaskToolDisplay
               toolItem={createMockToolItem('Task',
                 {
-                  description: '创建新功能',
-                  prompt: '创建一个新的功能模块',
+                  description: 'Create a new feature',
+                  prompt: 'Create a new feature module',
                   model_name: 'claude-3.5-sonnet',
                   subagent_type: 'architect'
                 },
                 {
                   status: 'completed',
-                  result: `任务已成功完成
+                  result: `Task completed successfully
 
-1. 搭建 React + TypeScript 环境
-2. 配置 Zustand 状态管理
-3. 添加 SCSS 与 BEM 样式体系
-4. 实现核心组件
+1. Set up the React + TypeScript environment
+2. Configure Zustand state management
+3. Add SCSS and BEM styling system
+4. Implement core components
 
-所有需求均已满足`,
+All requirements have been met`,
                   duration_ms: 12500,
                   tool_uses: 8
                 },
@@ -1014,26 +1014,26 @@ console.log(user.greet());`);
       },
       {
         id: 'todo-card',
-        name: 'TodoWrite - Todo任务管理',
-        description: 'Todo 任务状态卡片',
+        name: 'TodoWrite - Todo task management',
+        description: 'Todo task status card',
         category: 'flowchat-cards',
         component: () => (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '20px' }}>
-            <h3 style={{ color: 'var(--bf-appearance-token-color-static-white)', marginBottom: '8px' }}>Todo - 基础示例</h3>
+            <h3 style={{ color: 'var(--bf-appearance-token-color-static-white)', marginBottom: '8px' }}>Todo - Basic example</h3>
             <TodoWriteDisplay
               toolItem={createMockToolItem('TodoWrite',
                 {
                   todos: [
-                    { id: '1', content: '任务 A', status: 'completed' },
-                    { id: '2', content: '任务 B', status: 'in_progress' },
-                    { id: '3', content: '任务 C', status: 'pending' }
+                    { id: '1', content: 'Task A', status: 'completed' },
+                    { id: '2', content: 'Task B', status: 'in_progress' },
+                    { id: '3', content: 'Task C', status: 'pending' }
                   ]
                 },
                 {
                   todos: [
-                    { id: '1', content: '任务 A', status: 'completed' },
-                    { id: '2', content: '任务 B', status: 'in_progress' },
-                    { id: '3', content: '任务 C', status: 'pending' }
+                    { id: '1', content: 'Task A', status: 'completed' },
+                    { id: '2', content: 'Task B', status: 'in_progress' },
+                    { id: '3', content: 'Task C', status: 'pending' }
                   ]
                 },
                 'completed'
@@ -1042,27 +1042,27 @@ console.log(user.greet());`);
               sessionId="preview-session"
             />
 
-            <h3 style={{ color: 'var(--bf-appearance-token-color-static-white)', marginTop: '16px', marginBottom: '8px' }}>Todo - 多任务示例</h3>
+            <h3 style={{ color: 'var(--bf-appearance-token-color-static-white)', marginTop: '16px', marginBottom: '8px' }}>Todo - Multi-task example</h3>
             <TodoWriteDisplay
               toolItem={createMockToolItem('TodoWrite',
                 {
                   todos: [
-                    { id: '1', content: '任务 1', status: 'completed' },
-                    { id: '2', content: '任务 2', status: 'in_progress' },
-                    { id: '3', content: '集成 API', status: 'in_progress' },
-                    { id: '4', content: '任务 4', status: 'in_progress' },
-                    { id: '5', content: '任务 5', status: 'pending' },
-                    { id: '6', content: '任务 6', status: 'pending' }
+                    { id: '1', content: 'Task 1', status: 'completed' },
+                    { id: '2', content: 'Task 2', status: 'in_progress' },
+                    { id: '3', content: 'Integrate API', status: 'in_progress' },
+                    { id: '4', content: 'Task 4', status: 'in_progress' },
+                    { id: '5', content: 'Task 5', status: 'pending' },
+                    { id: '6', content: 'Task 6', status: 'pending' }
                   ]
                 },
                 {
                   todos: [
-                    { id: '1', content: '任务 1', status: 'completed' },
-                    { id: '2', content: '任务 2', status: 'in_progress' },
-                    { id: '3', content: '集成 API', status: 'in_progress' },
-                    { id: '4', content: '任务 4', status: 'in_progress' },
-                    { id: '5', content: '任务 5', status: 'pending' },
-                    { id: '6', content: '任务 6', status: 'pending' }
+                    { id: '1', content: 'Task 1', status: 'completed' },
+                    { id: '2', content: 'Task 2', status: 'in_progress' },
+                    { id: '3', content: 'Integrate API', status: 'in_progress' },
+                    { id: '4', content: 'Task 4', status: 'in_progress' },
+                    { id: '5', content: 'Task 5', status: 'pending' },
+                    { id: '6', content: 'Task 6', status: 'pending' }
                   ]
                 },
                 'completed'
@@ -1071,25 +1071,25 @@ console.log(user.greet());`);
               sessionId="preview-session"
             />
 
-            <h3 style={{ color: 'var(--bf-appearance-token-color-static-white)', marginTop: '16px', marginBottom: '8px' }}>Todo进度 - 进行中</h3>
+            <h3 style={{ color: 'var(--bf-appearance-token-color-static-white)', marginTop: '16px', marginBottom: '8px' }}>Todo progress - In progress</h3>
             <TodoWriteDisplay
               toolItem={createMockToolItem('TodoWrite',
                 {
                   todos: [
-                    { id: '1', content: '任务 1', status: 'completed' },
-                    { id: '2', content: '任务 2', status: 'completed' },
-                    { id: '3', content: '任务 3', status: 'in_progress' },
-                    { id: '4', content: '任务 4', status: 'pending' },
-                    { id: '5', content: '任务 5', status: 'pending' }
+                    { id: '1', content: 'Task 1', status: 'completed' },
+                    { id: '2', content: 'Task 2', status: 'completed' },
+                    { id: '3', content: 'Task 3', status: 'in_progress' },
+                    { id: '4', content: 'Task 4', status: 'pending' },
+                    { id: '5', content: 'Task 5', status: 'pending' }
                   ]
                 },
                 {
                   todos: [
-                    { id: '1', content: '任务 1', status: 'completed' },
-                    { id: '2', content: '任务 2', status: 'completed' },
-                    { id: '3', content: '任务 3', status: 'in_progress' },
-                    { id: '4', content: '任务 4', status: 'pending' },
-                    { id: '5', content: '任务 5', status: 'pending' }
+                    { id: '1', content: 'Task 1', status: 'completed' },
+                    { id: '2', content: 'Task 2', status: 'completed' },
+                    { id: '3', content: 'Task 3', status: 'in_progress' },
+                    { id: '4', content: 'Task 4', status: 'pending' },
+                    { id: '5', content: 'Task 5', status: 'pending' }
                   ]
                 },
                 'completed'
@@ -1098,23 +1098,23 @@ console.log(user.greet());`);
               sessionId="preview-session"
             />
 
-            <h3 style={{ color: 'var(--bf-appearance-token-color-static-white)', marginTop: '16px', marginBottom: '8px' }}>Todo - 待处理</h3>
+            <h3 style={{ color: 'var(--bf-appearance-token-color-static-white)', marginTop: '16px', marginBottom: '8px' }}>Todo - Pending</h3>
             <TodoWriteDisplay
               toolItem={createMockToolItem('TodoWrite',
                 {
                   todos: [
-                    { id: '1', content: '事项', status: 'pending' },
-                    { id: '2', content: '集成 API', status: 'pending' },
-                    { id: '3', content: '任务 3', status: 'pending' },
-                    { id: '4', content: '任务 4', status: 'pending' }
+                    { id: '1', content: 'Item', status: 'pending' },
+                    { id: '2', content: 'Integrate API', status: 'pending' },
+                    { id: '3', content: 'Task 3', status: 'pending' },
+                    { id: '4', content: 'Task 4', status: 'pending' }
                   ]
                 },
                 {
                   todos: [
-                    { id: '1', content: '事项', status: 'pending' },
-                    { id: '2', content: '集成 API', status: 'pending' },
-                    { id: '3', content: '任务 3', status: 'pending' },
-                    { id: '4', content: '任务 4', status: 'pending' }
+                    { id: '1', content: 'Item', status: 'pending' },
+                    { id: '2', content: 'Integrate API', status: 'pending' },
+                    { id: '3', content: 'Task 3', status: 'pending' },
+                    { id: '4', content: 'Task 4', status: 'pending' }
                   ]
                 },
                 'completed'
@@ -1123,21 +1123,21 @@ console.log(user.greet());`);
               sessionId="preview-session"
             />
 
-            <h3 style={{ color: 'var(--bf-appearance-token-color-static-white)', marginTop: '16px', marginBottom: '8px' }}>Todo - 已完成</h3>
+            <h3 style={{ color: 'var(--bf-appearance-token-color-static-white)', marginTop: '16px', marginBottom: '8px' }}>Todo - Completed</h3>
             <TodoWriteDisplay
               toolItem={createMockToolItem('TodoWrite',
                 {
                   todos: [
-                    { id: '1', content: '任务 1', status: 'completed' },
-                    { id: '2', content: '任务 2', status: 'completed' },
-                    { id: '3', content: '任务 3', status: 'completed' }
+                    { id: '1', content: 'Task 1', status: 'completed' },
+                    { id: '2', content: 'Task 2', status: 'completed' },
+                    { id: '3', content: 'Task 3', status: 'completed' }
                   ]
                 },
                 {
                   todos: [
-                    { id: '1', content: '任务 1', status: 'completed' },
-                    { id: '2', content: '任务 2', status: 'completed' },
-                    { id: '3', content: '任务 3', status: 'completed' }
+                    { id: '1', content: 'Task 1', status: 'completed' },
+                    { id: '2', content: 'Task 2', status: 'completed' },
+                    { id: '3', content: 'Task 3', status: 'completed' }
                   ]
                 },
                 'completed'
@@ -1150,21 +1150,21 @@ console.log(user.greet());`);
       },
       {
         id: 'web-search-card',
-        name: 'WebSearch - 搜索结果卡片',
-        description: '网络搜索结果和URL展示',
+        name: 'WebSearch - Search results card',
+        description: 'Web search results and URL display',
         category: 'flowchat-cards',
         component: () => (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '20px' }}>
-            <h3 style={{ color: 'var(--bf-appearance-token-color-static-white)', marginBottom: '8px' }}>网页搜索 - 结果</h3>
+            <h3 style={{ color: 'var(--bf-appearance-token-color-static-white)', marginBottom: '8px' }}>Web search - Results</h3>
             <RealWebSearchCard
               toolItem={createMockToolItem('WebSearch',
-                { query: 'React Hooks 教程' },
+                { query: 'React Hooks tutorial' },
                 {
                   results: [
                     {
-                      title: 'React Hooks 指南',
+                      title: 'React Hooks guide',
                       url: 'https://react.dev/hooks',
-                      snippet: '学习 React Hooks 的基础用法与最佳实践...'
+                      snippet: 'Learn the basics and best practices of React Hooks...'
                     }
                   ]
                 },
@@ -1174,7 +1174,7 @@ console.log(user.greet());`);
               sessionId="preview-session"
             />
 
-            <h3 style={{ color: 'var(--bf-appearance-token-color-static-white)', marginTop: '16px', marginBottom: '8px' }}>多结果 - 网页搜索</h3>
+            <h3 style={{ color: 'var(--bf-appearance-token-color-static-white)', marginTop: '16px', marginBottom: '8px' }}>Multiple results - Web search</h3>
             <RealWebSearchCard
               toolItem={createMockToolItem('WebSearch',
                 { query: 'TypeScript best practices' },
@@ -1207,12 +1207,12 @@ console.log(user.greet());`);
       },
       {
         id: 'mcp-tool-card',
-        name: 'MCP - MCP工具卡片',
-        description: '展示MCP工具调用的卡片组件',
+        name: 'MCP - MCP tool card',
+        description: 'Card component that displays MCP tool calls',
         category: 'flowchat-cards',
         component: () => (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '20px' }}>
-            <h3 style={{ color: 'var(--bf-appearance-token-color-static-white)', marginBottom: '8px' }}>MCP工具 - 文件列表</h3>
+            <h3 style={{ color: 'var(--bf-appearance-token-color-static-white)', marginBottom: '8px' }}>MCP tool - File list</h3>
             <MCPToolDisplay
               toolItem={createMockToolItem('mcp__server__list_files',
                 { directory: '/project/src' },
@@ -1232,14 +1232,14 @@ console.log(user.greet());`);
                 icon: '🔌',
                 requiresConfirmation: false,
                 resultDisplayType: 'detailed',
-                description: 'MCP工具调用',
+                description: 'MCP tool call',
                 displayMode: 'compact',
                 primaryColor: 'var(--bf-appearance-token-color-purple-500)'
               }}
               sessionId="preview-session"
             />
 
-            <h3 style={{ color: 'var(--bf-appearance-token-color-static-white)', marginTop: '16px', marginBottom: '8px' }}>MCP - 执行中</h3>
+            <h3 style={{ color: 'var(--bf-appearance-token-color-static-white)', marginTop: '16px', marginBottom: '8px' }}>MCP - Running</h3>
             <MCPToolDisplay
               toolItem={createMockToolItem('mcp__server__fetch_data',
                 { url: 'https://api.example.com/data' },
@@ -1252,7 +1252,7 @@ console.log(user.greet());`);
                 icon: '🔌',
                 requiresConfirmation: false,
                 resultDisplayType: 'detailed',
-                description: 'MCP工具调用',
+                description: 'MCP tool call',
                 displayMode: 'compact',
                 primaryColor: 'var(--bf-appearance-token-color-purple-500)'
               }}
@@ -1263,12 +1263,12 @@ console.log(user.greet());`);
       },
       {
         id: 'context-compression-card',
-        name: 'ContextCompression - 上下文压缩',
-        description: '上下文压缩过程卡片',
+        name: 'ContextCompression - Context compression',
+        description: 'Context compression process card',
         category: 'flowchat-cards',
         component: () => (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '20px' }}>
-            <h3 style={{ color: 'var(--bf-appearance-token-color-static-white)', marginBottom: '8px' }}>上下文压缩 - 示例</h3>
+            <h3 style={{ color: 'var(--bf-appearance-token-color-static-white)', marginBottom: '8px' }}>Context compression - Example</h3>
             <ContextCompressionDisplay
               toolItem={createMockToolItem('ContextCompression',
                 {
@@ -1288,7 +1288,7 @@ console.log(user.greet());`);
               )}
             />
 
-            <h3 style={{ color: 'var(--bf-appearance-token-color-static-white)', marginTop: '16px', marginBottom: '8px' }}>上下文压缩 - 本地 fallback</h3>
+            <h3 style={{ color: 'var(--bf-appearance-token-color-static-white)', marginTop: '16px', marginBottom: '8px' }}>Context compression - Local fallback</h3>
             <ContextCompressionDisplay
               toolItem={createMockToolItem('ContextCompression',
                 {
@@ -1308,7 +1308,7 @@ console.log(user.greet());`);
               )}
             />
 
-            <h3 style={{ color: 'var(--bf-appearance-token-color-static-white)', marginTop: '16px', marginBottom: '8px' }}>上下文压缩 - 执行中</h3>
+            <h3 style={{ color: 'var(--bf-appearance-token-color-static-white)', marginTop: '16px', marginBottom: '8px' }}>Context compression - Running</h3>
             <ContextCompressionDisplay
               toolItem={createMockToolItem('ContextCompression',
                 { trigger: 'user_message' },
@@ -1321,12 +1321,12 @@ console.log(user.greet());`);
       },
       {
         id: 'skill-card',
-        name: 'Skill - 技能调用',
-        description: '展示Skill技能调用组件',
+        name: 'Skill - Skill invocation',
+        description: 'Component that displays Skill invocation',
         category: 'flowchat-cards',
         component: () => (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '20px' }}>
-            <h3 style={{ color: 'var(--bf-appearance-token-color-static-white)', marginBottom: '8px' }}>Skill调用</h3>
+            <h3 style={{ color: 'var(--bf-appearance-token-color-static-white)', marginBottom: '8px' }}>Skill invocation</h3>
             <SkillDisplay
               toolItem={createMockToolItem('Skill',
                 {
@@ -1334,8 +1334,8 @@ console.log(user.greet());`);
                   skill_input: { file_path: 'src/App.tsx' }
                 },
                 {
-                  result: '代码审核已完成',
-                  suggestions: ['使用 React.memo', '优化渲染性能', '修复现有警告']
+                  result: 'Code review completed',
+                  suggestions: ['Use React.memo', 'Optimize render performance', 'Fix existing warnings']
                 },
                 'completed'
               )}
@@ -1347,23 +1347,23 @@ console.log(user.greet());`);
       },
       {
         id: 'ask-user-card',
-        name: 'AskUserQuestion - 用户问题',
-        description: 'AI 用户提问卡片',
+        name: 'AskUserQuestion - User question',
+        description: 'AI user question card',
         category: 'flowchat-cards',
         component: () => (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '20px' }}>
-            <h3 style={{ color: 'var(--bf-appearance-token-color-static-white)', marginBottom: '8px' }}>向用户提问 - 单题示例</h3>
+            <h3 style={{ color: 'var(--bf-appearance-token-color-static-white)', marginBottom: '8px' }}>Ask user - Single question example</h3>
             <AskUserQuestionCard
               toolItem={createMockToolItem('AskUserQuestion',
                 {
                   questions: [
                     {
-                      question: '您更偏好哪个选项?',
-                      header: '问题',
+                      question: 'Which option do you prefer?',
+                      header: 'Question',
                       options: [
-                        { label: '选项 1', description: '第一个选项' },
-                        { label: '选项 2', description: '第二个选项' },
-                        { label: '选项 3', description: '第三个选项' }
+                        { label: 'Option 1', description: 'First option' },
+                        { label: 'Option 2', description: 'Second option' },
+                        { label: 'Option 3', description: 'Third option' }
                       ],
                       multiSelect: false
                     }
@@ -1376,29 +1376,29 @@ console.log(user.greet());`);
               sessionId="preview-session"
             />
 
-            <h3 style={{ color: 'var(--bf-appearance-token-color-static-white)', marginBottom: '8px' }}>多问题 - 单选和多选</h3>
+            <h3 style={{ color: 'var(--bf-appearance-token-color-static-white)', marginBottom: '8px' }}>Multiple questions - Single and multi select</h3>
             <AskUserQuestionCard
               toolItem={createMockToolItem('AskUserQuestion',
                 {
                   questions: [
                     {
-                      question: '您想使用哪种UI框架?',
-                      header: 'UI框架',
+                      question: 'Which UI framework would you like to use?',
+                      header: 'UI framework',
                       options: [
-                        { label: 'React', description: '使用React框架' },
-                        { label: 'Vue', description: '使用Vue框架' },
-                        { label: 'Angular', description: '使用Angular框架' }
+                        { label: 'React', description: 'Use the React framework' },
+                        { label: 'Vue', description: 'Use the Vue framework' },
+                        { label: 'Angular', description: 'Use the Angular framework' }
                       ],
                       multiSelect: false
                     },
                     {
-                      question: '需要哪些开发工具?',
-                      header: '开发工具',
+                      question: 'Which development tools do you need?',
+                      header: 'Development tools',
                       options: [
-                        { label: 'TypeScript', description: '使用TypeScript' },
-                        { label: 'ESLint', description: '代码规范检查' },
-                        { label: 'Prettier', description: '代码格式化工具' },
-                        { label: '其他', description: '其他开发工具' }
+                        { label: 'TypeScript', description: 'Use TypeScript' },
+                        { label: 'ESLint', description: 'Code style checks' },
+                        { label: 'Prettier', description: 'Code formatter' },
+                        { label: 'Other', description: 'Other development tools' }
                       ],
                       multiSelect: true
                     }
@@ -1411,18 +1411,18 @@ console.log(user.greet());`);
               sessionId="preview-session"
             />
 
-            <h3 style={{ color: 'var(--bf-appearance-token-color-static-white)', marginBottom: '8px' }}>已回答 - 数据库选择</h3>
+            <h3 style={{ color: 'var(--bf-appearance-token-color-static-white)', marginBottom: '8px' }}>Answered - Database selection</h3>
             <AskUserQuestionCard
               toolItem={createMockToolItem('AskUserQuestion',
                 {
                   questions: [
                     {
-                      question: '您想使用哪种数据库?',
-                      header: '数据库',
+                      question: 'Which database would you like to use?',
+                      header: 'Database',
                       options: [
-                        { label: 'PostgreSQL', description: '关系型数据库' },
-                        { label: 'MongoDB', description: 'NoSQL文档数据库' },
-                        { label: 'SQLite', description: '轻量级嵌入式数据库' }
+                        { label: 'PostgreSQL', description: 'Relational database' },
+                        { label: 'MongoDB', description: 'NoSQL document database' },
+                        { label: 'SQLite', description: 'Lightweight embedded database' }
                       ],
                       multiSelect: false
                     }
@@ -1442,8 +1442,8 @@ console.log(user.greet());`);
       },
       {
         id: 'reproduction-steps-card',
-        name: 'ReproductionSteps - 复现步骤',
-        description: '用于展示问题复现步骤并等待用户操作确认的卡片',
+        name: 'ReproductionSteps - Reproduction steps',
+        description: 'Card that shows reproduction steps and waits for user confirmation',
         category: 'flowchat-cards',
         component: () => {
           const CompletedReproductionSteps = () => {
@@ -1482,7 +1482,7 @@ console.log(user.greet());`);
                 onProceed={() => {}}
               />
 
-              <h3 style={{ color: 'var(--bf-appearance-token-color-static-white)', marginTop: '16px', marginBottom: '8px' }}>已完成</h3>
+              <h3 style={{ color: 'var(--bf-appearance-token-color-static-white)', marginTop: '16px', marginBottom: '8px' }}>Completed</h3>
               <CompletedReproductionSteps />
             </div>
           );
@@ -1490,8 +1490,8 @@ console.log(user.greet());`);
       },
       {
         id: 'create-plan-card',
-        name: 'CreatePlan - 计划创建',
-        description: '计划创建卡片',
+        name: 'CreatePlan - Plan creation',
+        description: 'Plan creation card',
         category: 'flowchat-cards',
         component: () => (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '20px' }}>
@@ -1509,7 +1509,7 @@ console.log(user.greet());`);
               sessionId="preview-session"
             />
 
-            <h3 style={{ color: 'var(--bf-appearance-token-color-static-white)', marginTop: '16px', marginBottom: '8px' }}>创建计划 - 已完成</h3>
+            <h3 style={{ color: 'var(--bf-appearance-token-color-static-white)', marginTop: '16px', marginBottom: '8px' }}>Create plan - Completed</h3>
             <CreatePlanDisplay
               toolItem={createMockToolItem('CreatePlan',
                 {},
@@ -1556,8 +1556,8 @@ console.log(user.greet());`);
       },
       {
         id: 'git-tool-card',
-        name: 'Git - 版本控制卡片',
-        description: '展示Git操作结果的工具卡片组件',
+        name: 'Git - Version control card',
+        description: 'Tool card component that displays Git operation results',
         category: 'flowchat-cards',
         component: () => (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '20px' }}>
@@ -1652,7 +1652,7 @@ index abc1234..def5678 100644
               sessionId="preview-session"
             />
 
-            <h3 style={{ color: 'var(--bf-appearance-token-color-static-white)', marginTop: '16px', marginBottom: '8px' }}>Git Push - 执行中</h3>
+            <h3 style={{ color: 'var(--bf-appearance-token-color-static-white)', marginTop: '16px', marginBottom: '8px' }}>Git Push - Running</h3>
             <GitToolDisplay
               toolItem={createMockToolItem('Git',
                 {
@@ -1667,7 +1667,7 @@ index abc1234..def5678 100644
               sessionId="preview-session"
             />
 
-            <h3 style={{ color: 'var(--bf-appearance-token-color-static-white)', marginTop: '16px', marginBottom: '8px' }}>Git Pull - 冲突错误</h3>
+            <h3 style={{ color: 'var(--bf-appearance-token-color-static-white)', marginTop: '16px', marginBottom: '8px' }}>Git Pull - Conflict error</h3>
             <GitToolDisplay
               toolItem={createMockToolItem('Git',
                 {
@@ -1697,12 +1697,12 @@ Aborting`,
       },
       {
         id: 'init-miniapp-card',
-        name: 'InitMiniApp - 小应用创建',
-        description: '创建 Mini App 骨架后的工具卡片（InitMiniApp）',
+        name: 'InitMiniApp - Mini app creation',
+        description: 'Tool card after creating the Mini App skeleton (InitMiniApp)',
         category: 'flowchat-cards',
         component: () => (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '20px' }}>
-            <h3 style={{ color: 'var(--bf-appearance-token-color-static-white)', marginBottom: '8px' }}>InitMiniApp - 执行中</h3>
+            <h3 style={{ color: 'var(--bf-appearance-token-color-static-white)', marginBottom: '8px' }}>InitMiniApp - Running</h3>
             <InitMiniAppDisplay
               toolItem={createMockToolItem(
                 'InitMiniApp',
@@ -1714,7 +1714,7 @@ Aborting`,
               sessionId="preview-session"
             />
 
-            <h3 style={{ color: 'var(--bf-appearance-token-color-static-white)', marginTop: '16px', marginBottom: '8px' }}>InitMiniApp - 参数流式</h3>
+            <h3 style={{ color: 'var(--bf-appearance-token-color-static-white)', marginTop: '16px', marginBottom: '8px' }}>InitMiniApp - Streaming params</h3>
             <InitMiniAppDisplay
               toolItem={
                 {
@@ -1727,7 +1727,7 @@ Aborting`,
               sessionId="preview-session"
             />
 
-            <h3 style={{ color: 'var(--bf-appearance-token-color-static-white)', marginTop: '16px', marginBottom: '8px' }}>InitMiniApp - 创建成功</h3>
+            <h3 style={{ color: 'var(--bf-appearance-token-color-static-white)', marginTop: '16px', marginBottom: '8px' }}>InitMiniApp - Created successfully</h3>
             <InitMiniAppDisplay
               toolItem={createMockToolItem(
                 'InitMiniApp',
@@ -1746,8 +1746,8 @@ Aborting`,
       },
       {
         id: 'model-thinking-card',
-        name: 'ModelThinking - 思考过程',
-        description: '展示 AI 模型推理过程的思考状态组件',
+        name: 'ModelThinking - Reasoning',
+        description: 'Component that displays AI model reasoning state',
         category: 'flowchat-cards',
         component: () => {
           const createMockThinkingItem = (
@@ -1766,68 +1766,68 @@ Aborting`,
 
           return (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '20px' }}>
-              <h3 style={{ color: 'var(--bf-appearance-token-color-static-white)', marginBottom: '8px' }}>模型思考 - 流式输出</h3>
+              <h3 style={{ color: 'var(--bf-appearance-token-color-static-white)', marginBottom: '8px' }}>Model reasoning - Streaming output</h3>
               <ModelThinkingDisplay
                 thinkingItem={createMockThinkingItem(
-                  `正在分析用户的请求..
+                  `Analyzing the user's request..
 
-让我仔细思考这个问题的解决方案
-- 首先需要理解用户的具体需求
-- 然后考虑可行的实现方案
-- 最后选择最优的解决方案
+Let me carefully think through a solution to this problem
+- First, understand the user's specific needs
+- Then consider feasible implementation approaches
+- Finally, choose the optimal solution
 
-继续深入分析相关细节..`,
+Continue analyzing the details in depth..`,
                   true,
                   'streaming'
                 )}
               />
 
-              <h3 style={{ color: 'var(--bf-appearance-token-color-static-white)', marginTop: '16px', marginBottom: '8px' }}>模型思考 - 折叠完成状态</h3>
+              <h3 style={{ color: 'var(--bf-appearance-token-color-static-white)', marginTop: '16px', marginBottom: '8px' }}>Model reasoning - Collapsed completed state</h3>
               <ModelThinkingDisplay
                 thinkingItem={createMockThinkingItem(
-                  `分析了用户关于性能优化的问题
+                  `Analyzed the user's question about performance optimization
 
-解决方案
-1. 使用虚拟列表减少DOM渲染
-2. 引入 React.memo 缓存组件
-3. 懒加载非关键资源
+Solution
+1. Use virtual lists to reduce DOM rendering
+2. Introduce React.memo to cache components
+3. Lazy-load non-critical resources
 
-优化重点
-- 减少不必要的重渲染
-- 合理使用 memoization
-- 分割大型组件
+Optimization focus
+- Reduce unnecessary re-renders
+- Use memoization appropriately
+- Split large components
 
-以上方案可以显著提升应用性能`,
+These approaches can significantly improve application performance`,
                   false,
                   'completed'
                 )}
               />
 
-              <h3 style={{ color: 'var(--bf-appearance-token-color-static-white)', marginTop: '16px', marginBottom: '8px' }}>模型思考 - 长内容展示</h3>
+              <h3 style={{ color: 'var(--bf-appearance-token-color-static-white)', marginTop: '16px', marginBottom: '8px' }}>Model reasoning - Long content display</h3>
               <ModelThinkingDisplay
                 thinkingItem={createMockThinkingItem(
-                  `这是一个复杂任务，需要多步骤分析
+                  `This is a complex task that requires multi-step analysis
 
-背景信息
-用户希望在组件库预览页面中展示各种工具卡片的效果，包括FlowChat 相关的 ModelThinkingDisplay 组件
+Background
+The user wants to show the effect of various tool cards on the component library preview page, including the FlowChat-related ModelThinkingDisplay component
 
-需求分析
-我需要为预览页面创建ModelThinkingDisplay 的示例数据，包含以下场景
-- 流式输出状态（模拟AI正在思考的动态效果）
-- 完成折叠状态（思考完成后默认折叠）
+Requirements analysis
+I need to create example data for ModelThinkingDisplay for the preview page, covering the following scenarios
+- Streaming output state (simulating the dynamic effect of AI thinking)
+- Completed collapsed state (collapsed by default once thinking finishes)
 
-实现计划
-在 registry.tsx 中
-1. 导入 ModelThinkingDisplay 组件
-2. 创建 FlowThinkingItem 类型数据
-3. 设置不同的状态场景
-4. 添加展示样例
+Implementation plan
+In registry.tsx
+1. Import the ModelThinkingDisplay component
+2. Create FlowThinkingItem-typed data
+3. Set up different state scenarios
+4. Add display samples
 
-执行结果
-已成功创建三种不同状态的思考展示示例
+Execution result
+Successfully created reasoning display examples in three different states
 
-总结
-ModelThinkingDisplay 组件展示效果符合预期`,
+Summary
+The ModelThinkingDisplay component renders as expected`,
                   false,
                   'completed'
                 )}

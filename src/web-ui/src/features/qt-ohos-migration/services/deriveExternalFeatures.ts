@@ -193,10 +193,10 @@ export function featureTitle(row: LedgerRow, input: MigrationLedgerInput): strin
 const USER_EVIDENCE_RE = /\buser:\s*\S/i;
 const NON_ANSWER_TERMS =
   'time[sd]?[ -]?out|timeout|expired|no (?:response|answer|reply|input)|unanswered|skipp?(?:ed|ing)?'
-  + '|超时|未回复|未回答|未作答|没有回复|没有回答|无响应|未响应|无回复';
+  + '|\u8d85\u65f6|\u672a\u56de\u590d|\u672a\u56de\u7b54|\u672a\u4f5c\u7b54|\u6ca1\u6709\u56de\u590d|\u6ca1\u6709\u56de\u7b54|\u65e0\u54cd\u5e94|\u672a\u54cd\u5e94|\u65e0\u56de\u590d';
 const NON_ANSWER_RE = new RegExp(
-  `(?:askuserquestion|question|prompt|ask(?:ed|ing)?\\b|询问|提问|问题|弹窗)[^.;。；\\n]{0,60}(?:${NON_ANSWER_TERMS})`
-  + '|(?:user|用户)\\s*(?:did ?n[o\']t|never|has ?n[o\']t|未|没有|没)\\s*(?:respond|answer|reply|select|choose|回复|回答|作答|选择|响应)'
+  `(?:askuserquestion|question|prompt|ask(?:ed|ing)?\\b|\u8be2\u95ee|\u63d0\u95ee|\u95ee\u9898|\u5f39\u7a97)[^.;。；\\n]{0,60}(?:${NON_ANSWER_TERMS})`
+  + '|(?:user|\u7528\u6237)\\s*(?:did ?n[o\']t|never|has ?n[o\']t|\u672a|\u6ca1\u6709|\u6ca1)\\s*(?:respond|answer|reply|select|choose|\u56de\u590d|\u56de\u7b54|\u4f5c\u7b54|\u9009\u62e9|\u54cd\u5e94)'
   + '|no (?:response|answer|reply|input) from (?:the )?user|without (?:a |any )?(?:user )?(?:response|answer|reply|input)'
   + '|skip[- ]and[- ]continue|(?:skill|tool|agent)[\'’]?s? default (?:is|=|applies|applied|used)',
   'i',

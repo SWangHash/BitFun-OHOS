@@ -112,14 +112,14 @@ export async function revealExportedFile(filePath: string): Promise<void> {
 /**
  * Share an exported local file with a nearby HarmonyOS device through the
  * system Share Kit. Surfaces a notification that matches the share outcome:
- * `ok` → success, `dismissed` → info ("已取消"/"分享面板已关闭"), `pending_knock`
+ * `ok` → success, `dismissed` → info ("cancelled" / "share panel closed"), `pending_knock`
  * → info ("tap your device…"), `unsupported` → warning, anything else → error.
  * No-op on non-OHOS hosts (`shareLocalFile` returns `unsupported` there).
  *
  * `dismissed` is routed to an info toast (not success) because the HarmonyOS
  * Share Kit `dismiss` callback fires for both a completed share and a user
  * cancel/back, with no distinguishing signal from the ArkTS bridge. Surfacing
- * it as success would show a contradictory "成功 / 分享面板已关闭" toast on cancel.
+ * it as success would show a contradictory "success / share panel closed" toast on cancel.
  *
  * Exported so the Markdown/session transcript export path can share the same
  * UX without duplicating the result-to-notification mapping.

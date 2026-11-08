@@ -11,7 +11,8 @@
  * of a clause whose middle the engine revised.
  *
  * Every snapshot is normalized first: HarmonyOS speech results can separate
- * Chinese tokens with spaces (`因 都 在想`), which must never reach the composer.
+ * Chinese tokens with spaces (for example, individual glyphs split apart),
+ * which must never reach the composer.
  */
 
 const CJK_RANGES: readonly (readonly [number, number])[] = [
@@ -41,7 +42,7 @@ function isSpaceCharacter(character: string): boolean {
  * Whether two adjacent segments are separate Latin words.
  *
  * Chinese takes no separating space; only two Latin word boundaries do, which
- * keeps `帮我写一个函数` + `实现排序` intact and `write` + `tests` readable.
+ * keeps adjacent Chinese segments intact and `write` + `tests` readable.
  */
 function needsWordSpace(previous: string, next: string): boolean {
   if (previous.length === 0 || next.length === 0) {
@@ -54,7 +55,7 @@ function needsWordSpace(previous: string, next: string): boolean {
  * Collapse engine whitespace into composer-ready text.
  *
  * Spaces are kept only where at least one side is non-CJK, so `hello world`
- * survives while `因 都 在想` and `过 。` join up.
+ * survives while space-separated Chinese tokens and stray punctuation join up.
  */
 export function normalizeSpeechText(text: string): string {
   if (!text) {

@@ -57,7 +57,7 @@ export interface FileExplorerProps {
   /** When true, the floating toolbar is not rendered (e.g. actions live in a parent header). */
   hideToolbar?: boolean;
 
-  /** 当前是否为远程工作区，传入重命名校验上下文（决定非法字符集与 Windows 保留名校验）。 */
+  /** Whether this is a remote workspace, passed to the rename validation context (controls the invalid character set and Windows reserved-name checks). */
   isRemoteWorkspace?: boolean;
 }
 

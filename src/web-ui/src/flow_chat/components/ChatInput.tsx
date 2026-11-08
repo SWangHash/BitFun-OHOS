@@ -1804,7 +1804,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     query: '',
     startOffset: 0,
   });
-  // When the boost menu opens the picker (via the "引用文件" item), skip the
+  // When the boost menu opens the picker (via the "reference file" item), skip the
   // sources menu and go straight to the file list. Manual @ triggers still
   // show the full sources menu so MCP and other sources remain reachable.
   const [boostEntryView, setBoostEntryView] = useState<ChatContextPickerEntryView>('sources');

@@ -1,52 +1,52 @@
 /**
- * 文件名校验工具。
+ * File name validation helpers.
  *
- * 被"新建文件/文件夹"对话框与文件树重命名共用，规则对齐 VSCode：
- * 空名 / 非法字符 / Windows 保留名 / 同级重名 / 名称过长。
+ * Shared by the "new file / folder" dialog and file tree rename, aligned with VS Code:
+ * empty name / invalid characters / Windows reserved names / sibling duplicates / name too long.
  */
 
-// eslint-disable-next-line no-control-regex -- 文件名规则明确禁止 ASCII 控制字符。
+// eslint-disable-next-line no-control-regex -- File name rules explicitly reject ASCII control characters.
 const INVALID_CHARS_LOCAL = /^[^<>:"/\\|?*\x00-\x1F]+$/;
-// eslint-disable-next-line no-control-regex -- 文件名规则明确禁止 ASCII 控制字符。
+// eslint-disable-next-line no-control-regex -- File name rules explicitly reject ASCII control characters.
 const INVALID_CHARS_REMOTE = /^[^/\x00-\x1F]+$/;
 
 /**
- * Windows 保留设备名（大小写不敏感）。匹配 `CON`、`CON.txt` 这类前缀。
- * 仅在本地（Windows）工作区生效。
+ * Windows reserved device names (case-insensitive). Matches prefixes like `CON` and `CON.txt`.
+ * Only applies to local (Windows) workspaces.
  */
 const RESERVED_NAME = /^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(\.|$)/i;
 
-/** 单路径段名称长度上限（NTFS / ext4 通用上限）。 */
+/** Maximum length of a single path segment name (common NTFS / ext4 limit). */
 export const MAX_NAME_LENGTH = 255;
 
 export interface ValidateFileNameContext {
-  /** 当前是否为远程工作区（远程放宽非法字符集合，且不检查 Windows 保留名）。 */
+  /** Whether this is a remote workspace (remote relaxes invalid characters and skips Windows reserved names). */
   isRemote: boolean;
-  /** 被校验对象是否为文件夹，用于选择准确的错误文案。 */
+  /** Whether the validated entry is a folder, used to pick accurate error copy. */
   isDirectory?: boolean;
-  /** 同级已存在的名称（大小写不敏感比较），用于检测重名冲突。需已排除被校验对象自身原名。 */
+  /** Existing sibling names (case-insensitive comparison) used to detect duplicate conflicts. Must exclude the validated entry's own original name. */
   siblings?: string[];
-  /** 单路径段名称最大长度，默认 {@link MAX_NAME_LENGTH}。 */
+  /** Maximum single path segment name length, defaults to {@link MAX_NAME_LENGTH}. */
   maxLength?: number;
 }
 
 /**
- * 校验一个文件/文件夹名是否合法。
+ * Validate whether a file or folder name is legal.
  *
- * @param raw 输入框原始值
- * @param ctx 校验上下文
- * @returns 错误时返回 i18n key（`validation.*`，相对 `panels/files.json`），合法返回 null。
+ * @param raw Raw input value
+ * @param ctx Validation context
+ * @returns An i18n key (`validation.*`, relative to `panels/files.json`) on error, or null when valid.
  */
 export function validateFileName(raw: string, ctx: ValidateFileNameContext): string | null {
   const trimmed = raw.trim();
   const max = ctx.maxLength ?? MAX_NAME_LENGTH;
 
-  // 1. 空名（含纯空白）
+  // 1. Empty name (including whitespace-only)
   if (!trimmed) {
     return 'validation.emptyName';
   }
 
-  // 2. 非法字符
+  // 2. Invalid characters
   const validPattern = ctx.isRemote ? INVALID_CHARS_REMOTE : INVALID_CHARS_LOCAL;
   if (!validPattern.test(trimmed)) {
     return ctx.isDirectory
@@ -54,12 +54,12 @@ export function validateFileName(raw: string, ctx: ValidateFileNameContext): str
       : 'validation.invalidFilename';
   }
 
-  // 3. Windows 保留名（仅本地）
+  // 3. Windows reserved names (local only)
   if (!ctx.isRemote && RESERVED_NAME.test(trimmed)) {
     return 'validation.reservedName';
   }
 
-  // 4. 同级重名（大小写不敏感，覆盖原名已由调用方排除）
+  // 4. Sibling duplicates (case-insensitive; original name already excluded by caller)
   if (ctx.siblings && ctx.siblings.length > 0) {
     const lower = trimmed.toLowerCase();
     if (ctx.siblings.some((s) => s.toLowerCase() === lower)) {
@@ -67,7 +67,7 @@ export function validateFileName(raw: string, ctx: ValidateFileNameContext): str
     }
   }
 
-  // 5. 名称过长
+  // 5. Name too long
   if (trimmed.length > max) {
     return 'validation.nameTooLong';
   }

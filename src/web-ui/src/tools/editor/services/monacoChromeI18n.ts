@@ -49,7 +49,7 @@ const REPLACEMENT_RULES: ReadonlyArray<{ key: MonacoChromeTextKey; english: stri
 export function localizeMonacoText(text: string, strings: MonacoChromeStrings): string {
   // Apply every matching rule: compound labels like "Find / Replace" contain
   // several chrome strings, and stopping at the first match produced
-  // half-localized text ("Find / 替换") that then defeated the reverse
+  // half-localized text ("Find / [localized Replace]") that then defeated the reverse
   // restore and the hover-remover matching (issue #432).
   let result = text;
   for (const rule of REPLACEMENT_RULES) {
@@ -356,7 +356,7 @@ export function attachMonacoChromeI18n(container: HTMLElement, initialStrings: M
       if (count) {
         // The count text ("No results" / "N of M") is re-localized through the
         // same restore pass, otherwise it never follows a language switch
-        // (issue #434: 无结果 ↔ No results).
+        // (issue #434: localized "No results" ↔ English "No results").
         const restored = restoreEnglishText(count.textContent ?? '', restoreLookup);
         const localized = localizeMatchesCount(restored, currentStrings);
         if (localized !== null && localized !== count.textContent) {
