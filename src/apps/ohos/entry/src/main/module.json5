@@ -147,10 +147,6 @@
           ],
           "when": "always"
         }
-      },
-      {
-        "name": "ohos.permission.ALLOW_USE_BM",
-        "reason": "$string:permission_use_bm_reason"
       }
     ],
     "extensionAbilities": [
