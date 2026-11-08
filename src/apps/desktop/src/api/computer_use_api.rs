@@ -195,8 +195,14 @@ pub async fn computer_use_control_status(
 
 #[cfg(target_env = "ohos")]
 #[tauri::command]
-pub async fn computer_use_control_status() -> Result<(), String> {
-    Err("Computer use control is not available on this target.".to_string())
+pub async fn computer_use_control_status(
+    _request: Option<ComputerUseControlStatusRequest>,
+) -> Result<bitfun_agent_tools::computer_use_control::ControlSnapshot, String> {
+    // This target has no OS automation backend, so control can never start.
+    // Report an explicit unsupported snapshot instead of a hard error: the
+    // shared notification card then renders nothing and stops polling instead
+    // of logging a failed RPC every second.
+    Ok(bitfun_agent_tools::computer_use_control::ControlSnapshot::default())
 }
 
 #[derive(Debug, Deserialize)]

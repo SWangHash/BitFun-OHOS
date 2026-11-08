@@ -45,7 +45,7 @@ export function ComputerUseControlCard() {
 
   useEffect(() => {
     let disposed = false;
-    let refused = false;
+    let stopPolling = false;
     let observed: ComputerUseControlSnapshot | undefined;
     let timer: ReturnType<typeof setTimeout> | undefined;
     setView(undefined);
@@ -55,6 +55,10 @@ export function ComputerUseControlCard() {
       try {
         const next = await computerUseControlAPI.status(observed);
         if (disposed || !scope.isCurrent() || revision !== mutation.current) return;
+        // A host that reports the capability as unsupported will not gain it
+        // while this surface is mounted. Keep the explicit unsupported view
+        // (which renders nothing) and stop asking once per second.
+        stopPolling = !next.supported;
         observed = next;
         setView(previous => ({ epoch: scope.epoch, snapshot: next,
           ...(next.state === 'active' && previous?.epoch === scope.epoch && previous.snapshot.generation === next.generation
@@ -89,15 +93,19 @@ export function ComputerUseControlCard() {
       } catch (error) {
         observed = undefined;
         // A host that refuses the command has no device control: asking it
-        // again every second only competes with real work for the link.
-        refused = classifyPeerHostRefusal(error) !== null;
+        // again every second only competes with real work for the link. Older
+        // hosts answer with a plain "not available on this target" error
+        // instead of an unsupported snapshot, which is equally permanent.
+        const message = error instanceof Error ? error.message : typeof error === 'string' ? error : '';
+        stopPolling = classifyPeerHostRefusal(error) !== null
+          || /not available on this target/i.test(message);
         // Older peers may not expose this capability. Retain a previously
         // active card with an explicit unavailable state, never a local fallback.
         if (!disposed && scope.isCurrent() && revision === mutation.current) setView(previous => previous && {
           ...previous, frame: undefined, framePointer: undefined, error: true,
         });
       } finally {
-        if (!disposed && !refused && scope.isCurrent()) timer = setTimeout(() => void poll(), 1000);
+        if (!disposed && !stopPolling && scope.isCurrent()) timer = setTimeout(() => void poll(), 1000);
       }
     };
     void poll();

@@ -209,6 +209,19 @@ it('stops asking a host that refuses device control', async () => {
   await act(async () => vi.advanceTimersByTime(5000));
   expect(mocks.status).toHaveBeenCalledOnce();
 });
+it('stops polling a host that reports control as unsupported', async () => {
+  mocks.status.mockResolvedValue({ ...active('Window A'), supported: false, state: 'idle' });
+  await act(async () => root.render(<ComputerUseControlCard />));
+  await act(async () => vi.advanceTimersByTime(5000));
+  expect(mocks.status).toHaveBeenCalledOnce();
+  expect(container.querySelector('.computer-control-card')).toBeNull();
+});
+it('stops polling when an older host rejects control as unavailable on this target', async () => {
+  mocks.status.mockRejectedValue(new Error('Computer use control is not available on this target.'));
+  await act(async () => root.render(<ComputerUseControlCard />));
+  await act(async () => vi.advanceTimersByTime(5000));
+  expect(mocks.status).toHaveBeenCalledOnce();
+});
 it('keeps one idle wait in flight and immediately presents a new host control generation', async () => {
   const idle = { ...active('Window A'), state: 'idle', capabilities: ['control-status-wait-v1'] };
   let resume!: (value: ComputerUseControlSnapshot) => void;

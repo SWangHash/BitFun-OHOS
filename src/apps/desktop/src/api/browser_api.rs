@@ -181,6 +181,46 @@ impl BrowserTargetRegistry {
             (record.open_request_id.as_deref() == Some(request_id)).then(|| label.clone())
         })
     }
+
+    /// Apply one presentation-state update for an Agent browser target.
+    ///
+    /// `allow_missing` adopts a label the registry has not seen yet. The OHOS
+    /// host needs it because ArkUI `Web` pages live in `BrowserWebviewService`
+    /// instead of Tauri's child-WebView list; desktop keeps the strict lookup so
+    /// stale or mistyped labels still fail loudly.
+    fn set_agent_target_state(
+        &mut self,
+        label: &str,
+        active: bool,
+        open_request_id: Option<&str>,
+        allow_missing: bool,
+    ) -> Result<(), String> {
+        if !allow_missing && !self.records.contains_key(label) {
+            return Err(format!("Webview not found: {label}"));
+        }
+        if active {
+            self.next_seq = self.next_seq.saturating_add(1);
+            let next_seq = self.next_seq;
+            for record in self.records.values_mut() {
+                record.active = false;
+            }
+            let record = self.records.entry(label.to_string()).or_default();
+            record.active = true;
+            record.last_active_seq = next_seq;
+            if let Some(request_id) = open_request_id
+                .map(str::trim)
+                .filter(|request_id| !request_id.is_empty())
+                // Session requests are registered by the host before presentation.
+                // A late callback from the old panel must not overwrite a newer open.
+                .filter(|_| record.conversation_id.is_none())
+            {
+                record.open_request_id = Some(request_id.to_string());
+            }
+        } else if let Some(record) = self.records.get_mut(label) {
+            record.active = false;
+        }
+        Ok(())
+    }
 }
 
 static BROWSER_TARGETS: OnceLock<Mutex<BrowserTargetRegistry>> = OnceLock::new();
@@ -306,6 +346,9 @@ pub(crate) fn list_browser_targets(app: &tauri::AppHandle) -> Vec<BuiltInBrowser
         // Take it while registration is excluded, so a newly registered page
         // cannot be pruned against an older handle snapshot.
         let views = app.webviews();
+        // ArkUI `Web` pages used by the OHOS host are not Tauri child webviews,
+        // so handle-based pruning would drop every registered OHOS target.
+        #[cfg(not(target_env = "ohos"))]
         registry
             .records
             .retain(|label, _| views.contains_key(label));
@@ -531,7 +574,19 @@ pub async fn browser_webview_create(
         let json = serde_json::to_string(&request)
             .map_err(|e| format!("failed to encode request: {e}"))?;
         let response = ohos_browser_call("browser_webview_create_ohos", &json).await?;
-        decode_ok_envelope(&response)
+        decode_ok_envelope(&response)?;
+        // ArkUI `Web` pages live in `BrowserWebviewService`, not in Tauri's
+        // child-WebView list, so the host cannot discover them later. Register
+        // the created page here to mirror the desktop branch above; without
+        // this, `browser_webview_set_agent_target_state` rejects every OHOS
+        // page that the panel creates.
+        register_browser_target(
+            &request.label,
+            &request.url,
+            request.open_request_id,
+            request.conversation_id,
+        );
+        Ok(())
     }
 }
 
@@ -549,36 +604,20 @@ pub async fn browser_webview_set_agent_target_state(
         request.active,
     );
     let mut registry = lock_browser_targets();
-    if !registry.records.contains_key(&request.label) {
-        return Err(format!("Webview not found: {}", request.label));
-    }
-    if request.active {
-        registry.next_seq = registry.next_seq.saturating_add(1);
-        let next_seq = registry.next_seq;
-        for record in registry.records.values_mut() {
-            record.active = false;
-        }
-        let record = registry
-            .records
-            .get_mut(&request.label)
-            .expect("registered target");
-        record.active = true;
-        record.last_active_seq = next_seq;
-        if let Some(request_id) = request
-            .open_request_id
-            .as_deref()
-            .map(str::trim)
-            .filter(|request_id| !request_id.is_empty())
-            // Session requests are registered by the host before presentation.
-            // A late callback from the old panel must not overwrite a newer open.
-            .filter(|_| record.conversation_id.is_none())
-        {
-            record.open_request_id = Some(request_id.to_string());
-        }
-    } else if let Some(record) = registry.records.get_mut(&request.label) {
-        record.active = false;
-    }
-    Ok(())
+    // ArkUI pages created directly by `ArkWebBrowserHost` (and pages adopted by
+    // a panel) never pass through `browser_webview_create`, so the registry may
+    // not know them yet. Adopt the label lazily on OHOS; desktop keeps the
+    // strict lookup that catches stale or mistyped labels.
+    #[cfg(target_env = "ohos")]
+    let allow_missing = true;
+    #[cfg(not(target_env = "ohos"))]
+    let allow_missing = false;
+    registry.set_agent_target_state(
+        &request.label,
+        request.active,
+        request.open_request_id.as_deref(),
+        allow_missing,
+    )
 }
 
 #[tauri::command]
@@ -980,6 +1019,59 @@ mod tests {
             Some(label.into())
         );
         unregister_browser_target(label);
+    }
+
+    #[test]
+    fn desktop_rejects_an_unregistered_agent_target() {
+        let mut registry = BrowserTargetRegistry::default();
+        let error = registry
+            .set_agent_target_state("embedded-browser-panel-view-missing", true, None, false)
+            .unwrap_err();
+        assert!(error.starts_with("Webview not found: embedded-browser-panel-view-missing"));
+        assert!(registry.records.is_empty());
+    }
+
+    #[test]
+    fn ohos_adopts_a_host_created_page_without_a_registration() {
+        let mut registry = BrowserTargetRegistry::default();
+        let label = "embedded-browser-panel-view-tab-1-test";
+        registry
+            .set_agent_target_state(label, true, Some("open-request"), true)
+            .unwrap();
+        let record = &registry.records[label];
+        assert!(record.active);
+        assert_eq!(record.last_active_seq, 1);
+        assert_eq!(record.open_request_id.as_deref(), Some("open-request"));
+
+        // Adoption only applies to the active transition; hiding an unknown
+        // label stays a no-op instead of growing the registry.
+        registry
+            .set_agent_target_state("embedded-browser-panel-view-other", false, None, true)
+            .unwrap();
+        assert!(!registry
+            .records
+            .contains_key("embedded-browser-panel-view-other"));
+    }
+
+    #[test]
+    fn adopting_an_ohos_page_does_not_steal_a_session_owned_request() {
+        let mut registry = BrowserTargetRegistry::default();
+        let label = "embedded-browser-panel-view-agent-test";
+        registry.records.insert(
+            label.to_string(),
+            BrowserTargetRecord {
+                conversation_id: Some("owner".to_string()),
+                open_request_id: Some("host-request".to_string()),
+                ..BrowserTargetRecord::default()
+            },
+        );
+        registry
+            .set_agent_target_state(label, true, Some("late-panel-request"), true)
+            .unwrap();
+        assert_eq!(
+            registry.records[label].open_request_id.as_deref(),
+            Some("host-request")
+        );
     }
 
     #[test]

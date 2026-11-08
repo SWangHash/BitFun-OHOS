@@ -240,6 +240,32 @@ it('creates a manually opened session page with its stable identity and keeps it
   expect(closeCount()).toBe(0);
 });
 
+it('keeps a retained page presented when agent target metadata cannot be updated', async () => {
+  mocks.invoke.mockImplementation(async command => {
+    if (command === 'browser_get_url') return 'https://example.com/live';
+    if (command === 'browser_webview_set_agent_target_state') throw webviewNotFound('test-browser');
+  });
+  await act(async () => root.render(<Harness active targetId="test-browser" />));
+  expect(browser.error).toBeNull();
+  expect(showCount('test-browser')).toBe(1);
+  expect(log.warn).toHaveBeenCalledWith('Update browser agent target state failed', expect.anything());
+});
+
+it('presents a newly created page when its address read is not ready yet', async () => {
+  let created = false;
+  mocks.invoke.mockImplementation(async command => {
+    if (command === 'browser_get_url') {
+      if (!created) throw webviewNotFound('manual-page');
+      throw new Error('getUrl failed: BusinessError');
+    }
+    if (command === 'browser_webview_create') created = true;
+  });
+  await act(async () => root.render(<Harness active targetId="manual-page" manual />));
+  expect(invokeCount('browser_webview_create')).toBe(1);
+  expect(browser.error).toBeNull();
+  expect(showCount('manual-page')).toBe(1);
+});
+
 it('reattaches a manual page whose first creation finishes after a rapid session switch', async () => {
   let finishCreation!: () => void;
   let created = false;

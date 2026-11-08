@@ -333,8 +333,13 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
 
   const updateAgentTargetState = useCallback((label: string) => {
     const update = () => setAgentTargetState(label, mountedRef.current && activeRef.current, openRequestId);
-    return targetId ? presentationRef.current?.run(update) ?? Promise.resolve() : update();
-  }, [openRequestId, targetId]);
+    const operation = targetId ? presentationRef.current?.run(update) ?? Promise.resolve() : update();
+    // Target metadata is advisory: presentation and navigation must not fail
+    // because a stale or not-yet-registered label could not be advertised.
+    return operation.catch(metadataError => {
+      log.warn('Update browser agent target state failed', metadataError);
+    });
+  }, [log, openRequestId, targetId]);
 
   const syncVisibility = useCallback(async (focus = false) => {
     const target = webviewRef.current;
@@ -729,7 +734,14 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
           // The page is retained and presented; only its document is unreadable.
           throw probe.error;
         } else {
-          url = await api.invoke<string>('browser_get_url', { request: { label: targetId } });
+          // A freshly created ArkWeb node can reject the address read until it
+          // is attached. The page is already presented and the page-load
+          // events supply the URL, so a failed read must not fail the restore.
+          url = await api.invoke<string>('browser_get_url', { request: { label: targetId } })
+            .catch(readError => {
+              log.warn('Read restored browser url failed', readError);
+              return '';
+            });
         }
         if (!mountedRef.current || !presentationRef.current.isCurrent()) return;
         if (!url) {
