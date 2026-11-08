@@ -28,6 +28,7 @@ import { activateSurface, getActiveSurfaceId } from '@/infrastructure/peer-devic
 import { SCENE_TAB_REGISTRY } from '../scenes/registry';
 import { getSessionSceneTabId } from '../components/SceneBar/types';
 import { resolveSessionSceneTarget } from '../services/sessionSceneTarget';
+import { selectWorkbenchPaneMode, workbenchPaneLayoutStore } from './workbenchPaneLayoutStore';
 import { workspaceManager } from '@/infrastructure/services/business/workspaceManager';
 import { openThinkingPanel } from '@/flow_chat/services/openThinkingPanel';
 import type { WorkspaceInfo } from '@/shared/types';
@@ -115,6 +116,24 @@ describe('workbench content navigation', () => {
     const resourceId = openWorkbenchContent(harmony, { scope: { surfaceId: 'local', workspaceId: 'project' } });
     expect(resourceId).toMatch(/^resource-/);
     expect(useContentResourceStore.getState().resources[resourceId]?.content).toMatchObject(harmony);
+  });
+
+  it('opens a browser in the content pane instead of a main scene without a session', () => {
+    workbenchPaneLayoutStore.getState().hideContent();
+    createTab({
+      type: 'browser',
+      title: 'Browser',
+      data: {},
+      checkDuplicate: true,
+      duplicateCheckKey: 'browser-panel',
+      mode: 'agent',
+    });
+
+    // A sessionless workbench still has the shared content pane: the page must
+    // never replace the center scene with a top-level browser tab.
+    expect(useSceneStore.getState().openTabs.some(tab => tab.id === 'browser')).toBe(false);
+    expect(useAgentCanvasStore.getState().primaryGroup.tabs[0]?.content).toMatchObject({ type: 'browser' });
+    expect(selectWorkbenchPaneMode(workbenchPaneLayoutStore.getState())).toBe('split');
   });
 
   it('clears an OpenUI resource left by the retired automatic route', async () => {

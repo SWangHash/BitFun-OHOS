@@ -213,6 +213,14 @@ export function openContentInBestTarget(content: PanelContent, options: ContentO
     return;
   }
   if (mainView || !target) {
+    if (content.type === 'browser' && !mainView) {
+      // The browser lives in the workbench content pane, not in a top-level
+      // scene. Without an open session, commit it to the shared canvas and
+      // reveal that pane so the page never replaces the center scene.
+      openCanvasContent('agent', ownedContent, { ...options, scope, resourceKey });
+      useSceneStore.getState().revealCanvas();
+      return;
+    }
     openWorkbenchContent(ownedContent, { ...options, scope, resourceKey });
     return;
   }

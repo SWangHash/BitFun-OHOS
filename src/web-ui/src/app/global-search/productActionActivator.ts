@@ -1,4 +1,3 @@
-import { isSessionSceneId } from '@/app/components/SceneBar/types';
 import { useSceneStore } from '@/app/stores/sceneStore';
 import { useSettingsStore } from '@/app/scenes/settings/settingsStore';
 import { openEcosystemCompatibility } from '@/app/scenes/ecosystem-compatibility/ecosystemCompatibilityStore';
@@ -34,19 +33,18 @@ export async function activateProductAction(
       window.dispatchEvent(new Event('nav:new-project'));
       return;
     case 'surface.browser.open':
-      if (isSessionSceneId(sceneStore.activeTabId)) {
-        window.dispatchEvent(new CustomEvent('agent-create-tab', {
-          detail: {
-            type: 'browser',
-            title: options.t?.('scenes.browser') ?? 'Browser',
-            checkDuplicate: true,
-            duplicateCheckKey: 'browser-panel',
-            replaceExisting: false,
-          },
-        }));
-      } else {
-        sceneStore.openScene('browser');
-      }
+      // The browser is workbench content, never a main scene: an open session
+      // shows it in its aux pane, and a sessionless workbench still opens the
+      // shared content pane instead of replacing the center scene.
+      window.dispatchEvent(new CustomEvent('agent-create-tab', {
+        detail: {
+          type: 'browser',
+          title: options.t?.('scenes.browser') ?? 'Browser',
+          checkDuplicate: true,
+          duplicateCheckKey: 'browser-panel',
+          replaceExisting: false,
+        },
+      }));
       return;
     case 'surface.terminal.open': {
       window.dispatchEvent(new CustomEvent('terminal-create-requested'));
