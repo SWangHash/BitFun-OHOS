@@ -8,6 +8,24 @@ export const genUIApplicationAppearanceDescriptor: AppearanceSurfaceDescriptor =
   ],
 };
 
+/** Appearance contract for the Harmony phone loading frame shown while an app boots. */
+export const genUIPhoneSkeletonAppearanceDescriptor: AppearanceSurfaceDescriptor = {
+  id: 'gen-ui-phone-skeleton',
+  parts: [
+    { id: 'root' },
+    { id: 'header' },
+    { id: 'hero' },
+    { id: 'tiles' },
+    { id: 'tile' },
+    { id: 'list' },
+    { id: 'row' },
+    { id: 'navigation' },
+  ],
+  states: [
+    { id: 'loading', selector: { kind: 'self', suffix: '[data-bitfun-state~="loading"]' } },
+  ],
+};
+
 /** Appearance contract for the trusted OpenUI component implementations. */
 export const genUIComponentsAppearanceDescriptor: AppearanceSurfaceDescriptor = {
   id: 'gen-ui-components',

@@ -101,7 +101,7 @@ import { imageLightboxAppearanceDescriptor } from '@/shared/ui/ImageLightbox.app
 import { productBrandIconAppearanceDescriptor } from '@/shared/ui/ProductBrandIcon.appearance';
 import { canvasToolAppearanceDescriptor } from '@/tools/bitfun-canvas/appearance';
 import { generativeWidgetAppearanceDescriptor } from '@/tools/generative-widget/appearance';
-import { genUIApplicationAppearanceDescriptor, genUIComponentsAppearanceDescriptor, genUIGalleryAppearanceDescriptor } from '@/tools/generative-ui/appearance';
+import { genUIApplicationAppearanceDescriptor, genUIComponentsAppearanceDescriptor, genUIGalleryAppearanceDescriptor, genUIPhoneSkeletonAppearanceDescriptor } from '@/tools/generative-ui/appearance';
 import { editorToolAppearanceDescriptor } from '@/tools/editor/appearance';
 import { fileSystemAppearanceDescriptor } from '@/tools/file-system/appearance';
 import { gitToolAppearanceDescriptor } from '@/tools/git/appearance';
@@ -433,6 +433,7 @@ export function createDefaultAppearanceRegistry(): AppearanceRegistry {
     .registerComponent(genUIApplicationAppearanceDescriptor)
     .registerComponent(genUIComponentsAppearanceDescriptor)
     .registerComponent(genUIGalleryAppearanceDescriptor)
+    .registerComponent(genUIPhoneSkeletonAppearanceDescriptor)
     .registerComponent(editorToolAppearanceDescriptor)
     .registerComponent(fileSystemAppearanceDescriptor)
     .registerComponent(gitToolAppearanceDescriptor)
