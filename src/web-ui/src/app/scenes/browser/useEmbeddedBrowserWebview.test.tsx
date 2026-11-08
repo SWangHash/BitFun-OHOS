@@ -10,13 +10,10 @@ type PageLoadPayload = { label: string; url: string } &
 
 const mocks = vi.hoisted(() => ({
   invoke: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => {}),
-  view: { label: 'test-browser', show: vi.fn(async () => {}), hide: vi.fn(async () => {}),
-    close: vi.fn(async () => {}), setFocus: vi.fn(async () => {}) },
   hostVisible: true,
   hostListeners: new Set<(visible: boolean) => void>(),
   pageLoadListeners: new Set<(event: { payload: PageLoadPayload }) => void>(),
   documentReadyListeners: new Set<(event: { payload: BrowserDocumentReadyPayload }) => void>(),
-  getByLabel: vi.fn(),
 }));
 vi.mock('./browserPageLifecycleScript', async importOriginal => {
   const actual = await importOriginal<typeof import('./browserPageLifecycleScript')>();
@@ -30,7 +27,13 @@ vi.mock('@/infrastructure/runtime/windowVisibility', () => ({
   },
 }));
 vi.mock('@/infrastructure/api/service-api/ApiClient', () => ({ api: { invoke: mocks.invoke } }));
-vi.mock('@tauri-apps/api/webview', () => ({ Webview: { getByLabel: mocks.getByLabel } }));
+vi.mock('@tauri-apps/api/webview', () => ({
+  Webview: {
+    // The hook must never resolve a native page through Tauri's registry: OHOS
+    // ArkUI pages are invisible to it, and the plugin rejects the API on mobile.
+    getByLabel: () => { throw new Error('Webview API not available on mobile'); },
+  },
+}));
 vi.mock('@tauri-apps/api/event', () => ({
   listen: async (name: string, handler: (event: { payload: PageLoadPayload | BrowserDocumentReadyPayload }) => void) => {
     if (name === BROWSER_WEBVIEW_DOCUMENT_READY_EVENT) {
@@ -46,6 +49,21 @@ vi.mock('@tauri-apps/api/event', () => ({
 const log = { warn: vi.fn(), error: vi.fn() };
 function invokeCount(command: string): number {
   return mocks.invoke.mock.calls.filter(call => call[0] === command).length;
+}
+function commandLabel(call: unknown[]): string | undefined {
+  const request = (call[1] as { request?: { label?: string } } | undefined)?.request;
+  return request?.label;
+}
+function labelledCount(command: string, label: string): number {
+  return mocks.invoke.mock.calls.filter(call => call[0] === command && commandLabel(call) === label).length;
+}
+const showCount = (label?: string) => label === undefined ? invokeCount('browser_webview_show') : labelledCount('browser_webview_show', label);
+const hideCount = (label?: string) => label === undefined ? invokeCount('browser_webview_hide') : labelledCount('browser_webview_hide', label);
+const closeCount = () => invokeCount('browser_webview_close');
+const focusCount = () => invokeCount('browser_webview_set_focus');
+/** Reject the address probe the way a real host reports an unknown label. */
+function webviewNotFound(label: string): Error {
+  return new Error(`Webview not found: ${label}`);
 }
 let browser: ReturnType<typeof useEmbeddedBrowserWebview>;
 function Harness({ active, targetId, manual = false, options }: {
@@ -70,7 +88,6 @@ beforeEach(() => {
   mocks.pageLoadListeners.clear();
   mocks.documentReadyListeners.clear();
   mocks.invoke.mockImplementation(async () => {});
-  mocks.getByLabel.mockReset().mockResolvedValue(mocks.view);
   vi.stubGlobal('__TAURI__', {});
   // The hook detects the runtime through the IPC bridge, which OHOS exposes
   // without the global API namespace.
@@ -117,26 +134,26 @@ function overlay() {
 }
 
 it('reattaches the exact session page after unmount without closing, recreating or navigating it', async () => {
-  const label = mocks.view.label;
+  const label = 'test-browser';
   let currentUrl = 'https://example.com/form-in-progress';
   mocks.invoke.mockImplementation(async command => command === 'browser_get_url' ? currentUrl : undefined);
   await act(async () => root.render(<Harness active targetId={label} />));
   expect(browser.currentUrl).toBe(currentUrl);
   await act(async () => root.render(null));
-  expect(mocks.view.hide).toHaveBeenCalled();
-  expect(mocks.view.close).not.toHaveBeenCalled();
+  expect(hideCount()).toBe(1);
+  expect(closeCount()).toBe(0);
   currentUrl = 'https://example.com/background-result';
   await act(async () => root.render(<Harness active targetId={label} />));
   expect(browser.currentUrl).toBe(currentUrl);
-  expect(mocks.getByLabel).toHaveBeenCalledTimes(2);
+  expect(invokeCount('browser_get_url')).toBe(2);
   expect(mocks.invoke.mock.calls.some(([command]) => command === 'browser_webview_create' || command === 'browser_webview_navigate')).toBe(false);
-  expect(mocks.view.show).toHaveBeenCalledTimes(2);
+  expect(showCount()).toBe(2);
 });
 
 it('shows a retained page while its native URL is temporarily unavailable', async () => {
   mocks.invoke.mockImplementation(async command => command === 'browser_get_url' ? '' : undefined);
-  await act(async () => root.render(<Harness active targetId={mocks.view.label} />));
-  expect(mocks.view.show).toHaveBeenCalledOnce();
+  await act(async () => root.render(<Harness active targetId="test-browser" />));
+  expect(showCount()).toBe(1);
   expect(browser.error).toBeNull();
   expect(browser.currentUrl).toBe('https://example.com');
   expect(browser.isLoading).toBe(true);
@@ -149,64 +166,88 @@ it('shows a retained page while its native URL is temporarily unavailable', asyn
     || command === 'browser_webview_reload' || command === 'browser_webview_create')).toBe(false);
 });
 
+it('keeps an unreadable native page attached instead of creating a replacement', async () => {
+  // ArkWeb rejects the address read until its node is attached, and a failed
+  // navigation keeps reporting the failure. Neither means the page is gone.
+  mocks.invoke.mockImplementation(async command => {
+    if (command === 'browser_get_url') throw new Error('getUrl failed: BusinessError');
+  });
+  await act(async () => root.render(<Harness active targetId="unattached-page" />));
+  expect(invokeCount('browser_webview_create')).toBe(0);
+  expect(showCount('unattached-page')).toBe(1);
+});
+
 it('shows the retained native page and reports a failure that happened before attachment', async () => {
   mocks.invoke.mockImplementation(async command => {
     if (command === 'browser_get_url') throw new Error('Navigation failed: Could not connect');
   });
-  await act(async () => root.render(<Harness active targetId={mocks.view.label} />));
-  expect(mocks.view.show).toHaveBeenCalledOnce();
+  await act(async () => root.render(<Harness active targetId="test-browser" />));
+  expect(showCount()).toBe(1);
   expect(browser.error).toBe('Navigation failed: Could not connect');
+  expect(invokeCount('browser_webview_create')).toBe(0);
 });
 
 it('switches presentation between independent native pages while retaining both', async () => {
-  const a = { ...mocks.view, label: 'page-a', show: vi.fn(async () => {}), hide: vi.fn(async () => {}) };
-  const b = { ...mocks.view, label: 'page-b', show: vi.fn(async () => {}), hide: vi.fn(async () => {}) };
-  mocks.getByLabel.mockImplementation(async label => label === a.label ? a : b);
-  await act(async () => root.render(<Harness key="a" active targetId={a.label} />));
-  await act(async () => root.render(<Harness key="b" active targetId={b.label} />));
-  expect(a.hide).toHaveBeenCalled();
-  expect(b.show).toHaveBeenCalledOnce();
-  expect(mocks.view.close).not.toHaveBeenCalled();
-  await act(async () => root.render(<Harness key="a" active targetId={a.label} />));
-  expect(b.hide).toHaveBeenCalled();
-  expect(a.show).toHaveBeenCalledTimes(2);
+  await act(async () => root.render(<Harness key="a" active targetId="page-a" />));
+  await act(async () => root.render(<Harness key="b" active targetId="page-b" />));
+  expect(hideCount('page-a')).toBe(1);
+  expect(showCount('page-b')).toBe(1);
+  expect(closeCount()).toBe(0);
+  await act(async () => root.render(<Harness key="a" active targetId="page-a" />));
+  expect(hideCount('page-b')).toBe(1);
+  expect(showCount('page-a')).toBe(2);
 });
 
 it('ignores a late attachment from an unmounted conversation', async () => {
-  let resolveA!: (view: typeof mocks.view) => void;
-  mocks.getByLabel.mockImplementation(label => label === 'page-a'
-    ? new Promise(resolve => { resolveA = resolve; }) : Promise.resolve(mocks.view));
+  let resolveA!: (url: string) => void;
+  mocks.invoke.mockImplementation(async (command, args) => {
+    if (command === 'browser_get_url' && commandLabel([command, args]) === 'page-a') {
+      return new Promise<string>(resolve => { resolveA = resolve; });
+    }
+  });
   await act(async () => root.render(<Harness key="a" active targetId="page-a" />));
   await act(async () => root.render(<Harness key="b" active targetId="page-b" />));
-  const lateView = { ...mocks.view, show: vi.fn(async () => {}), hide: vi.fn(async () => {}) };
-  await act(async () => resolveA(lateView));
-  expect(lateView.show).not.toHaveBeenCalled();
-  expect(lateView.hide).not.toHaveBeenCalled();
+  await act(async () => resolveA('https://example.com/a'));
+  expect(showCount('page-a')).toBe(0);
+  expect(hideCount('page-a')).toBe(0);
   expect(browser.webviewLabel).toBe('page-b');
 });
 
 it('does not recreate a host-owned target that was explicitly closed', async () => {
-  mocks.getByLabel.mockResolvedValue(null);
+  mocks.invoke.mockImplementation(async command => {
+    if (command === 'browser_get_url') throw webviewNotFound('closed-page');
+  });
   await act(async () => root.render(<Harness active targetId="closed-page" />));
   expect(browser.error).toContain('Webview not found');
   expect(mocks.invoke.mock.calls.some(([command]) => command === 'browser_webview_create')).toBe(false);
 });
 
 it('creates a manually opened session page with its stable identity and keeps it on unmount', async () => {
-  mocks.getByLabel.mockResolvedValueOnce(null).mockResolvedValue(mocks.view);
+  let created = false;
+  mocks.invoke.mockImplementation(async command => {
+    if (command === 'browser_get_url') {
+      if (!created) throw webviewNotFound('manual-page');
+      return 'https://example.com/manual';
+    }
+    if (command === 'browser_webview_create') created = true;
+  });
   await act(async () => root.render(<Harness active targetId="manual-page" manual />));
   expect(mocks.invoke).toHaveBeenCalledWith('browser_webview_create', expect.objectContaining({
     request: expect.objectContaining({ label: 'manual-page', conversationId: 'owner' }),
   }));
+  expect(browser.currentUrl).toBe('https://example.com/manual');
   await act(async () => root.render(null));
-  expect(mocks.view.close).not.toHaveBeenCalled();
+  expect(closeCount()).toBe(0);
 });
 
 it('reattaches a manual page whose first creation finishes after a rapid session switch', async () => {
   let finishCreation!: () => void;
   let created = false;
-  mocks.getByLabel.mockImplementation(async () => created ? mocks.view : null);
   mocks.invoke.mockImplementation(async command => {
+    if (command === 'browser_get_url') {
+      if (!created) throw webviewNotFound('pending-manual-page');
+      return '';
+    }
     if (command === 'browser_webview_create') {
       await new Promise<void>(resolve => { finishCreation = resolve; });
       created = true;
@@ -217,8 +258,8 @@ it('reattaches a manual page whose first creation finishes after a rapid session
   await act(async () => finishCreation());
   expect(mocks.invoke.mock.calls.filter(([command]) => command === 'browser_webview_create')).toHaveLength(1);
   expect(browser.error).toBeNull();
-  expect(mocks.view.show).toHaveBeenCalledOnce();
-  expect(mocks.view.close).not.toHaveBeenCalled();
+  expect(showCount()).toBe(1);
+  expect(closeCount()).toBe(0);
 });
 
 async function hostVisibility(visible: boolean) {
@@ -239,11 +280,11 @@ it('stops preview capture while minimized and resumes without changing the activ
   await act(async () => vi.advanceTimersByTimeAsync(1));
   expect(captures()).toBe(1);
   await hostVisibility(false);
-  expect(mocks.view.hide).toHaveBeenCalledOnce();
+  expect(hideCount()).toBe(1);
   await act(async () => vi.advanceTimersByTimeAsync(30_000));
   expect(captures()).toBe(1);
   await hostVisibility(true);
-  expect(mocks.view.show).toHaveBeenCalledTimes(2);
+  expect(showCount()).toBe(2);
   await act(async () => vi.advanceTimersByTimeAsync(1));
   expect(captures()).toBe(2);
   await act(async () => vi.advanceTimersByTimeAsync(5000));
@@ -255,27 +296,26 @@ it('restores only active, unoccluded views and does not steal focus on window re
   await hostVisibility(false);
   await render(false);
   await hostVisibility(true);
-  expect(mocks.view.show).toHaveBeenCalledTimes(1);
+  expect(showCount()).toBe(1);
   const panel = overlay();
   await mutate(() => document.body.append(panel));
   await render(true);
   await hostVisibility(false);
   await hostVisibility(true);
-  expect(mocks.view.show).toHaveBeenCalledTimes(1);
-  mocks.view.setFocus.mockClear();
+  expect(showCount()).toBe(1);
   await mutate(() => panel.remove());
-  expect(mocks.view.show).toHaveBeenCalledTimes(2);
-  expect(mocks.view.setFocus).not.toHaveBeenCalled();
+  expect(showCount()).toBe(2);
+  expect(focusCount()).toBe(0);
 });
 
 it('keeps a newly created view hidden when the host is already minimized', async () => {
   mocks.hostVisible = false;
   await render();
-  expect(mocks.view.show).not.toHaveBeenCalled();
-  expect(mocks.view.setFocus).not.toHaveBeenCalled();
+  expect(showCount()).toBe(0);
+  expect(focusCount()).toBe(0);
   await hostVisibility(true);
-  expect(mocks.view.show).toHaveBeenCalledOnce();
-  expect(mocks.view.setFocus).not.toHaveBeenCalled();
+  expect(showCount()).toBe(1);
+  expect(focusCount()).toBe(0);
 });
 
 it('keeps creation, navigation, resize and activation hidden while any floating panel overlaps', async () => {
@@ -610,7 +650,6 @@ it('does not invoke native APIs in the web surface', async () => {
 
 it('adopts and displays the automation page without recreating or navigating its filled form', async () => {
   const label = 'embedded-browser-panel-view-agent-existing';
-  mocks.getByLabel.mockResolvedValue({ ...mocks.view, label });
   const options = { webviewLabel: label, adoptExisting: true };
   await act(async () => root.render(<Harness active options={options} />));
   expect(browser.webviewLabel).toBe(label);
@@ -619,10 +658,10 @@ it('adopts and displays the automation page without recreating or navigating its
   expect(mocks.invoke).toHaveBeenCalledWith('browser_webview_set_bounds', {
     request: expect.objectContaining({ label, width: 200, height: 200 }),
   });
-  expect(mocks.view.show).toHaveBeenCalled();
+  expect(showCount(label)).toBe(1);
 
   await act(async () => root.render(<Harness active={false} options={options} />));
-  expect(mocks.view.hide).toHaveBeenCalled();
+  expect(hideCount(label)).toBe(1);
   await act(async () => root.render(<Harness active options={options} />));
   expect(invokeCount('browser_webview_create')).toBe(0);
   expect(invokeCount('browser_webview_navigate')).toBe(0);
@@ -633,26 +672,24 @@ it('adopts and displays the automation page without recreating or navigating its
 });
 
 it('reports a stale automation page instead of displaying a fresh empty replacement', async () => {
-  mocks.getByLabel.mockResolvedValue(null);
   mocks.invoke.mockImplementation(async command => {
-    if (command === 'browser_webview_set_bounds') throw new Error('Webview not found');
+    if (command === 'browser_get_url') throw webviewNotFound('embedded-browser-panel-view-agent-closed');
   });
   await act(async () => root.render(<Harness active options={{ webviewLabel: 'embedded-browser-panel-view-agent-closed', adoptExisting: true }} />));
-  expect(browser.error).toBe('Webview not found');
+  expect(browser.error).toContain('Webview not found');
   expect(invokeCount('browser_webview_create')).toBe(0);
-  expect(invokeCount('browser_webview_show')).toBe(0);
+  expect(showCount()).toBe(0);
 });
 
 it('rejects adoption without an exact native page identity', async () => {
   await act(async () => root.render(<Harness active options={{ adoptExisting: true }} />));
   expect(browser.error).toBe('Browser adoption requires an exact native WebView label');
   expect(invokeCount('browser_webview_create')).toBe(0);
-  expect(invokeCount('browser_webview_show')).toBe(0);
+  expect(showCount()).toBe(0);
 });
 
 it('adopts a blank automation page before its first navigation without creating another page', async () => {
   const label = 'embedded-browser-panel-view-agent-blank';
-  mocks.getByLabel.mockResolvedValue({ ...mocks.view, label });
   await act(async () => root.render(<Harness active options={{
     initialUrl: 'about:blank', webviewLabel: label, adoptExisting: true,
   }} />));
@@ -660,7 +697,7 @@ it('adopts a blank automation page before its first navigation without creating 
   expect(browser.webviewLabel).toBe(label);
   expect(invokeCount('browser_webview_create')).toBe(0);
   expect(invokeCount('browser_webview_navigate')).toBe(0);
-  expect(mocks.view.show).toHaveBeenCalled();
+  expect(showCount(label)).toBe(1);
   await act(async () => browser.loadUrl('https://httpbin.org/forms/post'));
   expect(mocks.invoke).toHaveBeenCalledWith('browser_webview_navigate', {
     request: expect.objectContaining({ label, url: 'https://httpbin.org/forms/post' }),
@@ -671,24 +708,22 @@ it('adopts a blank automation page before its first navigation without creating 
 
 it('preserves the adopted native page across project unmount/remount and reads its current URL', async () => {
   const label = 'embedded-browser-panel-view-agent-project-switch';
-  mocks.getByLabel.mockResolvedValue({ ...mocks.view, label });
   const options = { initialUrl: 'about:blank', webviewLabel: label, adoptExisting: true };
   mocks.invoke.mockImplementation(async command => command === 'browser_get_url'
     ? 'https://httpbin.org/forms/post' : undefined);
   await act(async () => root.render(<Harness active options={options} />));
   expect(browser.currentUrl).toBe('https://httpbin.org/forms/post');
-  mocks.invoke.mockClear();
   await act(async () => root.render(null));
-  expect(mocks.view.hide).toHaveBeenCalled();
-  expect(mocks.view.close).not.toHaveBeenCalled();
-  mocks.view.show.mockClear();
+  expect(hideCount(label)).toBe(1);
+  expect(closeCount()).toBe(0);
+  mocks.invoke.mockClear();
   await act(async () => root.render(<Harness active options={options} />));
   expect(browser.error).toBeNull();
   expect(browser.webviewLabel).toBe(label);
   expect(browser.currentUrl).toBe('https://httpbin.org/forms/post');
   expect(invokeCount('browser_webview_create')).toBe(0);
   expect(invokeCount('browser_webview_navigate')).toBe(0);
-  expect(mocks.view.show).toHaveBeenCalled();
+  expect(showCount(label)).toBe(1);
 });
 
 it.each(['pending', 'rejected'])('shows the first page even when script injection is %s', async (outcome) => {
@@ -707,7 +742,8 @@ it.each(['pending', 'rejected'])('shows the first page even when script injectio
   });
 
   await render();
-  expect(invokeCount('browser_webview_eval')).toBe(1);
+  // Each finished document re-applies the page scripts and probes readiness.
+  expect(invokeCount('browser_webview_eval')).toBe(2);
   expect(invokeCount('browser_webview_show')).toBe(1);
   expect(browser.hasWebview()).toBe(true);
   expect(browser.error).toBeNull();
@@ -724,14 +760,16 @@ it('injects scripts on each finished document, including initial load, reload an
   expect(mocks.pageLoadListeners.size).toBeGreaterThan(0);
   expect(invokeCount('browser_webview_eval')).toBe(0);
 
-  // The first load and a reload keep the same URL; neither can be deduplicated by URL.
+  // Every native transition probes document readiness; a finished document also
+  // re-applies the page scripts. The first load and a reload keep the same URL,
+  // so neither can be deduplicated by URL.
   for (const reload of [false, true]) {
     await act(async () => {
       if (reload) browser.reload();
       emit('started', 'https://example.com');
       emit('finished', 'https://example.com');
     });
-    expect(invokeCount('browser_webview_eval')).toBe(reload ? 2 : 1);
+    expect(invokeCount('browser_webview_eval')).toBe(reload ? 6 : 3);
   }
 
   await act(async () => browser.loadUrl('https://example.com/next'));
@@ -739,12 +777,12 @@ it('injects scripts on each finished document, including initial load, reload an
     emit('started', 'https://example.com/next');
     emit('started', 'https://example.com/login');
   });
-  expect(invokeCount('browser_webview_eval')).toBe(2);
+  expect(invokeCount('browser_webview_eval')).toBe(8);
   await act(async () => {
     emit('finished', 'https://example.com/login');
   });
 
-  expect(invokeCount('browser_webview_eval')).toBe(3);
+  expect(invokeCount('browser_webview_eval')).toBe(10);
   expect(browser.currentUrl).toBe('https://example.com/login');
   expect(browser.isLoading).toBe(false);
   expect(browser.pageLoadRevision).toBe(4);
@@ -776,7 +814,7 @@ it('still clears toolbar suspension when an inactive tab misses the finishing tr
   await render(false);
   await mutate(() => window.dispatchEvent(new Event('toolbar-mode-activation-finished')));
   await render(true);
-  expect(mocks.view.show).toHaveBeenCalledTimes(2);
+  expect(showCount()).toBe(2);
 });
 
 it('aligns native and preview edges at fractional DPI and applies a one-physical-pixel move', async () => {

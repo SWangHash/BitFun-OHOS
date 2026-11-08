@@ -110,6 +110,32 @@ function isWebviewNotFoundError(error: unknown): boolean {
   return formatUnknownError(error).toLowerCase().includes('webview not found');
 }
 
+type BrowserWebviewProbe =
+  | { state: 'missing' }
+  | { state: 'ready'; url: string }
+  | { state: 'unavailable'; error: unknown };
+
+/**
+ * Resolve an existing native page through the command surface instead of
+ * reaching into Tauri's WebView registry. ArkUI Web components created by the
+ * OHOS host are invisible to `@tauri-apps/api/webview`, and that plugin
+ * rejects the whole API on mobile targets, so `Webview.getByLabel` can only
+ * answer for desktop child WebViews.
+ *
+ * An unreadable address is not a missing page: an ArkWeb node that is not
+ * attached yet, an uncommitted document, and a preserved navigation failure all
+ * reject the read while the page keeps its identity.
+ */
+async function probeBrowserWebview(label: string): Promise<BrowserWebviewProbe> {
+  try {
+    const url = await api.invoke<string>('browser_get_url', { request: { label } });
+    return { state: 'ready', url: typeof url === 'string' ? url : '' };
+  } catch (probeError) {
+    if (isWebviewNotFoundError(probeError)) return { state: 'missing' };
+    return { state: 'unavailable', error: probeError };
+  }
+}
+
 function isTransientWebviewCreationError(error: unknown): boolean {
   const message = formatUnknownError(error).toLowerCase();
   return message.includes('0x80070057')
@@ -516,7 +542,6 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
     const previous = webviewRef.current;
     if (previous) await closeWebview(previous);
 
-    const { Webview } = await import('@tauri-apps/api/webview');
     const initialBounds = await waitForViewportBounds();
     let lastError: unknown = null;
 
@@ -545,8 +570,13 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
         lastError = creationError;
         pageLoadUnlistenRef.current?.();
         pageLoadUnlistenRef.current = null;
-        const staleHandle = await Webview.getByLabel(label).catch(() => null);
-        await staleHandle?.close().catch(() => {});
+        // A partially created page must be released through the same command
+        // path that will own it on every platform.
+        const stale = await probeBrowserWebview(label);
+        if (stale.state !== 'missing') {
+          await createCommandBasedBrowserWebviewHandle(label, api.invoke as TauriInvoke)
+            .close().catch(() => {});
+        }
         if (!isTransientWebviewCreationError(creationError)
           || attempt === WEBVIEW_CREATE_RETRY_DELAYS_MS.length - 1) {
           throw creationError;
@@ -652,7 +682,6 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
           await loadUrl(currentUrlRef.current);
           return;
         }
-        const { Webview } = await import('@tauri-apps/api/webview');
         if (!mountedRef.current) return;
         const presentation = claimBrowserPresentation(targetId);
         presentationRef.current = presentation;
@@ -660,25 +689,32 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
         setWebviewLabel(targetId);
         await startPageLoadListener(targetId);
         let handle: BrowserWebviewHandle | null = null;
+        // The probe result crosses an async presentation queue, so keep it in a
+        // holder instead of a widened local the compiler could narrow away.
+        const attachment: { probe?: BrowserWebviewProbe; createdPage: boolean } = { createdPage: false };
         await presentation.run(async () => {
-          handle = await Webview.getByLabel(targetId) as unknown as BrowserWebviewHandle | null;
+          const probe = await probeBrowserWebview(targetId);
+          attachment.probe = probe;
           if (!mountedRef.current || !presentation.isCurrent()) return;
-          if (handle) return;
+          if (probe.state !== 'missing') {
+            // The page keeps its identity even while its address is unreadable.
+            handle = createCommandBasedBrowserWebviewHandle(targetId, api.invoke as TauriInvoke);
+            return;
+          }
           if (!openRequestId && conversationId && !adoptExisting) {
             // Serialize first creation across rapid unmount/remount. A new
             // panel waits for an in-flight creation and attaches the same page.
             handle = await createBrowserWebview(targetId, currentUrlRef.current,
               { left: -10000, top: -10000, width: 1024, height: 768 }, undefined, conversationId);
+            attachment.createdPage = true;
             return;
           }
-          if (adoptExisting) {
-            // The automation host owns the page and may have created it through
-            // the command path (ArkUI on OHOS), which Tauri's registry cannot see.
-            handle = createCommandBasedBrowserWebviewHandle(targetId, api.invoke as TauriInvoke);
-          }
+          // Adoption never fabricates an identity: the host owns the page, and a
+          // missing label means it was closed instead of merely unreadable.
         });
         if (!mountedRef.current || !presentation.isCurrent()) return;
         if (!handle) throw new Error(`Webview not found: ${targetId}`);
+        const probe: BrowserWebviewProbe = attachment.probe ?? { state: 'missing' };
         webviewRef.current = handle;
         preview.setTarget(targetId);
         // Presentation does not depend on a committed URL or readable document.
@@ -686,7 +722,15 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
         await visibility(handle);
         await updateAgentTargetState(targetId);
         // Reattach the live document. Never reload the original URL on a session switch.
-        const url = await api.invoke<string>('browser_get_url', { request: { label: targetId } });
+        let url: string;
+        if (!attachment.createdPage && probe.state === 'ready') {
+          url = probe.url;
+        } else if (!attachment.createdPage && probe.state === 'unavailable') {
+          // The page is retained and presented; only its document is unreadable.
+          throw probe.error;
+        } else {
+          url = await api.invoke<string>('browser_get_url', { request: { label: targetId } });
+        }
         if (!mountedRef.current || !presentationRef.current.isCurrent()) return;
         if (!url) {
           // Wait for native commit before probing readiness: the initial blank
