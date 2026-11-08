@@ -234,8 +234,12 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({
     || updateStatus === 'ready'
     || updateStatus === 'installing';
   // HarmonyOS delegates updates to AppGallery and intentionally never
-  // initializes the desktop download/install store.
-  const updateBusy = manualCheckBusy || (!openHarmonyRuntime && desktopUpdateBusy);
+  // initializes the desktop download/install store, so its staged statuses must
+  // not be presented there even if another caller populated the store. The
+  // desktop entry points are disabled today, but they stay wired for the
+  // platform gate being widened again.
+  const desktopUpdateStatus = !openHarmonyRuntime;
+  const updateBusy = manualCheckBusy || desktopUpdateStatus && desktopUpdateBusy;
 
   const privacyStatementButton = (
     <Button
@@ -472,7 +476,7 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({
                           className="bitfun-about-dialog__update-alert"
                         />
                       ) : null}
-                      {updateStatus === 'downloading' ? (
+                      {desktopUpdateStatus && updateStatus === 'downloading' ? (
                         <div className="bitfun-about-dialog__download-status" role="status">
                           <div
                             className="bitfun-about-dialog__download-bar"
@@ -508,7 +512,7 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({
                           </p>
                         </div>
                       ) : null}
-                      {updateStatus === 'ready' || updateStatus === 'installing' ? (
+                      {desktopUpdateStatus && (updateStatus === 'ready' || updateStatus === 'installing') ? (
                         <div className="bitfun-about-dialog__update-installed">
                           <div className="bitfun-about-dialog__update-status bitfun-about-dialog__update-status--success">
                             <Icon name="check-circle" size="sm" className="bitfun-about-dialog__update-status-icon" aria-hidden="true" />
@@ -519,7 +523,7 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({
                           </Button>
                         </div>
                       ) : null}
-                      {updateStatus === 'error' && updateError ? (
+                      {desktopUpdateStatus && updateStatus === 'error' && updateError ? (
                         <Alert
                           tone="error"
                           message={formatUpdateInstallError(updateError, t)}

@@ -9,6 +9,15 @@ const mocks = vi.hoisted(() => ({
   getAppVersion: vi.fn(),
   initialize: vi.fn(),
   isOpenHarmony: true,
+  storeState: {
+    error: null as string | null,
+    initialized: false,
+    progress: { downloaded: 0, total: null },
+    requestInstall: vi.fn(),
+    startInstall: vi.fn(),
+    status: 'idle',
+    version: null as string | null,
+  },
 }));
 
 vi.mock('@/infrastructure/runtime', () => ({
@@ -39,16 +48,7 @@ vi.mock('@/app/components/Privacy/PrivacyContext', () => ({
 }));
 
 vi.mock('@/infrastructure/update/updateInstallStore', () => {
-  const state = {
-    error: null,
-    initialized: false,
-    progress: { downloaded: 0, total: null },
-    requestInstall: vi.fn(),
-    startInstall: vi.fn(),
-    status: 'idle',
-    version: null,
-  };
-  const useUpdateInstallStore = (selector: (value: typeof state) => unknown) => selector(state);
+  const useUpdateInstallStore = (selector: (value: typeof mocks.storeState) => unknown) => selector(mocks.storeState);
   useUpdateInstallStore.getState = () => ({ initialize: mocks.initialize });
   return { useUpdateInstallStore };
 });
@@ -68,6 +68,9 @@ let root: Root;
 
 beforeEach(async () => {
   mocks.isOpenHarmony = true;
+  mocks.storeState.error = null;
+  mocks.storeState.status = 'idle';
+  mocks.storeState.version = null;
   mocks.checkForUpdatesOhos.mockReset().mockResolvedValue({ updateAvailable: false });
   mocks.getAppVersion.mockReset().mockResolvedValue('2.0.0');
   mocks.initialize.mockReset();
@@ -92,4 +95,15 @@ it('keeps the HarmonyOS AppGallery check enabled without desktop updater initial
 
   expect(mocks.checkForUpdatesOhos).toHaveBeenCalledOnce();
   expect(button?.textContent).toContain('update.noUpdate');
+});
+
+it('never presents a staged desktop updater error on HarmonyOS', async () => {
+  // A stale desktop-store failure (for example an unregistered
+  // `get_pending_update` command) must not surface as a HarmonyOS update error.
+  mocks.storeState.error = 'Command get_pending_update not found';
+  mocks.storeState.status = 'error';
+  await act(async () => root.render(<AboutDialog isOpen onClose={() => undefined} />));
+
+  expect(container.textContent).not.toContain('update.errors.notFound');
+  expect(container.textContent).not.toContain('get_pending_update');
 });

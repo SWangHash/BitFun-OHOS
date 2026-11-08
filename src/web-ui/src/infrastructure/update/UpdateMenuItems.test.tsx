@@ -10,10 +10,14 @@ import { writeAppUpdateSnapshot } from './appUpdateStorage';
 
 const mocks = vi.hoisted(() => ({
   check: vi.fn(), current: vi.fn(), pending: vi.fn(), download: vi.fn(), closeMenu: vi.fn(),
+  appGallery: vi.fn(),
   notifications: { success: vi.fn(), error: vi.fn(), info: vi.fn() },
 }));
+const runtime = vi.hoisted(() => ({ ohos: false }));
+vi.mock('@/infrastructure/runtime', () => ({ isOpenHarmonyRuntime: () => runtime.ohos }));
 vi.mock('@/infrastructure/api/service-api/SystemAPI', () => ({ systemAPI: {
   checkForUpdates: mocks.check, getLocalAppVersion: mocks.current, getPendingUpdate: mocks.pending,
+  checkForUpdatesOhos: mocks.appGallery,
 } }));
 vi.mock('./installUpdateWithProgress', () => ({ installUpdateWithProgress: mocks.download }));
 const updateGate = vi.hoisted(() => ({ visible: true }));
@@ -43,7 +47,9 @@ beforeEach(async () => {
   vi.stubEnv('DEV', true);
   vi.stubGlobal('__TAURI__', {});
   updateGate.visible = true;
+  runtime.ohos = false;
   mocks.check.mockReset().mockResolvedValue(release());
+  mocks.appGallery.mockReset().mockResolvedValue({ updateAvailable: false });
   mocks.current.mockReset().mockResolvedValue('1.0.0');
   mocks.pending.mockReset().mockResolvedValue(null);
   mocks.download.mockReset();
@@ -258,4 +264,40 @@ it('omits desktop update actions on unsupported surfaces', async () => {
   act(() => useUpdateInstallStore.setState({ lastCheckedAt: Date.now() }));
   expect(container.querySelector('[data-testid="nav-check-updates"]')).toBeNull();
   expect(container.querySelector('[data-testid="app-update-indicator"]')).toBeNull();
+});
+
+it('checks AppGallery on HarmonyOS without reading the staged desktop cache', async () => {
+  runtime.ohos = true;
+  act(() => useUpdateInstallStore.setState({ initialized: false, currentVersion: null }));
+  await act(async () => root.render(<Menu><UpdateMenuItems onCloseMenu={mocks.closeMenu} /></Menu>));
+
+  // `get_pending_update` is not registered on OHOS; opening More must not ask
+  // for a staged package that the platform never provides.
+  expect(mocks.pending).not.toHaveBeenCalled();
+  expect(mocks.current).not.toHaveBeenCalled();
+  expect(state().error).toBeNull();
+
+  await act(async () => check().click());
+  expect(mocks.appGallery).toHaveBeenCalledOnce();
+  expect(mocks.check).not.toHaveBeenCalled();
+  expect(mocks.notifications.success).toHaveBeenCalledExactlyOnceWith(
+    common.update.noUpdate, { title: common.update.checkForUpdates },
+  );
+  expect(mocks.closeMenu).toHaveBeenCalledOnce();
+});
+
+it('reports the system AppGallery result instead of the desktop error mapping', async () => {
+  runtime.ohos = true;
+  await act(async () => root.render(<Menu><UpdateMenuItems onCloseMenu={mocks.closeMenu} /></Menu>));
+
+  // An available update is presented by the system dialog; the menu stays silent.
+  mocks.appGallery.mockResolvedValueOnce({ updateAvailable: true });
+  await act(async () => check().click());
+  Object.values(mocks.notifications).forEach(notify => expect(notify).not.toHaveBeenCalled());
+
+  mocks.appGallery.mockResolvedValueOnce({ updateAvailable: false, error: 'The app was not found in AppGallery' });
+  await act(async () => check().click());
+  expect(mocks.notifications.error).toHaveBeenCalledExactlyOnceWith(
+    'The app was not found in AppGallery', { title: common.update.checkFailed },
+  );
 });

@@ -5,6 +5,7 @@ import { installUpdateWithProgress, type UpdateDownloadProgressPayload } from '.
 import { isUpdateVersionChangedError } from './updateErrorMessage';
 import { isNewerAppVersion, normalizeAppUpdateResult } from './appUpdateVersion';
 import { canAutoCheckForAppUpdates } from './tauriEnv';
+import { isOpenHarmonyRuntime } from '@/infrastructure/runtime';
 import {
   getSkippedVersion, readAppUpdateSnapshot, recordDailyPromptDismissed,
   recordSkipThisVersion, restoreVersionReminder, shouldShowDailyUpdatePrompt,
@@ -91,8 +92,13 @@ export const useUpdateInstallStore = create<UpdateInstallState>((set, get) => ({
     if (get().initialized) return;
     if (initialization) return initialization;
     initialization = (async () => {
+      // The staged desktop updater is not registered on OHOS (see
+      // `src/apps/desktop/src/lib.rs`): invoking `get_pending_update` there only
+      // produces a "Command not found" failure. AppGallery owns HarmonyOS
+      // updates, so a missing staged package is a normal state, not an error.
       const [current, pending] = await Promise.allSettled([
-        systemAPI.getLocalAppVersion(), systemAPI.getPendingUpdate(),
+        systemAPI.getLocalAppVersion(),
+        isOpenHarmonyRuntime() ? Promise.resolve(null) : systemAPI.getPendingUpdate(),
       ]);
       if (current.status === 'fulfilled') {
         // Development starts without discovery; only a manual check can establish availability.

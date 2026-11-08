@@ -5,6 +5,8 @@ import { selectUpdateDownloadStatus } from './updateDownloadProgress';
 import { readAppUpdateSnapshot, recordSkipThisVersion, writeAppUpdateSnapshot } from './appUpdateStorage';
 
 const mocks = vi.hoisted(() => ({ pending: vi.fn(), download: vi.fn(), install: vi.fn(), check: vi.fn(), current: vi.fn(), enabled: vi.fn() }));
+const runtime = vi.hoisted(() => ({ ohos: false }));
+vi.mock('@/infrastructure/runtime', () => ({ isOpenHarmonyRuntime: () => runtime.ohos }));
 vi.mock('@/infrastructure/api/service-api/SystemAPI', () => ({ systemAPI: {
   getPendingUpdate: mocks.pending,
   installPendingUpdate: mocks.install,
@@ -13,6 +15,10 @@ vi.mock('@/infrastructure/api/service-api/SystemAPI', () => ({ systemAPI: {
   getAutoUpdateEnabled: mocks.enabled,
 } }));
 vi.mock('./installUpdateWithProgress', () => ({ installUpdateWithProgress: mocks.download }));
+// The store owns desktop staged-update behavior; the HarmonyOS-only entry gate
+// is verified where update entries render. Keep the desktop discovery contract
+// this suite exercises independent of that gate.
+vi.mock('./tauriEnv', () => ({ canAutoCheckForAppUpdates: () => !import.meta.env.DEV }));
 vi.mock('@/shared/utils/logger', () => ({ createLogger: () => ({ error: vi.fn(), warn: vi.fn() }) }));
 
 const state = () => useUpdateInstallStore.getState();
@@ -22,6 +28,7 @@ beforeEach(() => {
   vi.resetAllMocks();
   vi.stubEnv('DEV', false);
   vi.stubGlobal('__TAURI__', {});
+  runtime.ohos = false;
   localStorage.clear();
   mocks.pending.mockResolvedValue(null);
   mocks.download.mockResolvedValue({ version: '2.0.0' });
@@ -47,6 +54,17 @@ afterEach(() => {
 });
 
 describe('staged app update', () => {
+  it('never reads the staged desktop cache on HarmonyOS, where the commands are not registered', async () => {
+    runtime.ohos = true;
+    mocks.pending.mockRejectedValue(new Error('Command get_pending_update not found'));
+
+    await state().initialize();
+
+    // A missing staged package is the normal HarmonyOS state, not an update failure.
+    expect(mocks.pending).not.toHaveBeenCalled();
+    expect(state()).toMatchObject({ initialized: true, status: 'idle', error: null, currentVersion: '1.0.0' });
+  });
+
   it('starts development without cached discovery or automatic checks and still allows a manual check', async () => {
     vi.stubEnv('DEV', true);
     writeAppUpdateSnapshot({ result: available(), checkedAt: Date.now() });
