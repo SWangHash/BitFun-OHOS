@@ -335,29 +335,36 @@ function getPrIcon(pr: ReviewPlatformPullRequest) {
   return <Icon glyph={pr.state === 'closed' ? GitPullRequestClosed : GitPullRequest} size="sm" tone={pr.state === 'closed' ? 'danger' : pr.state === 'merged' ? 'info' : pr.state === 'draft' ? 'muted' : 'success'} />;
 }
 
-function decisionLabel(decision: ReviewPlatformPullRequest['reviewDecision']): string {
+type PanelTranslate = (key: string, options?: Record<string, unknown>) => string;
+
+/**
+ * A few labels double as model-facing prompt context and as UI copy. The prompt
+ * builders keep their stable English form by omitting `t`, while UI call sites
+ * pass the `panels/git` translator so the label follows the active locale.
+ */
+function decisionLabel(decision: ReviewPlatformPullRequest['reviewDecision'], t?: PanelTranslate): string {
   switch (decision) {
     case 'approved':
-      return 'Approved';
+      return t ? t('panels/git:reviewPlatform.labels.approved') : 'Approved';
     case 'changes_requested':
-      return 'Changes requested';
+      return t ? t('panels/git:reviewPlatform.labels.changesRequested') : 'Changes requested';
     case 'commented':
-      return 'Commented';
+      return t ? t('panels/git:reviewPlatform.labels.commented') : 'Commented';
     default:
-      return 'Pending review';
+      return t ? t('panels/git:reviewPlatform.labels.pendingReview') : 'Pending review';
   }
 }
 
-function stateLabel(state: ReviewPlatformPullRequest['state']): string {
+function stateLabel(state: ReviewPlatformPullRequest['state'], t?: PanelTranslate): string {
   switch (state) {
     case 'open':
-      return 'Open';
+      return t ? t('panels/git:reviewPlatform.labels.stateOpen') : 'Open';
     case 'draft':
-      return 'Draft';
+      return t ? t('panels/git:reviewPlatform.labels.stateDraft') : 'Draft';
     case 'merged':
-      return 'Merged';
+      return t ? t('panels/git:reviewPlatform.labels.stateMerged') : 'Merged';
     case 'closed':
-      return 'Closed';
+      return t ? t('panels/git:reviewPlatform.labels.stateClosed') : 'Closed';
     default:
       return state;
   }
@@ -370,56 +377,56 @@ const pullRequestStateTones: Record<ReviewPlatformPullRequest['state'], StatusPi
   closed: 'danger',
 };
 
-function providerLabel(remote: ReviewPlatformRemote | ReviewPlatformAccount | null): string {
-  if (!remote) return 'No provider';
+function providerLabel(remote: ReviewPlatformRemote | ReviewPlatformAccount | null, t?: PanelTranslate): string {
+  if (!remote) return t ? t('panels/git:reviewPlatform.labels.noProvider') : 'No provider';
   switch (remote.platform) {
     case 'github':
-      return 'GitHub';
+      return t ? t('panels/git:reviewPlatform.labels.providerGitHub') : 'GitHub';
     case 'gitlab':
-      return 'GitLab';
+      return t ? t('panels/git:reviewPlatform.labels.providerGitLab') : 'GitLab';
     case 'gitcode':
-      return 'GitCode';
+      return t ? t('panels/git:reviewPlatform.labels.providerGitCode') : 'GitCode';
     case 'gitee':
-      return 'Gitee';
+      return t ? t('panels/git:reviewPlatform.labels.providerGitee') : 'Gitee';
     default:
-      return 'Git';
+      return t ? t('panels/git:reviewPlatform.labels.providerGit') : 'Git';
   }
 }
 
-function remoteLabel(remote: ReviewPlatformRemote): string {
-  return `${providerLabel(remote)} · ${remote.name} · ${remote.projectPath}`;
+function remoteLabel(remote: ReviewPlatformRemote, t: PanelTranslate): string {
+  return `${providerLabel(remote, t)} · ${remote.name} · ${remote.projectPath}`;
 }
 
-function authLabel(account: ReviewPlatformAccount | null): string {
-  if (!account) return 'Disconnected';
+function authLabel(account: ReviewPlatformAccount | null, t: PanelTranslate): string {
+  if (!account) return t('panels/git:reviewPlatform.labels.disconnected');
   switch (account.authState) {
     case 'connected':
-      return 'Connected';
+      return t('panels/git:reviewPlatform.labels.connected');
     case 'not_required':
-      return 'Public';
+      return t('panels/git:reviewPlatform.labels.public');
     case 'unsupported':
-      return 'Unsupported';
+      return t('panels/git:reviewPlatform.labels.unsupported');
     case 'expired':
-      return 'Expired';
+      return t('panels/git:reviewPlatform.labels.expired');
     case 'error':
-      return i18nService.t('common:reviewPlatform.messages.authError');
+      return t('common:reviewPlatform.messages.authError');
     default:
-      return 'Not connected';
+      return t('panels/git:reviewPlatform.labels.notConnected');
   }
 }
 
-function authSourceLabel(source: ReviewPlatformAccount['authSource'] | undefined): string {
+function authSourceLabel(source: ReviewPlatformAccount['authSource'] | undefined, t: PanelTranslate): string {
   switch (source) {
     case 'gh_cli':
-      return 'GitHub CLI';
+      return t('panels/git:reviewPlatform.labels.githubCli');
     case 'stored':
-      return 'Saved token';
+      return t('panels/git:reviewPlatform.labels.savedToken');
     case 'env':
-      return 'Environment token';
+      return t('panels/git:reviewPlatform.labels.environmentToken');
     case 'unsupported':
-      return 'Unsupported';
+      return t('panels/git:reviewPlatform.labels.unsupported');
     default:
-      return 'No token';
+      return t('panels/git:reviewPlatform.labels.noToken');
   }
 }
 
@@ -435,8 +442,10 @@ function authChallengeTitle(challenge: ReviewPlatformAuthChallenge): string {
   }
 }
 
-function authChallengeScopes(challenge: ReviewPlatformAuthChallenge): string {
-  return challenge.requiredScopes.length ? challenge.requiredScopes.join(', ') : 'Provider API access';
+function authChallengeScopes(challenge: ReviewPlatformAuthChallenge, t: PanelTranslate): string {
+  return challenge.requiredScopes.length
+    ? challenge.requiredScopes.join(', ')
+    : t('panels/git:reviewPlatform.labels.providerApiAccess');
 }
 
 function emptySnapshot(): ReviewPlatformWorkspaceSnapshot {
@@ -914,10 +923,10 @@ function ReviewPlatformContent({
   const remoteOptions = useMemo<ComboboxOption[]>(
     () => snapshot.remotes.map(remote => ({
       value: remote.id,
-      label: remoteLabel(remote),
-      description: `${remote.host} · ${authLabel(account && account.id === remote.id ? account : null)}`,
+      label: remoteLabel(remote, t),
+      description: `${remote.host} · ${authLabel(account && account.id === remote.id ? account : null, t)}`,
     })),
-    [account, snapshot.remotes],
+    [account, snapshot.remotes, t],
   );
 
   const loadSnapshot = useCallback(async (
@@ -1595,17 +1604,17 @@ function ReviewPlatformContent({
         data-bitfun-product-component="review-platform"
         data-bitfun-product-part="pagination"
         bordered={false}
-        leading={<OverflowText>{label}: {page.start}-{page.end} of {page.totalLabel}</OverflowText>}
+        leading={<OverflowText>{t('panels/git:reviewPlatform.pageSummary', { label, start: page.start, end: page.end, total: page.totalLabel })}</OverflowText>}
         trailing={<ToolbarGroup>
           <IconButton
-            aria-label={`Previous ${label} page`}
+            aria-label={t('panels/git:reviewPlatform.previousPageOf', { label })}
             size="sm"
             disabled={page.pageIndex === 0}
             onClick={() => onPageChange(page.pageIndex - 1)}
             icon={<Icon name="chevron-left" size="sm" />}
           />
           <IconButton
-            aria-label={`Next ${label} page`}
+            aria-label={t('panels/git:reviewPlatform.nextPageOf', { label })}
             size="sm"
             disabled={!page.hasNext && page.pageIndex >= page.totalPages - 1}
             onClick={() => onPageChange(page.pageIndex + 1)}
@@ -1614,7 +1623,7 @@ function ReviewPlatformContent({
         </ToolbarGroup>}
       />
     );
-  }, []);
+  }, [t]);
 
   const renderDetailLoading = useCallback((message: string) => (
     <LoadingState size="sm" role="status" data-bitfun-product-component="review-platform" data-bitfun-product-part="loadingState">
@@ -2005,7 +2014,7 @@ function ReviewPlatformContent({
       if (!isPanelCurrent()) return;
       setAuthModalOpen(false);
       quickActions.openTerminal(undefined, workspacePath);
-      notificationService.success('GitHub CLI login command copied. Paste it in the terminal to continue.', {
+      notificationService.success(t('panels/git:reviewPlatform.githubLoginCopiedWithHint'), {
         duration: 3500,
       });
     } catch (err) {
@@ -2015,7 +2024,7 @@ function ReviewPlatformContent({
     } finally {
       if (isPanelCurrent()) setAuthSaving(false);
     }
-  }, [isPanelCurrent, setAuthError, selectedRemote, workspacePath]);
+  }, [isPanelCurrent, setAuthError, selectedRemote, t, workspacePath]);
 
   const handleCopyGithubAuthCommand = useCallback(async () => {
     if (!isPanelCurrent()) return;
@@ -2024,13 +2033,13 @@ function ReviewPlatformContent({
     try {
       await systemAPI.setClipboard(`gh auth login --hostname ${selectedRemote.host}`);
       if (!isPanelCurrent()) return;
-      notificationService.success('GitHub CLI login command copied.', { duration: 2500 });
+      notificationService.success(t('panels/git:reviewPlatform.githubLoginCopied'), { duration: 2500 });
     } catch (err) {
       if (!isPanelCurrent()) return;
       setAuthError(err, 'copyAuthFailed');
       log.error('Failed to copy GitHub CLI authentication command', { error: err, host: selectedRemote.host });
     }
-  }, [isPanelCurrent, setAuthError, selectedRemote]);
+  }, [isPanelCurrent, setAuthError, selectedRemote, t]);
 
   const handleClearAuthToken = useCallback(async () => {
     if (!isPanelCurrent()) return;
@@ -2068,16 +2077,16 @@ function ReviewPlatformContent({
         description={<Stack gap="3">
           <span data-bitfun-product-component="review-platform" data-bitfun-product-part="authCopy">
             {authChallenge.host} · {authChallenge.projectPath}<br />
-            {selectedRemote.platform === 'github' ? 'CLI authorization' : 'Required scopes'}: {authChallengeScopes(authChallenge)}
+            {selectedRemote.platform === 'github' ? t('panels/git:reviewPlatform.cliAuthorization') : t('panels/git:reviewPlatform.requiredScopes')}: {authChallengeScopes(authChallenge, t)}
           </span>
           <ToolbarGroup className="review-platform__wrap" data-bitfun-product-component="review-platform" data-bitfun-product-part="authActions">
             <Button size="sm" variant="primary" onClick={handleOpenAuthModal} disabled={authSaving} leadingIcon={<KeyRound size={13} />}>
 
-              {selectedRemote.platform === 'github' ? 'Authenticate' : authChallenge.state === 'missing' ? 'Add token' : 'Update token'}
+              {selectedRemote.platform === 'github' ? t('panels/git:reviewPlatform.authenticate') : authChallenge.state === 'missing' ? t('panels/git:reviewPlatform.addToken') : t('panels/git:reviewPlatform.updateToken')}
             </Button>
             <Button size="sm" variant="outline" onClick={() => refreshAuthSnapshot(selectedRemote.id)} disabled={authSaving || loading} leadingIcon={<Icon name="refresh" size="sm" />}>
 
-              Retry
+              {t('panels/git:reviewPlatform.retry')}
             </Button>
           </ToolbarGroup>
         </Stack>}
@@ -2141,23 +2150,23 @@ function ReviewPlatformContent({
     || (selectedRemote && selectedRemote.authState !== 'connected' && selectedRemote.authState !== 'not_required' ? reviewErrorText(selectedRemote.message, t) : null)
     || (snapshot.remotes.length
       ? isGithubUserList && !query.trim()
-        ? 'No open pull requests authored by the current GitHub CLI account.'
-        : 'No pull requests match the current filter.'
-      : 'No supported remotes were detected.');
+        ? t('panels/git:reviewPlatform.noOpenPullRequestsForAccount')
+        : t('panels/git:reviewPlatform.noPullRequestsMatchFilter')
+      : t('panels/git:reviewPlatform.noSupportedRemotes'));
   const checksStatusText = !displayPr || displayPr.checks.total === 0
-    ? 'No checks'
+    ? t('panels/git:reviewPlatform.noChecks')
     : displayPr.checks.failed > 0
-      ? `${displayPr.checks.failed} failed`
+      ? t('panels/git:reviewPlatform.failedCount', { count: displayPr.checks.failed })
       : displayPr.checks.pending > 0
-        ? `${displayPr.checks.pending} pending`
-        : 'All checks passed';
+        ? t('panels/git:reviewPlatform.pendingCount', { count: displayPr.checks.pending })
+        : t('panels/git:reviewPlatform.allChecksPassed');
   const reviewStatusText = latestCurrentReview
     ? reviewErrorText(currentPullRequestReviewStatusText(latestCurrentReview), t)
     : latestStaleReview
-      ? 'Previous Review is stale because the PR revisions or runtime evidence changed'
+      ? t('panels/git:reviewPlatform.reviewStale')
       : latestUnknownReview
-        ? 'Review result cannot be matched to current PR revisions · refresh PR'
-        : 'No Review has run for the current PR revisions';
+        ? t('panels/git:reviewPlatform.reviewUnmatched')
+        : t('panels/git:reviewPlatform.noReviewRun');
   const handleOpenLatestReview = () => {
     const linked = latestCurrentReview ?? latestStaleReview ?? latestUnknownReview;
     const linkedParentSessionId = linked?.childSession.parentSessionId ?? linked?.parentSession?.sessionId;
@@ -2179,27 +2188,27 @@ function ReviewPlatformContent({
         <Toolbar className="review-platform__toolbar" data-bitfun-product-component="review-platform" data-bitfun-product-part="chrome"
           leading={<Combobox
             className="review-platform__remote-select"
-            aria-label="Repository"
+            aria-label={t('panels/git:reviewPlatform.repository')}
             size="sm"
             value={selectedRemoteId ?? ''}
             options={remoteOptions}
-            placeholder="Select repository"
+            placeholder={t('panels/git:reviewPlatform.selectRepository')}
             disabled={!remoteOptions.length || loading}
             onValueChange={handleRemoteChange}
           />}
           trailing={<ToolbarGroup data-bitfun-product-component="review-platform" data-bitfun-product-part="actions">
-            <Tooltip content={selectedRemote?.platform === 'github' ? 'GitHub CLI authentication' : account?.authSource === 'stored' ? 'Update token' : 'Add token'}>
+            <Tooltip content={selectedRemote?.platform === 'github' ? t('panels/git:reviewPlatform.githubCliAuthentication') : account?.authSource === 'stored' ? t('panels/git:reviewPlatform.updateToken') : t('panels/git:reviewPlatform.addToken')}>
               <IconButton
-                aria-label={selectedRemote?.platform === 'github' ? 'GitHub CLI authentication' : account?.authSource === 'stored' ? 'Update token' : 'Add token'}
+                aria-label={selectedRemote?.platform === 'github' ? t('panels/git:reviewPlatform.githubCliAuthentication') : account?.authSource === 'stored' ? t('panels/git:reviewPlatform.updateToken') : t('panels/git:reviewPlatform.addToken')}
                 size="sm"
                 disabled={!selectedRemote || selectedRemote.platform === 'unknown' || loading || authSaving}
                 onClick={handleOpenAuthModal}
                 icon={<KeyRound size={14} />}
               />
             </Tooltip>
-            <Tooltip content="Refresh">
+            <Tooltip content={t('panels/git:reviewPlatform.refresh')}>
               <IconButton
-                aria-label="Refresh"
+                aria-label={t('panels/git:reviewPlatform.refresh')}
                 data-testid="review-platform-refresh"
                 size="sm"
                 onClick={() => void loadSnapshot(listRemoteId, { force: true, page: currentPageIndex + 1, userInitiated: true })}
@@ -2213,23 +2222,23 @@ function ReviewPlatformContent({
 
       <div className={`review-platform__body${!detailOnly && !selectedPr ? ' review-platform__body--list-only' : ''}`} data-bitfun-product-component="review-platform" data-bitfun-product-part="body">
         {!detailOnly && (
-          <NavigationPanel className="review-platform__list" data-bitfun-product-component="review-platform" data-bitfun-product-part="listPane" aria-label="Pull request list">
+          <NavigationPanel className="review-platform__list" data-bitfun-product-component="review-platform" data-bitfun-product-part="listPane" aria-label={t('panels/git:reviewPlatform.pullRequestList')}>
             <NavigationPanelHeader data-bitfun-product-component="review-platform" data-bitfun-product-part="listToolbar">
               <Stack gap="2">
                 {authChallenge && renderAuthGate('inline')}
                 <SearchField
                   value={query}
                   onChange={event => setQuery(event.target.value)}
-                  placeholder={isGithubUserList ? 'Search my open pull requests' : 'Search pull requests'}
-                  aria-label="Search pull requests"
+                  placeholder={isGithubUserList ? t('panels/git:reviewPlatform.searchMyOpenPullRequests') : t('panels/git:reviewPlatform.searchPullRequests')}
+                  aria-label={t('panels/git:reviewPlatform.searchPullRequests')}
                   leadingIcon={<Icon name="search" size="sm" />}
-                  clearLabel={query ? 'Clear search' : undefined}
+                  clearLabel={query ? t('panels/git:reviewPlatform.clearSearch') : undefined}
                   onClear={() => setQuery('')}
                   size="sm"
                 />
                 {!isGithubUserList && (
                   <SegmentedControl
-                    aria-label="Pull request state"
+                    aria-label={t('panels/git:reviewPlatform.pullRequestState')}
                     data-bitfun-product-component="review-platform"
                     data-bitfun-product-part="filters"
                     value={stateFilter}
@@ -2238,7 +2247,7 @@ function ReviewPlatformContent({
                     onValueChange={value => handleStateChange(value as ListStateFilter)}
                     options={(['all', 'open', 'draft', 'merged', 'closed'] as ListStateFilter[]).map(state => ({
                       value: state,
-                      label: state === 'all' ? 'All' : stateLabel(state),
+                      label: state === 'all' ? t('panels/git:reviewPlatform.all') : stateLabel(state, t),
                       disabled: selectedRemote?.platform === 'gitee' && state !== 'all' && !snapshot.capabilities.supportedPullRequestStates?.includes(state),
                     }))}
                   />
@@ -2252,14 +2261,14 @@ function ReviewPlatformContent({
             <NavigationPanelBody data-bitfun-product-component="review-platform" data-bitfun-product-part="listScroll">
               <NavigationPanelContent>
                 {loading && (
-                  <LoadingState size="sm" role="status" data-testid="review-platform-list-loading" data-bitfun-product-component="review-platform" data-bitfun-product-part="loadingState">{serverQuery.current ? t('reviewPlatform.searching') : 'Loading pull requests...'}</LoadingState>
+                  <LoadingState size="sm" role="status" data-testid="review-platform-list-loading" data-bitfun-product-component="review-platform" data-bitfun-product-part="loadingState">{serverQuery.current ? t('reviewPlatform.searching') : t('panels/git:reviewPlatform.loadingPullRequests')}</LoadingState>
                 )}
                 {error && (
                   <Alert tone="error" data-bitfun-product-component="review-platform" data-bitfun-product-part="errorState"
                     message={searchUnsupported ? t('reviewPlatform.searchUnsupported') : stateFilterUnsupported ? t('reviewPlatform.stateFilterUnsupported') : error}
                     description={
                       <Button size="sm" variant="outline" onClick={() => void loadSnapshot(listRemoteId, { force: true, page: currentPageIndex + 1, userInitiated: true })}>
-                        Retry
+                        {t('panels/git:reviewPlatform.retry')}
                       </Button>
                     }
                   />
@@ -2327,9 +2336,9 @@ function ReviewPlatformContent({
             {!loading && !error && !isGithubSearch && (totalPages > 1 || pagination.hasNext) && (
               <NavigationPanelFooter className="review-platform__pagination" data-testid="review-platform-pagination" data-bitfun-product-component="review-platform" data-bitfun-product-part="pagination">
                 <ToolbarGroup>
-                  <Tooltip content="Previous page">
+                  <Tooltip content={t('panels/git:reviewPlatform.previousPage')}>
                     <IconButton
-                      aria-label="Previous page"
+                      aria-label={t('panels/git:reviewPlatform.previousPage')}
                       data-testid="review-platform-previous-page"
                       size="sm"
                       disabled={currentPageIndex === 0}
@@ -2337,9 +2346,9 @@ function ReviewPlatformContent({
                       icon={<Icon name="chevron-left" size="sm" />}
                     />
                   </Tooltip>
-                  <Tooltip content="Next page">
+                  <Tooltip content={t('panels/git:reviewPlatform.nextPage')}>
                     <IconButton
-                      aria-label="Next page"
+                      aria-label={t('panels/git:reviewPlatform.nextPage')}
                       data-testid="review-platform-next-page"
                       size="sm"
                       disabled={!pagination.hasNext && currentPageIndex >= totalPages - 1}
@@ -2349,7 +2358,7 @@ function ReviewPlatformContent({
                   </Tooltip>
                 </ToolbarGroup>
                 <span>
-                  {pageStart}-{pageEnd} of {totalCount ?? `${pageEnd}+`}
+                  {t('panels/git:reviewPlatform.pageRange', { start: pageStart, end: pageEnd, total: totalCount ?? `${pageEnd}+` })}
                 </span>
               </NavigationPanelFooter>
             )}
@@ -2374,10 +2383,10 @@ function ReviewPlatformContent({
                     panelFocusRequested.current = true;
                     setPanelView('list');
                   }}
-                >Pull requests</Button>
+                >{t('panels/git:reviewPlatform.pullRequests')}</Button>
               ) : <OverflowText className="review-platform__meta">{selectedRemote?.projectPath}</OverflowText>}
               trailing={selectedPr && <ToolbarGroup>
-                <Tooltip content={!parentSession ? 'Open or create a chat first' : 'Start Review'}>
+                <Tooltip content={!parentSession ? t('panels/git:reviewPlatform.openChatFirst') : t('panels/git:reviewPlatform.startReview')}>
                   <span>
                     <Button
                       size="sm"
@@ -2386,13 +2395,13 @@ function ReviewPlatformContent({
                       disabled={!parentSession || !repository || !selectedRemote || reviewLaunching || detailLoading || latestCurrentReview?.lifecycle === 'running'}
                       loading={reviewLaunching}
                       leadingIcon={<Icon name="spark" size="xs" />}
-                    >{latestCurrentReview?.lifecycle === 'running' ? 'Review running' : 'Review'}</Button>
+                    >{latestCurrentReview?.lifecycle === 'running' ? t('panels/git:reviewPlatform.reviewRunning') : t('panels/git:reviewPlatform.review')}</Button>
                   </span>
                 </Tooltip>
-                <Tooltip content="Pull request actions">
+                <Tooltip content={t('panels/git:reviewPlatform.pullRequestActions')}>
                   <IconButton
                     ref={detailMenuRef}
-                    aria-label="Pull request actions"
+                    aria-label={t('panels/git:reviewPlatform.pullRequestActions')}
                     aria-haspopup="menu"
                     aria-expanded={detailMenuOpen}
                     size="sm"
@@ -2404,7 +2413,7 @@ function ReviewPlatformContent({
             />
           )}
           {!selectedPr && detailOnly && (loading || detailLoading) && (
-            <LoadingState className="review-platform__detail-empty" role="status">Loading pull request details...</LoadingState>
+            <LoadingState className="review-platform__detail-empty" role="status">{t('panels/git:reviewPlatform.loadingPullRequestDetails')}</LoadingState>
           )}
 
           {!selectedPr && detailOnly && !loading && !detailLoading && authChallenge && (
@@ -2420,7 +2429,7 @@ function ReviewPlatformContent({
               description={detailError || error}
               actions={<>
                 <Button size="sm" variant="outline" onClick={handleRetryDetail}>
-                  Retry
+                  {t('panels/git:reviewPlatform.retry')}
                 </Button>
                 {initialPullRequestTarget && (
                   <Button size="sm" variant="outline" onClick={handleOpenExternal}>
@@ -2430,7 +2439,7 @@ function ReviewPlatformContent({
                 {selectedRemote && selectedRemote.platform !== 'unknown' && (
                   <Button size="sm" variant="outline" onClick={handleOpenAuthModal} disabled={authSaving} leadingIcon={<KeyRound size={13} />}>
 
-                    {selectedRemote.platform === 'github' ? 'Authenticate' : account?.authSource === 'stored' ? 'Update token' : 'Add token'}
+                    {selectedRemote.platform === 'github' ? t('panels/git:reviewPlatform.authenticate') : account?.authSource === 'stored' ? t('panels/git:reviewPlatform.updateToken') : t('panels/git:reviewPlatform.addToken')}
                   </Button>
                 )}
               </>}
@@ -2448,7 +2457,7 @@ function ReviewPlatformContent({
                   variant="outline"
                   onClick={() => void loadSnapshot(undefined, { force: true, userInitiated: true })}
                 >
-                  Retry
+                  {t('panels/git:reviewPlatform.retry')}
                 </Button>
                 {initialPullRequestUrl && (
                   <Button
@@ -2458,7 +2467,7 @@ function ReviewPlatformContent({
                     leadingIcon={<Icon name="arrow-up-right" size="xs" />}
                   >
 
-                    Open in browser
+                    {t('panels/git:reviewPlatform.openInBrowser')}
                   </Button>
                 )}
               </>}
@@ -2476,13 +2485,13 @@ function ReviewPlatformContent({
                 description={
                   <Stack direction="horizontal" gap="2" align="center" wrap className="review-platform__detail-meta" data-bitfun-product-component="review-platform" data-bitfun-product-part="detailMeta">
                     <StatusPill data-testid="review-platform-detail-state" tone={pullRequestStateTones[displayPr?.state ?? selectedPr.state]} data-bitfun-product-component="review-platform" data-bitfun-product-part="detailState">
-                      {stateLabel(displayPr?.state ?? selectedPr.state)}
+                      {stateLabel(displayPr?.state ?? selectedPr.state, t)}
                     </StatusPill>
                     <span>#{selectedPr.number}</span>
                     <span>{displayPr?.author ?? selectedPr.author}</span>
                     <span>{formatAbsoluteTime(selectedPr.updatedAt) || formatRelativeTime(selectedPr.updatedAt)}</span>
                     {(displayPr?.reviewDecision === 'approved' || displayPr?.reviewDecision === 'changes_requested') && (
-                      <StatusPill tone={displayPr.reviewDecision === 'approved' ? 'success' : 'danger'}>{decisionLabel(displayPr.reviewDecision)}</StatusPill>
+                      <StatusPill tone={displayPr.reviewDecision === 'approved' ? 'success' : 'danger'}>{decisionLabel(displayPr.reviewDecision, t)}</StatusPill>
                     )}
                   </Stack>
                 }
@@ -2490,7 +2499,7 @@ function ReviewPlatformContent({
                 <Stack gap="2" className="review-platform__meta" data-bitfun-product-component="review-platform" data-bitfun-product-part="facts">
                   <OverflowText>{displayPr?.sourceBranch ?? selectedPr.sourceBranch} → {displayPr?.targetBranch ?? selectedPr.targetBranch}</OverflowText>
                   <Stack direction="horizontal" gap="2" align="center" wrap>
-                    <span data-testid="review-platform-detail-files">{resolvedChangedFileCount(displayStatistics) ?? '—'} files</span>
+                    <span data-testid="review-platform-detail-files">{t('panels/git:reviewPlatform.filesCount', { count: resolvedChangedFileCount(displayStatistics) ?? '—' })}</span>
                     {displayLineStats ? <ChangeCount data-testid="review-platform-detail-line-stats" additions={displayLineStats.additions} deletions={displayLineStats.deletions} /> : <span data-testid="review-platform-detail-line-stats">—</span>}
                   </Stack>
                 </Stack>
@@ -2511,11 +2520,11 @@ function ReviewPlatformContent({
                 )}
                 <Toolbar className="review-platform__tab-bar" data-bitfun-product-component="review-platform" data-bitfun-product-part="tabBar" leading={
                   <TabGroup
-                    aria-label="Pull request details"
+                    aria-label={t('panels/git:reviewPlatform.pullRequestDetails')}
                     items={[
-                      { value: 'overview', label: 'Overview' },
-                      { value: 'changes', label: 'Changes' },
-                      { value: 'commits', label: 'Commits' },
+                      { value: 'overview', label: t('panels/git:reviewPlatform.overview') },
+                      { value: 'changes', label: t('panels/git:reviewPlatform.changes') },
+                      { value: 'commits', label: t('panels/git:reviewPlatform.commits') },
                     ]}
                     value={activeTab}
                     onValueChange={(value) => setActiveTab(value as DetailTab)}
@@ -2523,21 +2532,21 @@ function ReviewPlatformContent({
                 } />
                 {activeTab === 'overview' && (
                   <ScrollArea className="review-platform__tab-content" data-bitfun-product-component="review-platform" data-bitfun-product-part="tabContent">
-                    {detailLoading && renderDetailLoading(detail ? 'Refreshing pull request...' : 'Loading pull request...')}
-                    {detailError && <Alert tone="error" message={detailError} description={<Button size="sm" variant="outline" onClick={handleRetryDetail}>Retry</Button>} />}
+                    {detailLoading && renderDetailLoading(detail ? t('panels/git:reviewPlatform.refreshingPullRequest') : t('panels/git:reviewPlatform.loadingPullRequest'))}
+                    {detailError && <Alert tone="error" message={detailError} description={<Button size="sm" variant="outline" onClick={handleRetryDetail}>{t('panels/git:reviewPlatform.retry')}</Button>} />}
                     {detail && (
                       <div className="review-platform__body-markdown" data-bitfun-product-component="review-platform" data-bitfun-product-part="section">
-                        {detail.body ? <MarkdownRenderer content={detail.body} basePath={workspacePath} /> : <p className="review-platform__meta">No description provided.</p>}
+                        {detail.body ? <MarkdownRenderer content={detail.body} basePath={workspacePath} /> : <p className="review-platform__meta">{t('panels/git:reviewPlatform.noDescription')}</p>}
                       </div>
                     )}
                     {(latestCurrentReview || latestStaleReview || latestUnknownReview) && (
-                      <CardHeader title="BitFun Review" description={reviewStatusText} actions={
-                        <Button size="sm" variant="text" onClick={handleOpenLatestReview}>Open Review</Button>
+                      <CardHeader title={t('panels/git:reviewPlatform.bitfunReview')} description={reviewStatusText} actions={
+                        <Button size="sm" variant="text" onClick={handleOpenLatestReview}>{t('panels/git:reviewPlatform.openReview')}</Button>
                       } />
                     )}
                     <Disclosure
                       key={'checks:' + selectedRemoteId + ':' + selectedPrId}
-                      summary="Checks"
+                      summary={t('panels/git:reviewPlatform.checks')}
                       description={checksStatusText}
                       disabled={!detailLoading && ciItems.length === 0}
                       data-bitfun-product-component="review-platform"
@@ -2565,9 +2574,9 @@ function ReviewPlatformContent({
                                   </StatusPill>}
                                   actions={<ToolbarGroup>
                                     {expandable && (
-                                      <Tooltip content={isCiExpanded ? 'Collapse details' : 'Expand details'}>
+                                      <Tooltip content={isCiExpanded ? t('panels/git:reviewPlatform.collapseDetails') : t('panels/git:reviewPlatform.expandDetails')}>
                                         <IconButton
-                                          aria-label={isCiExpanded ? 'Collapse details' : 'Expand details'}
+                                          aria-label={isCiExpanded ? t('panels/git:reviewPlatform.collapseDetails') : t('panels/git:reviewPlatform.expandDetails')}
                                           size="sm"
                                           onClick={() => toggleCiExpanded(item)}
                                           disabled={ciLogLoading}
@@ -2577,9 +2586,9 @@ function ReviewPlatformContent({
                                         />
                                       </Tooltip>
                                     )}
-                                    <Tooltip content="Add this result to chat">
+                                    <Tooltip content={t('panels/git:reviewPlatform.addResultToChat')}>
                                       <IconButton
-                                        aria-label="Add this result to chat"
+                                        aria-label={t('panels/git:reviewPlatform.addResultToChat')}
                                         size="sm"
                                         onClick={() => void handleAddCiItemContext(item)}
                                         disabled={!selectedPr}
@@ -2587,9 +2596,9 @@ function ReviewPlatformContent({
                                       />
                                     </Tooltip>
                                     {item.webUrl && (
-                                      <Tooltip content="Open result in provider">
+                                      <Tooltip content={t('panels/git:reviewPlatform.openResultInProvider')}>
                                         <IconButton
-                                          aria-label="Open result in provider"
+                                          aria-label={t('panels/git:reviewPlatform.openResultInProvider')}
                                           size="sm"
                                           onClick={() => void handleOpenCiUrl(item.webUrl)}
                                           icon={<Icon name="link" size="xs" />}
@@ -2601,13 +2610,13 @@ function ReviewPlatformContent({
                                 {isCiExpanded && (
                                   <Stack gap="3" data-bitfun-product-component="review-platform" data-bitfun-product-part="ciLog">
                                     <dl className="review-platform__ci-details">
-                                      {item.stage && <div className="review-platform__fact-row"><dt>Stage</dt><dd>{item.stage}</dd></div>}
-                                      {item.detail && <div className="review-platform__fact-row"><dt>Detail</dt><dd>{item.detail}</dd></div>}
-                                      {item.webUrl && <div className="review-platform__fact-row"><dt>URL</dt><dd>{item.webUrl}</dd></div>}
+                                      {item.stage && <div className="review-platform__fact-row"><dt>{t('panels/git:reviewPlatform.stage')}</dt><dd>{item.stage}</dd></div>}
+                                      {item.detail && <div className="review-platform__fact-row"><dt>{t('panels/git:reviewPlatform.detail')}</dt><dd>{item.detail}</dd></div>}
+                                      {item.webUrl && <div className="review-platform__fact-row"><dt>{t('panels/git:reviewPlatform.url')}</dt><dd>{item.webUrl}</dd></div>}
                                     </dl>
-                                    {ciLogLoading && renderDetailLoading('Loading check details...')}
+                                    {ciLogLoading && renderDetailLoading(t('panels/git:reviewPlatform.loadingCheckDetails'))}
                                     {!ciLogLoading && ciLogError && logAvailable && (
-                                      <Alert tone="error" message={ciLogError} description={<Button size="sm" variant="outline" onClick={() => void loadCiLog(item)}>Retry</Button>} />
+                                      <Alert tone="error" message={ciLogError} description={<Button size="sm" variant="outline" onClick={() => void loadCiLog(item)}>{t('panels/git:reviewPlatform.retry')}</Button>} />
                                     )}
                                     {!ciLogLoading && !ciLogError && (ciLog?.log || item.log) && <pre tabIndex={0} aria-label={item.name} className="review-platform__ci-log-block">{ciLog?.log || item.log}</pre>}
                                     {!ciLogLoading && !ciLogError && ciLog && !ciLog.log && !item.log && ciLog.message && <Alert role="status" message={reviewErrorText(ciLog.message, t)} />}
@@ -2618,12 +2627,12 @@ function ReviewPlatformContent({
                           );
                         })}
                       </FieldGroup>
-                      {renderDetailPagination('Checks', ciPage, ciTotal, setCiPageIndex)}
+                      {renderDetailPagination(t('panels/git:reviewPlatform.checks'), ciPage, ciTotal, setCiPageIndex)}
                     </Disclosure>
 
                     <Disclosure
                       key={'comments:' + selectedRemoteId + ':' + selectedPrId}
-                      summary={'Comments (' + reviewItemCount + ')'}
+                      summary={t('panels/git:reviewPlatform.commentsCount', { count: reviewItemCount })}
                       disabled={!detailLoading && reviewThreads.length === 0}
                       data-bitfun-product-component="review-platform"
                       data-bitfun-product-part="section"
@@ -2642,12 +2651,12 @@ function ReviewPlatformContent({
                                   title={thread.author}
                                   description={formatRelativeTime(thread.updatedAt) || formatAbsoluteTime(thread.updatedAt)}
                                   actions={<ToolbarGroup>
-                                    {thread.kind === 'review' && <StatusPill tone="neutral">Review</StatusPill>}
-                                    {thread.resolved && <StatusPill tone="success">Resolved</StatusPill>}
+                                    {thread.kind === 'review' && <StatusPill tone="neutral">{t('panels/git:reviewPlatform.review')}</StatusPill>}
+                                    {thread.resolved && <StatusPill tone="success">{t('panels/git:reviewPlatform.resolved')}</StatusPill>}
                                   </ToolbarGroup>}
                                 />
                                 {parent && (
-                                  <Disclosure summary={'Reply to @' + parent.author}>
+                                  <Disclosure summary={t('panels/git:reviewPlatform.replyTo', { author: parent.author })}>
                                     <div className="review-platform__body-markdown"><MarkdownRenderer content={parent.body} basePath={workspacePath} /></div>
                                   </Disclosure>
                                 )}
@@ -2658,7 +2667,7 @@ function ReviewPlatformContent({
                           );
                         })}
                       </FieldGroup>
-                      {renderDetailPagination('Comments', reviewPage, reviewThreads.length, setReviewPageIndex)}
+                      {renderDetailPagination(t('panels/git:reviewPlatform.comments'), reviewPage, reviewThreads.length, setReviewPageIndex)}
                     </Disclosure>
                   </ScrollArea>
                 )}
@@ -2668,11 +2677,11 @@ function ReviewPlatformContent({
                     {detailError && (
                       <Alert tone="error" message={detailError} description={
                         <Button size="sm" variant="outline" onClick={handleRetryDetail}>
-                          Retry
+                          {t('panels/git:reviewPlatform.retry')}
                         </Button>
                       } />
                     )}
-                    {detailLoading && renderDetailLoading(pagedChangedFiles.length ? 'Refreshing files...' : 'Loading files...')}
+                    {detailLoading && renderDetailLoading(pagedChangedFiles.length ? t('panels/git:reviewPlatform.refreshingFiles') : t('panels/git:reviewPlatform.loadingFiles'))}
                     <FieldGroup appearance="plain">
                       {pagedChangedFiles.map(file => {
                         const key = fileKey(file);
@@ -2690,12 +2699,12 @@ function ReviewPlatformContent({
                               open={isExpanded}
                               onOpenChange={() => toggleFileExpanded(key)}
                               unmountOnClose
-                              actions={<Tooltip content="Add to chat">
-                                <IconButton aria-label={`Add ${file.path} to chat`} size="sm" onClick={() => void handleAddFileDiffContext(file)} disabled={!selectedPr} icon={<MessageSquareText size={13} />} />
+                              actions={<Tooltip content={t('panels/git:reviewPlatform.addToChat')}>
+                                <IconButton aria-label={t('panels/git:reviewPlatform.addPathToChat', { path: file.path })} size="sm" onClick={() => void handleAddFileDiffContext(file)} disabled={!selectedPr} icon={<MessageSquareText size={13} />} />
                               </Tooltip>}
                             >
                               {file.patch ? (
-                                <pre tabIndex={0} className="review-platform__diff-block" data-bitfun-product-component="review-platform" data-bitfun-product-part="diff" aria-label={`Diff for ${file.path}`}>
+                                <pre tabIndex={0} className="review-platform__diff-block" data-bitfun-product-component="review-platform" data-bitfun-product-part="diff" aria-label={t('panels/git:reviewPlatform.diffFor', { path: file.path })}>
                                   {file.patch.split('\n').map((line, index) => (
                                     <span key={`${file.path}-${index}`} className={diffLineClass(line)}>
                                       {line || ' '}
@@ -2703,7 +2712,7 @@ function ReviewPlatformContent({
                                   ))}
                                 </pre>
                               ) : (
-                                <Empty imageSize="sm" icon={<Icon name="files" />} description="No inline diff is available for this file." />
+                                <Empty imageSize="sm" icon={<Icon name="files" />} description={t('panels/git:reviewPlatform.noInlineDiff')} />
                               )}
                             </Disclosure>
                           </FieldRow>
@@ -2712,10 +2721,10 @@ function ReviewPlatformContent({
                     </FieldGroup>
                     {!detailLoading && detail && detail.files.length === 0 && (
                       <Empty imageSize="sm" icon={<Icon name="files" />} description={detail.changedFileCountKnown === false
-                        ? 'Changed files are currently unavailable from this provider.'
-                        : 'No changed files were returned by this provider.'} />
+                        ? t('panels/git:reviewPlatform.changedFilesUnavailable')
+                        : t('panels/git:reviewPlatform.noChangedFiles')} />
                     )}
-                    {renderDetailPagination('Files', changePage, changedFiles.length, setChangePageIndex)}
+                    {renderDetailPagination(t('panels/git:reviewPlatform.files'), changePage, changedFiles.length, setChangePageIndex)}
                   </ScrollArea>
                 )}
 
@@ -2724,11 +2733,11 @@ function ReviewPlatformContent({
                     {detailError && (
                       <Alert tone="error" message={detailError} description={
                         <Button size="sm" variant="outline" onClick={handleRetryDetail}>
-                          Retry
+                          {t('panels/git:reviewPlatform.retry')}
                         </Button>
                       } />
                     )}
-                    {detailLoading && renderDetailLoading(pagedCommits.length ? 'Refreshing commits...' : 'Loading commits...')}
+                    {detailLoading && renderDetailLoading(pagedCommits.length ? t('panels/git:reviewPlatform.refreshingCommits') : t('panels/git:reviewPlatform.loadingCommits'))}
                     <FieldGroup appearance="plain">
                       {pagedCommits.map(commit => (
                         <FieldRow key={commit.hash}>
@@ -2741,9 +2750,9 @@ function ReviewPlatformContent({
                       ))}
                     </FieldGroup>
                     {!detailLoading && detail && commits.length === 0 && (
-                      <Empty imageSize="sm" icon={<Icon name="commit" />} description="No commits were returned by this provider." />
+                      <Empty imageSize="sm" icon={<Icon name="commit" />} description={t('panels/git:reviewPlatform.noCommits')} />
                     )}
-                    {renderDetailPagination('Commits', commitPage, commits.length, setCommitPageIndex)}
+                    {renderDetailPagination(t('panels/git:reviewPlatform.commits'), commitPage, commits.length, setCommitPageIndex)}
                   </ScrollArea>
                 )}
               </div>
@@ -2755,33 +2764,33 @@ function ReviewPlatformContent({
         open={detailMenuOpen}
         anchorRef={detailMenuRef}
         onClose={() => setDetailMenuOpen(false)}
-        aria-label="Pull request actions"
+        aria-label={t('panels/git:reviewPlatform.pullRequestActions')}
         items={[
           {
-            id: 'add-context', label: 'Add to chat', icon: <MessageSquareText size={14} />,
+            id: 'add-context', label: t('panels/git:reviewPlatform.addToChat'), icon: <MessageSquareText size={14} />,
             disabled: !selectedPr,
             submenu: [
-              { id: 'add-overview', label: 'Pull request overview', onSelect: () => void handleFillPrContext() },
+              { id: 'add-overview', label: t('panels/git:reviewPlatform.pullRequestOverview'), onSelect: () => void handleFillPrContext() },
               ...(activeTab === 'overview' ? [
-                { id: 'add-checks', label: 'Checks on this page', disabled: !detail || detailLoading || !ciItems.length, onSelect: () => void handleAddCiPageContext() },
-                { id: 'add-comments', label: 'Comments on this page', disabled: !detail || detailLoading || !reviewThreads.length, onSelect: () => void handleAddReviewsContext() },
+                { id: 'add-checks', label: t('panels/git:reviewPlatform.checksOnThisPage'), disabled: !detail || detailLoading || !ciItems.length, onSelect: () => void handleAddCiPageContext() },
+                { id: 'add-comments', label: t('panels/git:reviewPlatform.commentsOnThisPage'), disabled: !detail || detailLoading || !reviewThreads.length, onSelect: () => void handleAddReviewsContext() },
               ] : []),
               ...(activeTab === 'commits' ? [
-                { id: 'add-commits', label: 'Commits on this page', disabled: !detail || detailLoading || !commits.length, onSelect: () => void handleAddCommitsContext() },
+                { id: 'add-commits', label: t('panels/git:reviewPlatform.commitsOnThisPage'), disabled: !detail || detailLoading || !commits.length, onSelect: () => void handleAddCommitsContext() },
               ] : []),
             ],
           },
           {
-            id: 'open-external', label: 'Open in browser', icon: <Icon name="arrow-up-right" size="sm" />,
+            id: 'open-external', label: t('panels/git:reviewPlatform.openInBrowser'), icon: <Icon name="arrow-up-right" size="sm" />,
             disabled: !selectedPr?.webUrl && !initialPullRequestUrl, onSelect: () => void handleOpenExternal(),
           },
           {
-            id: 'refresh', label: 'Refresh pull request', icon: <Icon name="refresh" size="sm" />,
+            id: 'refresh', label: t('panels/git:reviewPlatform.refreshPullRequest'), icon: <Icon name="refresh" size="sm" />,
             disabled: !selectedPr || detailLoading, onSelect: () => void handleRefreshDetail(),
           },
           { id: 'account-separator', label: '', separator: true },
           {
-            id: 'authenticate', label: selectedRemote?.platform === 'github' ? 'GitHub CLI authentication' : account?.authSource === 'stored' ? 'Update token' : 'Add token',
+            id: 'authenticate', label: selectedRemote?.platform === 'github' ? t('panels/git:reviewPlatform.githubCliAuthentication') : account?.authSource === 'stored' ? t('panels/git:reviewPlatform.updateToken') : t('panels/git:reviewPlatform.addToken'),
             icon: <KeyRound size={14} />, disabled: !selectedRemote || selectedRemote.platform === 'unknown' || authSaving,
             onSelect: handleOpenAuthModal,
           },
@@ -2799,7 +2808,7 @@ function ReviewPlatformContent({
       >
         <DialogHeader>
           <DialogHeading>
-            <DialogTitle>{selectedRemote?.platform === 'github' ? 'GitHub CLI authentication' : `${selectedRemote ? providerLabel(selectedRemote) : 'Provider'} token`}</DialogTitle>
+            <DialogTitle>{selectedRemote?.platform === 'github' ? t('panels/git:reviewPlatform.githubCliAuthentication') : t('panels/git:reviewPlatform.providerToken', { provider: selectedRemote ? providerLabel(selectedRemote, t) : t('panels/git:reviewPlatform.provider') })}</DialogTitle>
           </DialogHeading>
           <DialogClose disabled={authSaving} />
         </DialogHeader>
@@ -2813,16 +2822,16 @@ function ReviewPlatformContent({
           >
             <Stack gap="4">
               <CardHeader title={selectedRemote?.projectPath ?? ''} description={
-                [selectedRemote?.host, account?.label, authLabel(account), account && authSourceLabel(account.authSource)].filter(Boolean).join(' · ')
+                [selectedRemote?.host, account?.label, authLabel(account, t), account && authSourceLabel(account.authSource, t)].filter(Boolean).join(' · ')
               } />
               {selectedRemote?.platform === 'github' ? (
                 <Stack gap="3">
-                  <Alert role="status" message="Run this command in the integrated terminal, finish the GitHub CLI flow, then retry." />
+                  <Alert role="status" message={t('panels/git:reviewPlatform.githubAuthTerminalHint')} />
                   <pre tabIndex={0} className="review-platform__ci-log-block">{`gh auth login --hostname ${selectedRemote.host}`}</pre>
                   {authError && <Alert tone="error" message={authError} />}
                 </Stack>
               ) : (
-                <Field label="Token" controlWidth="fill" error={authError ?? undefined}>
+                <Field label={t('panels/git:reviewPlatform.token')} controlWidth="fill" error={authError ?? undefined}>
                   <DesignInput
                     type="password"
                     autoComplete="off"
@@ -2842,7 +2851,7 @@ function ReviewPlatformContent({
         <DialogFooter>
           {account?.authSource === 'stored' && (
             <Button type="button" size="sm" variant="text" disabled={!selectedRemote || authSaving || loading} onClick={() => void handleClearAuthToken()}>
-              Clear token
+              {t('panels/git:reviewPlatform.clearToken')}
             </Button>
           )}
           <Button
@@ -2855,7 +2864,7 @@ function ReviewPlatformContent({
               setAuthError(null);
             }}
           >
-            Cancel
+            {t('panels/git:reviewPlatform.cancel')}
           </Button>
           {selectedRemote?.platform === 'github' ? (
             <>
@@ -2868,7 +2877,7 @@ function ReviewPlatformContent({
                 leadingIcon={<Icon name="duplicate" size="xs" />}
               >
 
-                Copy
+                {t('panels/git:reviewPlatform.copy')}
               </Button>
               <Button
                 type="button"
@@ -2879,7 +2888,7 @@ function ReviewPlatformContent({
                 leadingIcon={<Icon name="terminal" size="xs" />}
               >
 
-                Open terminal
+                {t('panels/git:reviewPlatform.openTerminal')}
               </Button>
             </>
           ) : (
@@ -2891,7 +2900,7 @@ function ReviewPlatformContent({
               loading={authSaving}
               disabled={!authToken.trim()}
             >
-              Save
+              {t('panels/git:reviewPlatform.save')}
             </Button>
           )}
         </DialogFooter>

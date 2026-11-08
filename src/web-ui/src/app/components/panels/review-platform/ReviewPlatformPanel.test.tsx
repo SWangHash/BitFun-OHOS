@@ -12,7 +12,6 @@ const mocks = vi.hoisted(() => ({
   snapshot: vi.fn(), context: vi.fn(), detail: vi.fn(), openExternal: vi.fn(), reviewTarget: vi.fn(),
   prepareReview: vi.fn(),
   state: { sessions: new Map<string, Session>(), activeSessionId: null as string | null },
-  t: (key: string) => key,
 }));
 const peer = vi.hoisted(() => ({ active: false, capabilities: null as Partial<PeerHostCapabilities> | null }));
 vi.mock('@/infrastructure/peer-device/peerDeviceContextState', () => ({
@@ -23,7 +22,38 @@ vi.mock('@/infrastructure/peer-device/peerDeviceContextState', () => ({
 vi.mock('@/infrastructure/api', () => ({ reviewPlatformAPI: { getWorkspaceSnapshot: mocks.snapshot, getWorkspaceContext: mocks.context, getPullRequestDetailPage: mocks.detail, getPullRequestReviewTarget: mocks.reviewTarget }, systemAPI: { openExternal: mocks.openExternal } }));
 vi.mock('@/infrastructure/markdown', () => ({ MarkdownRenderer: () => null }));
 vi.mock('@/shared/notification-system', () => ({ notificationService: {} }));
-vi.mock('@/infrastructure/i18n', () => ({ useI18n: () => ({ t: mocks.t }), i18nService: { t: mocks.t, formatDate: () => '' } }));
+// Resolve real en-US copy so DOM assertions keep testing rendered labels while
+// the panel itself reads localized resources through the i18n service.
+vi.mock('@/infrastructure/i18n', async () => {
+  const [gitModule, commonModule, flowChatModule] = await Promise.all([
+    import('@/locales/en-US/panels/git.json'),
+    import('@/locales/en-US/common.json'),
+    import('@/locales/en-US/flow-chat.json'),
+  ]);
+  const catalogs: Record<string, Record<string, unknown>> = {
+    'panels/git': gitModule.default as Record<string, unknown>,
+    common: commonModule.default as Record<string, unknown>,
+    'flow-chat': flowChatModule.default as Record<string, unknown>,
+  };
+  const resolvePath = (catalog: Record<string, unknown>, keyPath: string): unknown => (
+    keyPath.split('.').reduce<unknown>((node, part) => (
+      node && typeof node === 'object' ? (node as Record<string, unknown>)[part] : undefined
+    ), catalog)
+  );
+  const t = (key: string, options?: Record<string, unknown>) => {
+    const separator = key.indexOf(':');
+    const requestedNamespace = typeof options?.ns === 'string' ? options.ns : undefined;
+    const namespace = separator >= 0 ? key.slice(0, separator) : requestedNamespace ?? 'panels/git';
+    const keyPath = separator >= 0 ? key.slice(separator + 1) : key;
+    const template = resolvePath(catalogs[namespace] ?? {}, keyPath);
+    if (typeof template !== 'string') return key;
+    if (!options) return template;
+    return template.replace(/\{\{\s*(\w+)\s*\}\}/g, (match, name) => (
+      options[name] === undefined ? match : String(options[name])
+    ));
+  };
+  return { useI18n: () => ({ t }), i18nService: { t, formatDate: () => '' } };
+});
 vi.mock('@/flow_chat/services/sessionActivation', () => ({ openMainSession: vi.fn(), ensureMainSessionActive: vi.fn() }));
 vi.mock('@/flow_chat/services/btwSessionPane', () => ({ openBtwSessionInAuxPane: vi.fn() }));
 vi.mock('@/flow_chat/services/ReviewService', () => ({ launchPreparedReviewSession: vi.fn(), prepareReviewLaunchFromPullRequest: mocks.prepareReview }));
@@ -143,7 +173,7 @@ describe('Gitee panel state and asynchronous request ordering', () => {
       await act(async () => root.render(
         <ReviewPlatformPanel workspaceId="workspace-1" workspacePath="/workspace" initialPullRequestUrl={url} detailOnly />,
       ));
-      expect(host.textContent).toContain('common:reviewPlatform.messages.hostUnsupported');
+      expect(host.textContent).toContain('The pull request viewer is unavailable on this device. Open pull request links in the system browser.');
       expect(mocks.snapshot).not.toHaveBeenCalled();
       expect(mocks.context).not.toHaveBeenCalled();
       expect(mocks.detail).not.toHaveBeenCalled();
@@ -256,7 +286,7 @@ describe('Gitee panel state and asynchronous request ordering', () => {
       <ReviewPlatformPanel workspaceId="failed-context" workspacePath="/workspace" initialPullRequestUrl={url} detailOnly />,
     ));
     const browser = [...host.querySelectorAll<HTMLButtonElement>('button')]
-      .find(button => button.textContent === 'common:file.openInSystemBrowser');
+      .find(button => button.textContent === 'Open in System Browser');
     expect(browser).toBeDefined();
     await act(async () => browser?.click());
     expect(mocks.openExternal).toHaveBeenCalledExactlyOnceWith(url);
@@ -406,12 +436,11 @@ describe('Gitee panel state and asynchronous request ordering', () => {
   it('returns from detail to the same list selection, search and page without refetching', async () => {
     mocks.detail.mockImplementation(({ pullRequestId, section }) => Promise.resolve(detail(Number(pullRequestId), section)));
     await mount();
+    // Repository-wide search restarts at page one, so enter the query first and
+    // then page forward; the fixture still returns ten rows per page.
+    await enterSearch('PR 2');
     await click('review-platform-next-page');
     const search = host.querySelector<HTMLInputElement>('input[aria-label="Search pull requests"]')!;
-    await act(async () => {
-      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(search, 'PR 2');
-      search.dispatchEvent(new Event('input', { bubbles: true }));
-    });
     const selectedRow = host.querySelector<HTMLButtonElement>('[data-testid="review-platform-pr-row"][data-pr-number="21"]')!;
     const panel = host.querySelector('[data-bitfun-product-part="root"]')!;
     expect(panel.getAttribute('data-bitfun-view')).toBe('list');
@@ -579,7 +608,7 @@ describe('Gitee panel state and asynchronous request ordering', () => {
     const path = await mount();
     await enterSearch('needle');
     expect(mocks.snapshot).toHaveBeenCalledTimes(2);
-    expect(host.textContent).toContain('reviewPlatform.searchIncomplete');
+    expect(host.textContent).toContain('No matches yet. There are more pull requests to search.');
     expect(host.querySelector('[data-bitfun-product-part="emptyState"]')).toBeNull();
     expect(host.querySelector('[data-testid="review-platform-pagination"]')).toBeNull();
     await click('review-platform-search-more');
@@ -589,7 +618,7 @@ describe('Gitee panel state and asynchronous request ordering', () => {
     });
     expect(host.querySelector('[data-pr-number="201"]')).toBeTruthy();
     expect(host.querySelector('[data-testid="review-platform-search-more"]')).toBeNull();
-    expect(host.textContent).not.toContain('reviewPlatform.searchIncomplete');
+    expect(host.textContent).not.toContain('No matches yet. There are more pull requests to search.');
   });
 
   it('appends GitHub search results without narrowing workspace scope or clearing the selection', async () => {
@@ -634,7 +663,7 @@ describe('Gitee panel state and asynchronous request ordering', () => {
     const failedSearch = mocks.snapshot.mock.calls.at(-1)?.[5];
     expect(host.querySelector('[role="alert"]')).toBeTruthy();
     expect(host.querySelector('[data-pr-number="201"]')).toBeTruthy();
-    expect(host.querySelector('[data-testid="review-platform-search-more"]')?.textContent).toContain('common.retry');
+    expect(host.querySelector('[data-testid="review-platform-search-more"]')?.textContent).toContain('Retry');
     await click('review-platform-search-more');
     expect(mocks.snapshot.mock.calls.at(-1)?.[5]).toEqual(failedSearch);
     expect(host.querySelectorAll('[data-testid="review-platform-pr-row"]')).toHaveLength(2);
