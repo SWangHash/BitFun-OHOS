@@ -33,12 +33,13 @@ export struct DefaultXComponent {
   private rootSlot = new NodeContent();
   private webviewController = new RustWebviewNodeController(this.getUIContext());
   private nativeModule: ESObject;
-  // Launch-page mirror appearance published by EntryAbility.onCreate. The
-  // background is the `start_window_background` constant, so the mirror matches
-  // the system start window in every color mode. An empty icon keeps the mirror
-  // layer inert for other consumers of this module.
+  // Launch-page mirror icon, published by EntryAbility.onCreate. The canvas
+  // color is the module's own `SPLASH_BG` constant rather than a resource passed
+  // across modules: the mirror must be black even if a cross-module color
+  // resource fails to resolve, because a transparent mirror shows the window's
+  // default (white) background under the light launch mark. An empty icon keeps
+  // the mirror layer inert for other consumers of this module.
   @StorageLink("bitfunStartupSplashIcon") splashIcon: ResourceStr = '';
-  @StorageLink("bitfunStartupSplashBackground") splashBackground: ResourceColor = Color.Transparent;
   private helper: ArkHelper = {
     exit,
     createWebview: (data: NativeWebViewInitData) => {
@@ -159,8 +160,13 @@ export struct DefaultXComponent {
         .alignContent(Alignment.Center)
         .width("100%")
         .height("100%")
-        .backgroundColor(this.splashBackground)
+        .backgroundColor(SPLASH_BG)
       }
-    };
+    }
+    // The page root carries the launch canvas color as well: the launch page is
+    // the first content of a window whose own background has to be assumed
+    // white, so any frame this page paints before the webview or the mirror is on
+    // screen must already be the launch constant instead of white.
+    .backgroundColor(SPLASH_BG);
   }
 }

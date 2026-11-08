@@ -119,6 +119,66 @@ describe('startup performance contract', () => {
     expect(source).toContain('animation-duration: 0.12s;');
   });
 
+  it('keeps the HarmonyOS launch surface constant until it is dropped in one frame', () => {
+    const source = readSource('../../../index.html');
+    const overlaySource = readSource('./startupOverlay.ts');
+    const abilitySource = readSource(
+      '../../../../apps/ohos/entry/src/main/ets/entryability/EntryAbility.ets',
+    );
+    const componentSource = readSource(
+      '../../../../apps/ohos/oh-rs-ability/src/main/ets/components/DefaultXComponent.ets',
+    );
+
+    // The launch canvas is one icon on one background color for the whole load.
+    // On HarmonyOS the layer is removed in a single frame instead of fading: the
+    // shell behind it is light, so a fade shows the launch background turning
+    // white before the app is visible.
+    expect(source).toContain("startupOverlay.classList.add('bitfun-startup-overlay--instant-exit')");
+    expect(overlaySource).toContain(
+      "const INSTANT_EXIT_CLASS = 'bitfun-startup-overlay--instant-exit';",
+    );
+    expect(overlaySource).toContain('if (overlay.classList.contains(INSTANT_EXIT_CLASS)) {');
+    // This branch drops the layer without the fade path but still owns the exit
+    // promise (`pendingExits`), so it removes, releases the entry and dispatches
+    // the handoff signal instead of returning mid-function.
+    const instantExitBlock = overlaySource.slice(
+      overlaySource.indexOf('if (overlay.classList.contains(INSTANT_EXIT_CLASS)) {'),
+      overlaySource.indexOf('const handoff = startLogoHandoff(overlay);'),
+    );
+    expect(instantExitBlock).toContain('overlay.remove();');
+    expect(instantExitBlock).not.toContain('waitForOverlayExitAnimation(');
+    expect(instantExitBlock).toContain(
+      'window.dispatchEvent(new CustomEvent(STARTUP_OVERLAY_HIDDEN_EVENT));',
+    );
+
+    // The document keeps the launch canvas color through the handover. The gap
+    // between dropping the overlay and the shell's first paint otherwise falls
+    // back to the theme surface color, which is a white frame on a light theme
+    // (and an invisible one on a dark theme, which is why this only showed up in
+    // light mode).
+    expect(source).toContain(
+      "document.documentElement.style.setProperty('background-color', '#000000', 'important')",
+    );
+    expect(source).toContain(
+      "document.body.style.setProperty('background-color', '#000000', 'important')",
+    );
+
+    // No white frame between the system start window and the launch page: the
+    // ability window and the launch page root are painted with the launch
+    // constant instead of the window's default background.
+    expect(abilitySource).toContain("const SPLASH_WINDOW_BACKGROUND: string = '#000000';");
+    expect(abilitySource).toContain('setWindowBackgroundColor(SPLASH_WINDOW_BACKGROUND)');
+    expect(componentSource).toContain("const SPLASH_BG: string = '#000000';");
+    expect(componentSource).toContain('.backgroundColor(SPLASH_BG)');
+    // The mirror canvas is the module's own constant. It must not depend on a
+    // color resource handed across module boundaries (`entry` -> oh-rs-ability
+    // HAR): when that resolution falls back, the mirror paints transparent and
+    // the window's default white background shows under the light launch mark,
+    // i.e. a white launch screen with an invisible mark.
+    expect(componentSource).not.toContain('bitfunStartupSplashBackground');
+    expect(abilitySource).not.toContain("'bitfunStartupSplashBackground'");
+  });
+
   it('keeps editor and tool infrastructure out of the first startup module', () => {
     const source = readSource('../../main.tsx');
 

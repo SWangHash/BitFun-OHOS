@@ -23,11 +23,11 @@
       },
       "pet": {
         "label": "Pet & assistant",
-        "description": "Choose your pet, configure real-time voice calls with the assistant, and manage desktop cards"
+        "description": "Choose your pet and manage desktop cards"
       },
       "voice": {
         "label": "Voice",
-        "description": "Voice input, local speech models, and realtime voice calls."
+        "description": "Voice input and local speech models."
       },
       "shortcuts": {
         "label": "Keyboard Shortcuts",

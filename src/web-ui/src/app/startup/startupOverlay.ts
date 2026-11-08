@@ -5,6 +5,11 @@ import { STARTUP_OVERLAY_HIDDEN_EVENT } from './startupSignals';
 const STARTUP_OVERLAY_ID = 'bitfun-startup-overlay';
 const EXIT_CLASS = 'bitfun-startup-overlay--exiting';
 const HANDOFF_CLASS = 'bitfun-startup-overlay--handoff';
+// Set by index.html on HarmonyOS. The shell behind the constant black launch
+// canvas is light, so fading the layer out reads as the launch background turning
+// white while the app is still coming up. There the layer is removed in one frame
+// instead: one icon on one background color until the handoff, then gone.
+const INSTANT_EXIT_CLASS = 'bitfun-startup-overlay--instant-exit';
 const EXIT_FALLBACK_MS = 350;
 const LOGO_HANDOFF_MS = 420;
 const pendingExits = new WeakMap<HTMLElement, Promise<void>>();
@@ -176,6 +181,21 @@ export function hideStartupOverlay(): Promise<void> {
 
   const pending = pendingExits.get(overlay);
   if (pending) return pending;
+
+  // HarmonyOS: keep the launch surface fully opaque for the whole load and drop
+  // it in a single frame. No logo flight, no exit animation, no blur/inert pass,
+  // no fade — the shell behind it is light, and any transition would show the
+  // launch background changing color before the app is visible.
+  if (overlay.classList.contains(INSTANT_EXIT_CLASS)) {
+    const instantExit = (async () => {
+      await handOverHostWindowChromeToAppSurface();
+      overlay.remove();
+      pendingExits.delete(overlay);
+      window.dispatchEvent(new CustomEvent(STARTUP_OVERLAY_HIDDEN_EVENT));
+    })();
+    pendingExits.set(overlay, instantExit);
+    return instantExit;
+  }
 
   // Start the logo flight and the exit listeners synchronously so the mark
   // begins moving on the frame the caller observes and a visibility change or

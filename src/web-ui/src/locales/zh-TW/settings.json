@@ -23,11 +23,11 @@
       },
       "pet": {
         "label": "寵物與助手",
-        "description": "選擇寵物形象，設定助手即時語音通話與桌面小卡片"
+        "description": "選擇寵物形象，設定桌面小卡片"
       },
       "voice": {
         "label": "語音",
-        "description": "語音輸入、本機辨識模型與即時語音通話。"
+        "description": "語音輸入與本機辨識模型。"
       },
       "shortcuts": {
         "label": "快捷鍵",

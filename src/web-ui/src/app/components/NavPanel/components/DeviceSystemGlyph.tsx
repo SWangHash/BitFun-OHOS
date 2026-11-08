@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react';
 import { Monitor } from 'lucide-react';
 import type { IconSize } from '@bitfun/ui';
 import type { DeviceOverviewDevice } from '../deviceInterconnectionOverview';
@@ -13,6 +14,22 @@ const ICON_TOKEN_SIZE: Record<IconSize, string> = {
   md: 'var(--bitfun-control-icon-size-md)',
   lg: 'var(--bitfun-control-icon-size-lg)',
 };
+
+/**
+ * The size a mark is drawn at, as a CSS length. A token stays a token so the
+ * slot keeps following the design system; a caller's pixel count is written out.
+ *
+ * It is applied as a declaration and never as an SVG `width`/`height`
+ * presentation attribute. A token is a `var()` reference, and an attribute an
+ * engine cannot parse is not a smaller mark but no size at all: the mark then
+ * keeps only its view box and fills the box it was put in. Reported from the
+ * HarmonyOS device, where the footer mark grew to the full height of the
+ * sidebar footer and pushed the device name out of the row. A declaration
+ * resolves the same token on every engine this product ships.
+ */
+function resolveMarkSize(size: number | IconSize): string {
+  return typeof size === 'number' ? `${size}px` : ICON_TOKEN_SIZE[size];
+}
 
 /**
  * The mark a device row shows in front of its name: the system the device
@@ -39,22 +56,21 @@ export function DeviceSystemGlyph({
   device: DeviceSystemFacts;
   size?: number | IconSize;
 }) {
-  const resolvedSize = typeof size === 'number' ? `${size}px` : ICON_TOKEN_SIZE[size];
+  const resolvedSize = resolveMarkSize(size);
+  const box: CSSProperties = { width: resolvedSize, height: resolvedSize };
   const key = DEVICE_MARK_BY_ARTWORK[getDeviceArtworkKind(device)];
-  if (!key) return <Monitor size={resolvedSize} />;
+  if (!key) return <Monitor aria-hidden="true" focusable="false" style={box} />;
   const mark = DEVICE_SYSTEM_MARKS[key];
   return (
     <svg
       aria-hidden="true"
       data-system={key}
       focusable="false"
-      height={resolvedSize}
       viewBox={mark.viewBox}
-      width={resolvedSize}
       xmlns="http://www.w3.org/2000/svg"
       style={mark.opticalShift === 0
-        ? undefined
-        : { fontSize: resolvedSize, translate: `0 ${mark.opticalShift}em` }}
+        ? box
+        : { ...box, fontSize: resolvedSize, translate: `0 ${mark.opticalShift}em` }}
     >
       <path fill="currentColor" d={mark.path} />
     </svg>
