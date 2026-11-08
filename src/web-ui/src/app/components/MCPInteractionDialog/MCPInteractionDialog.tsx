@@ -10,6 +10,7 @@ import { OverflowText,
 } from '@bitfun/ui';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { globalEventBus } from '@/infrastructure/event-bus';
+import { useI18n } from '@/infrastructure/i18n';
 import { MCPAPI } from '@/infrastructure/api/service-api/MCPAPI';
 import { notificationService } from '@/shared/notification-system';
 import { createLogger } from '@/shared/utils/logger';
@@ -41,6 +42,7 @@ function stringifyParams(params: unknown): string {
 }
 
 export const MCPInteractionDialog: React.FC = () => {
+  const { t } = useI18n('components');
   const [queue, setQueue] = useState<MCPInteractionRequestEvent[]>([]);
   const [editorValue, setEditorValue] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -96,11 +98,11 @@ export const MCPInteractionDialog: React.FC = () => {
       popCurrentRequest();
     } catch (error) {
       log.error('Failed to submit MCP interaction rejection', { error, currentRequest });
-      notificationService.error(`Failed to reject MCP request: ${currentRequest.method}`);
+      notificationService.error(t('mcpInteraction.rejectFailed', { method: currentRequest.method }));
     } finally {
       setIsSubmitting(false);
     }
-  }, [currentRequest, isSubmitting, popCurrentRequest]);
+  }, [currentRequest, isSubmitting, popCurrentRequest, t]);
 
   const handleApprove = useCallback(async () => {
     if (!currentRequest || isSubmitting) return;
@@ -111,7 +113,7 @@ export const MCPInteractionDialog: React.FC = () => {
       try {
         parsedResult = JSON.parse(trimmed);
       } catch {
-        notificationService.error('Result must be valid JSON');
+        notificationService.error(t('mcpInteraction.invalidJson'));
         return;
       }
     }
@@ -126,11 +128,11 @@ export const MCPInteractionDialog: React.FC = () => {
       popCurrentRequest();
     } catch (error) {
       log.error('Failed to submit MCP interaction approval', { error, currentRequest });
-      notificationService.error(`Failed to approve MCP request: ${currentRequest.method}`);
+      notificationService.error(t('mcpInteraction.approveFailed', { method: currentRequest.method }));
     } finally {
       setIsSubmitting(false);
     }
-  }, [currentRequest, editorValue, isSubmitting, popCurrentRequest]);
+  }, [currentRequest, editorValue, isSubmitting, popCurrentRequest, t]);
 
   const paramsPreview = useMemo(() => {
     if (!currentRequest) return '';
@@ -147,7 +149,7 @@ export const MCPInteractionDialog: React.FC = () => {
     >
       <DialogHeader>
         <DialogHeading>
-          <DialogTitle>{currentRequest ? `MCP Interaction: ${currentRequest.method}` : 'MCP Interaction'}</DialogTitle>
+          <DialogTitle>{currentRequest ? t('mcpInteraction.titleWithMethod', { method: currentRequest.method }) : t('mcpInteraction.title')}</DialogTitle>
         </DialogHeading>
       </DialogHeader>
       <DialogBody inset="none">
@@ -159,22 +161,24 @@ export const MCPInteractionDialog: React.FC = () => {
         >
           <div className="mcp-interaction-dialog__meta" data-bitfun-component="mcp-interaction-dialog" data-bitfun-part="meta">
             <OverflowText className="mcp-interaction-dialog__server">
-              Server: {currentRequest.serverName || currentRequest.serverId}
+              {t('mcpInteraction.server', { name: currentRequest.serverName || currentRequest.serverId })}
             </OverflowText>
             {queueCount > 1 && (
-              <span className="mcp-interaction-dialog__queue">Queue: {queueCount}</span>
+              <span className="mcp-interaction-dialog__queue">
+                {t('mcpInteraction.queue', { count: queueCount })}
+              </span>
             )}
           </div>
 
           <div className="mcp-interaction-dialog__section" data-bitfun-component="mcp-interaction-dialog" data-bitfun-part="section">
-            <div className="mcp-interaction-dialog__label" data-bitfun-component="mcp-interaction-dialog" data-bitfun-part="label">Request Params</div>
+            <div className="mcp-interaction-dialog__label" data-bitfun-component="mcp-interaction-dialog" data-bitfun-part="label">{t('mcpInteraction.requestParams')}</div>
             <ScrollArea className="mcp-interaction-dialog__params" data-bitfun-component="mcp-interaction-dialog" data-bitfun-part="params">
               <pre>{paramsPreview}</pre>
             </ScrollArea>
           </div>
 
           <div className="mcp-interaction-dialog__section" data-bitfun-component="mcp-interaction-dialog" data-bitfun-part="section">
-            <div className="mcp-interaction-dialog__label" data-bitfun-component="mcp-interaction-dialog" data-bitfun-part="label">Response JSON</div>
+            <div className="mcp-interaction-dialog__label" data-bitfun-component="mcp-interaction-dialog" data-bitfun-part="label">{t('mcpInteraction.responseJson')}</div>
             <Textarea
               className="mcp-interaction-dialog__editor-field"
               font="mono"
@@ -195,7 +199,7 @@ export const MCPInteractionDialog: React.FC = () => {
               onClick={() => void handleReject()}
               disabled={isSubmitting}
             >
-              Reject
+              {t('mcpInteraction.reject')}
             </Button>
             <Button
               variant="primary"
@@ -204,7 +208,7 @@ export const MCPInteractionDialog: React.FC = () => {
               loading={isSubmitting}
               disabled={isSubmitting}
             >
-              Approve
+              {t('mcpInteraction.approve')}
             </Button>
           </div>
         </div>
