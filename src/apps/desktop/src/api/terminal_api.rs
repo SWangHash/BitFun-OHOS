@@ -2,7 +2,7 @@
 
 use log::{error, warn};
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter, State};
 use tokio::sync::Mutex;
@@ -558,6 +558,49 @@ async fn spawn_remote_pty_session(
     Ok(response)
 }
 
+/// Normalize an optional wire value: surrounding whitespace is not part of an
+/// identifier or a path, and a blank string means "not supplied".
+fn trimmed_optional(value: Option<String>) -> Option<String> {
+    value
+        .map(|text| text.trim().to_string())
+        .filter(|text| !text.is_empty())
+}
+
+/// Directory a workspace-scoped terminal must start in.
+///
+/// A workspace terminal may never inherit the host process cwd: the process
+/// cwd is not a workspace directory, so starting there silently runs the shell
+/// somewhere the user did not ask for. A blank or non-rooted workspace root is
+/// unusable data and fails loudly; a blank or non-rooted requested directory
+/// degrades to the workspace root.
+fn resolve_workspace_terminal_directory(
+    workspace_root: &Path,
+    requested_directory: Option<&str>,
+) -> Result<String, String> {
+    let root = workspace_root.to_string_lossy();
+    let root = root.trim();
+    if root.is_empty() || !Path::new(root).has_root() {
+        return Err(format!(
+            "Terminal workspace root is not a usable directory: '{root}'"
+        ));
+    }
+
+    let requested = requested_directory.map(str::trim);
+    match requested {
+        Some(directory) if !directory.is_empty() && Path::new(directory).has_root() => {
+            Ok(directory.to_string())
+        }
+        Some(directory) if !directory.is_empty() => {
+            warn!(
+                "Ignoring non-rooted terminal working directory '{}'; using workspace root '{}'",
+                directory, root
+            );
+            Ok(root.to_string())
+        }
+        _ => Ok(root.to_string()),
+    }
+}
+
 #[tauri::command]
 pub async fn terminal_create(
     _app: AppHandle,
@@ -565,6 +608,11 @@ pub async fn terminal_create(
     state: State<'_, TerminalState>,
     app_state: State<'_, AppState>,
 ) -> Result<SessionResponse, String> {
+    // Empty IDs sent as sentinels (notably the local `connectionId: ''`) must
+    // not count as a target, or they bypass workspace resolution below.
+    request.workspace_id = trimmed_optional(request.workspace_id);
+    request.connection_id = trimmed_optional(request.connection_id);
+
     if let Some(id) = request.workspace_id.as_deref() {
         let service = bitfun_core::service::workspace::get_global_workspace_service()
             .ok_or("Workspace service is unavailable")?;
@@ -579,11 +627,13 @@ pub async fn terminal_create(
                     .ok_or("Remote workspace is missing its saved SSH connection ID")?
                     .to_owned(),
             ),
-            _ => Some(String::new()),
+            _ => None,
         };
-        request
-            .working_directory
-            .get_or_insert_with(|| workspace.root_path.to_string_lossy().into_owned());
+        // The workspace decides the fallback, never the host process cwd.
+        request.working_directory = Some(resolve_workspace_terminal_directory(
+            &workspace.root_path,
+            request.working_directory.as_deref(),
+        )?);
     } else if request.connection_id.is_none() {
         // Upgrade-only pre-ID terminal payload. Never infer a target from cwd.
         let service = bitfun_core::service::workspace::get_global_workspace_service()
@@ -606,18 +656,18 @@ pub async fn terminal_create(
                     .ok_or("Remote workspace is missing its saved SSH connection ID")?
                     .to_owned(),
             ),
-            _ => Some(String::new()),
+            _ => None,
         };
+        // Keep the accepted legacy path, but never let an unusable one survive.
+        request.working_directory = Some(resolve_workspace_terminal_directory(
+            &workspace.root_path,
+            request.working_directory.as_deref(),
+        )?);
     }
     // Explicit SSH connection (Relay Deploy wizard) — no remote workspace required.
     // Register AppState's RemoteTerminalManager onto the global workspace manager so
     // subsequent terminal_get/write/resize/close look up the same session store.
-    if let Some(connection_id) = request
-        .connection_id
-        .as_deref()
-        .map(str::trim)
-        .filter(|s| !s.is_empty())
-    {
+    if let Some(connection_id) = request.connection_id.as_deref() {
         let ssh = app_state.get_ssh_manager_async().await?;
         if !ssh
             .get_saved_connections()
@@ -1091,7 +1141,8 @@ pub fn start_terminal_event_loop(terminal_state: TerminalState, app_handle: AppH
 
 #[cfg(test)]
 mod tests {
-    use super::remote_terminal_signal_bytes;
+    use super::{resolve_workspace_terminal_directory, remote_terminal_signal_bytes, trimmed_optional};
+    use std::path::Path;
 
     #[test]
     fn maps_supported_remote_terminal_signals_to_control_bytes() {
@@ -1100,5 +1151,46 @@ mod tests {
         assert_eq!(remote_terminal_signal_bytes("SIGTSTP"), Some(&[0x1a][..]));
         assert_eq!(remote_terminal_signal_bytes("tstp"), Some(&[0x1a][..]));
         assert_eq!(remote_terminal_signal_bytes("SIGTERM"), None);
+    }
+
+    #[test]
+    fn blank_wire_values_mean_absent() {
+        assert_eq!(trimmed_optional(None), None);
+        assert_eq!(trimmed_optional(Some(String::new())), None);
+        assert_eq!(trimmed_optional(Some("   ".to_string())), None);
+        assert_eq!(trimmed_optional(Some("  workspace-a  ".to_string())).as_deref(), Some("workspace-a"));
+    }
+
+    #[test]
+    fn workspace_terminal_directory_falls_back_to_the_workspace_root() {
+        let root = std::env::temp_dir().join("bitfun-terminal-root");
+        let root_text = root.to_string_lossy().to_string();
+
+        for requested in [None, Some(""), Some("   "), Some("relative/dir")] {
+            assert_eq!(
+                resolve_workspace_terminal_directory(&root, requested),
+                Ok(root_text.clone()),
+                "requested={requested:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn workspace_terminal_directory_keeps_a_rooted_requested_directory() {
+        let root = std::env::temp_dir().join("bitfun-terminal-root");
+        let requested = root.join("src");
+        let requested_text = requested.to_string_lossy().to_string();
+
+        assert_eq!(
+            resolve_workspace_terminal_directory(&root, Some(&requested_text)),
+            Ok(requested_text)
+        );
+    }
+
+    #[test]
+    fn workspace_terminal_directory_rejects_an_unusable_root() {
+        assert!(resolve_workspace_terminal_directory(Path::new(""), None).is_err());
+        assert!(resolve_workspace_terminal_directory(Path::new("   "), None).is_err());
+        assert!(resolve_workspace_terminal_directory(Path::new("relative/root"), None).is_err());
     }
 }

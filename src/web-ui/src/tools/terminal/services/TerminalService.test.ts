@@ -303,4 +303,38 @@ describe('TerminalService device surface switching', () => {
       expect(replayMock.created[1].close).toHaveBeenCalledTimes(1);
     });
   });
+
+  it('resolves the workspace path for a legacy host instead of sending a blank cwd', async () => {
+    hostMock.capabilities = {};
+    activateSurface('peer-device-b');
+    invokeMock.mockImplementation((command: string) => {
+      if (command === 'get_opened_workspaces') {
+        return Promise.resolve([{ id: 'w1', rootPath: '/srv/project', workspaceKind: 'normal' }]);
+      }
+      if (command === 'get_recent_workspaces') return Promise.resolve([]);
+      if (command === 'terminal_create') return Promise.resolve({ id: 'legacy-terminal', cwd: '/srv/project' });
+      return Promise.resolve(undefined);
+    });
+
+    const service = freshTerminalService();
+    await service.createSession({
+      workspaceId: 'w1',
+      workingDirectory: '   ',
+      name: 'Shell',
+      source: 'manual',
+    });
+
+    const createCall = invokeMock.mock.calls.find(([command]) => command === 'terminal_create');
+    // The old protocol has no workspace id; it resolves the root from the path.
+    // An empty connection id is not a local sentinel there, so it stays absent.
+    expect(createCall?.[1]).toEqual({
+      request: {
+        workspaceId: undefined,
+        workingDirectory: '/srv/project',
+        connectionId: undefined,
+        name: 'Shell',
+        source: 'manual',
+      },
+    });
+  });
 });

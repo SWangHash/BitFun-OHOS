@@ -25,6 +25,23 @@ use super::{SessionSource, SessionStatus, TerminalSession};
 
 const COMMAND_TIMEOUT_INTERRUPT_GRACE_MS: Duration = Duration::from_millis(500);
 
+/// Resolve the session working directory from the caller and configuration.
+///
+/// A blank value is not a directory. Treating it as "unspecified" keeps a
+/// caller that meant to scope the session from silently inheriting the host
+/// process cwd. `None` keeps the historical fallback to the process cwd.
+fn resolve_requested_working_directory(
+    requested: Option<&str>,
+    default: Option<&str>,
+) -> Option<String> {
+    [requested, default]
+        .into_iter()
+        .flatten()
+        .map(str::trim)
+        .find(|directory| !directory.is_empty())
+        .map(str::to_string)
+}
+
 async fn prepare_shell_integration_input(
     session_integrations: &Arc<RwLock<HashMap<String, ShellIntegration>>>,
     session_id: &str,
@@ -705,13 +722,16 @@ impl SessionManager {
                 .unwrap_or_else(|| ShellDetector::get_default_shell().shell_type)
         });
 
-        // Determine working directory
-        let cwd = cwd.unwrap_or_else(|| {
-            self.config.default_cwd.clone().unwrap_or_else(|| {
-                std::env::current_dir()
-                    .map(|p| p.to_string_lossy().to_string())
-                    .unwrap_or_else(|_| ".".to_string())
-            })
+        // Determine working directory. A blank explicit value is not a usable
+        // directory; only an absent value falls back to the process cwd.
+        let cwd = resolve_requested_working_directory(
+            cwd.as_deref(),
+            self.config.default_cwd.as_deref(),
+        )
+        .unwrap_or_else(|| {
+            std::env::current_dir()
+                .map(|p| p.to_string_lossy().to_string())
+                .unwrap_or_else(|_| ".".to_string())
         });
 
         // Generate name
@@ -1713,7 +1733,25 @@ impl Drop for SessionManager {
 
 #[cfg(test)]
 mod tests {
-    use super::{compute_stream_output_delta, CommandCompletionReason};
+    use super::{compute_stream_output_delta, resolve_requested_working_directory, CommandCompletionReason};
+
+    #[test]
+    fn blank_requested_working_directory_is_unspecified() {
+        assert_eq!(resolve_requested_working_directory(Some(""), Some("/workspace")), Some("/workspace".to_string()));
+        assert_eq!(resolve_requested_working_directory(Some("   "), Some("/workspace")), Some("/workspace".to_string()));
+        assert_eq!(resolve_requested_working_directory(Some(""), None), None);
+        // An absent value keeps the historical process-cwd fallback.
+        assert_eq!(resolve_requested_working_directory(None, None), None);
+    }
+
+    #[test]
+    fn requested_working_directory_wins_and_is_trimmed() {
+        assert_eq!(
+            resolve_requested_working_directory(Some("  /workspace/src  "), Some("/workspace")),
+            Some("/workspace/src".to_string())
+        );
+        assert_eq!(resolve_requested_working_directory(None, Some("/workspace")), Some("/workspace".to_string()));
+    }
 
     #[test]
     fn stream_output_delta_returns_utf8_suffix_without_cutting_chars() {

@@ -84,7 +84,9 @@ async function resolveManualTerminalRequest(
 
   const request: CreateSessionRequest = {
     workspaceId: options.workspaceId,
-    workingDirectory: options.workspacePath,
+    // A blank path is not a directory. Omit it so the host keeps the workspace
+    // root instead of forwarding an empty working directory.
+    workingDirectory: options.workspacePath?.trim() || undefined,
     name,
     sessionId: options.sessionId,
     ...(options.shellId ? { shellId: options.shellId, shellType: options.shellType }

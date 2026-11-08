@@ -46,7 +46,9 @@ export const TerminalActionBridge: FC = () => {
       if (origin && (origin.surfaceId !== scope.surfaceId || !target)) return;
       const targetPath = target?.rootPath ?? activePath;
       const remote = target?.workspaceKind === 'remote';
-      const requestedDirectory = detail?.workingDirectory;
+      // A blank request is not a directory; treat it as an absent one so the
+      // terminal falls back to the workspace/session directory.
+      const requestedDirectory = detail?.workingDirectory?.trim() || undefined;
       // The requested cwd is an IO operand and must stay inside the target root.
       if (requestedDirectory && !isTerminalPathInside(requestedDirectory, targetPath, remote)) return;
       if (remote && !target?.connectionId) {

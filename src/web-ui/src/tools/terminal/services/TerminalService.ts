@@ -348,7 +348,15 @@ export class TerminalService {
         const reference = await workspaceIdRequest(request.workspaceId, 'workspacePath');
         return 'workspaceId' in reference
           ? { request }
-          : { request: { ...request, workspaceId: undefined, connectionId: reference.remoteConnectionId ?? '' } };
+          // The legacy host resolves the workspace from this path. Dropping it
+          // leaves the PTY without a working directory, and an empty
+          // connection id is not a local-target sentinel on that protocol.
+          : { request: {
+              ...request,
+              workspaceId: undefined,
+              workingDirectory: request.workingDirectory?.trim() || reference.workspacePath,
+              connectionId: reference.remoteConnectionId,
+            } };
       });
       log.debug('Session created', { sessionId: session.id });
       return this.projectSession(surfaceId, {

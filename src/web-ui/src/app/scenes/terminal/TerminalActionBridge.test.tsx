@@ -106,4 +106,37 @@ describe('terminal creation from workspace resources', () => {
       flowChatStore.setState(() => previousFlowState);
     }
   });
+
+  it('ignores a blank requested working directory and keeps the workspace root', async () => {
+    (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    const project = { id: 'p', rootPath: '/repo', name: 'P', workspaceKind: 'normal' } as WorkspaceInfo;
+    const state = { ...workspaceManager.getState(), currentWorkspace: project,
+      activeWorkspaceId: project.id, openedWorkspaces: new Map([[project.id, project]]) };
+    vi.spyOn(workspaceManager, 'getState').mockReturnValue(state);
+    const previousFlowState = flowChatStore.getState();
+    flowChatStore.setState(current => ({ ...current, sessions: new Map(), activeSessionId: null }));
+    terminal.create.mockResolvedValue({ sessionId: 'terminal-blank', name: 'Shell 1' });
+    const container = document.createElement('div');
+    const root = createRoot(container);
+    try {
+      await act(async () => root.render(
+        <WorkspaceContext.Provider value={{ ...state, activeWorkspace: project, workspacePath: project.rootPath } as WorkspaceContextValue}>
+          <TerminalActionBridge />
+        </WorkspaceContext.Provider>,
+      ));
+      await act(async () => {
+        window.dispatchEvent(new CustomEvent('terminal-create-requested', { detail: {
+          workingDirectory: '   ', surfaceId: 'local',
+        } }));
+      });
+      // A whitespace-only request never becomes the PTY cwd.
+      expect(terminal.create).toHaveBeenCalledExactlyOnceWith({
+        workspaceId: project.id, workspacePath: '/repo',
+      });
+    } finally {
+      await act(async () => root.unmount());
+      container.remove();
+      flowChatStore.setState(() => previousFlowState);
+    }
+  });
 });

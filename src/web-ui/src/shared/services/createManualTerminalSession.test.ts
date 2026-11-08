@@ -71,6 +71,20 @@ describe('createManualTerminalSession', () => {
     });
   });
 
+  it('treats a blank workspace path as no working directory', async () => {
+    mocks.getConfig.mockResolvedValue({ default_shell: '' });
+
+    await createManualTerminalSession({ workspaceId: 'workspace-main', workspacePath: '   ' });
+
+    // A blank path must not become a PTY cwd; the host keeps the workspace root.
+    expect(mocks.createSession).toHaveBeenCalledWith({
+      workspaceId: 'workspace-main',
+      workingDirectory: undefined,
+      name: 'Shell 2',
+      source: 'manual',
+    });
+  });
+
   it('sends only the workspace ID for remote terminal creation', async () => {
     mocks.getConfig.mockResolvedValue({ default_shell: '' });
 

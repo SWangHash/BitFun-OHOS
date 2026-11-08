@@ -383,12 +383,19 @@ pub fn spawn_pty(
         cmd.arg(arg);
     }
 
-    // Set working directory
-    let cwd = shell_config.cwd.clone().unwrap_or_else(|| {
-        std::env::current_dir()
-            .map(|p| p.to_string_lossy().to_string())
-            .unwrap_or_else(|_| ".".to_string())
-    });
+    // Set working directory. A blank value cannot be a directory, so it falls
+    // back to the process cwd instead of being passed through to the child.
+    let cwd = shell_config
+        .cwd
+        .as_deref()
+        .map(str::trim)
+        .filter(|directory| !directory.is_empty())
+        .map(str::to_string)
+        .unwrap_or_else(|| {
+            std::env::current_dir()
+                .map(|p| p.to_string_lossy().to_string())
+                .unwrap_or_else(|_| ".".to_string())
+        });
     cmd.cwd(&cwd);
 
     // Sanitize inherited host environment to avoid leaking Tauri dev/build
