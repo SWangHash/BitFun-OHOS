@@ -76,15 +76,24 @@ impl ScriptsManager {
         }
         fs::create_dir_all(&self.scripts_dir)?;
 
-        // Write scripts
-        fs::write(self.scripts_dir.join("bash.sh"), BASH_SCRIPT)?;
+        // Write scripts. POSIX shells cannot parse CRLF: a stray `\r` makes zsh
+        // fail on `case "${hook_name}" in` inside the generated `.zshrc`. The
+        // embedded sources are checked out with `eol=lf`, but normalize here as
+        // well so a checkout without the attribute can never poison the cache.
+        fs::write(
+            self.scripts_dir.join("bash.sh"),
+            normalize_newlines(BASH_SCRIPT),
+        )?;
         fs::write(self.scripts_dir.join("powershell.ps1"), POWERSHELL_SCRIPT)?;
-        fs::write(self.scripts_dir.join("fish.fish"), FISH_SCRIPT)?;
+        fs::write(
+            self.scripts_dir.join("fish.fish"),
+            normalize_newlines(FISH_SCRIPT),
+        )?;
 
         // Zsh needs ZDOTDIR structure (directory with .zshrc inside)
         let zsh_dir = self.scripts_dir.join("zsh");
         fs::create_dir_all(&zsh_dir)?;
-        fs::write(zsh_dir.join(".zshrc"), ZSH_SCRIPT)?;
+        fs::write(zsh_dir.join(".zshrc"), normalize_newlines(ZSH_SCRIPT))?;
 
         // Write hash file
         fs::write(&hash_file, &hash)?;
@@ -94,12 +103,16 @@ impl ScriptsManager {
     }
 
     /// Compute hash of all script contents
+    ///
+    /// Hash the normalized form so an LF and a CRLF checkout of the same source
+    /// produce the same cache key instead of regenerating endlessly across
+    /// platforms.
     fn compute_hash() -> String {
         let mut hasher = DefaultHasher::new();
-        BASH_SCRIPT.hash(&mut hasher);
-        ZSH_SCRIPT.hash(&mut hasher);
-        FISH_SCRIPT.hash(&mut hasher);
-        POWERSHELL_SCRIPT.hash(&mut hasher);
+        normalize_newlines(BASH_SCRIPT).hash(&mut hasher);
+        normalize_newlines(ZSH_SCRIPT).hash(&mut hasher);
+        normalize_newlines(FISH_SCRIPT).hash(&mut hasher);
+        normalize_newlines(POWERSHELL_SCRIPT).hash(&mut hasher);
         format!("{:x}", hasher.finish())
     }
 
@@ -130,6 +143,19 @@ impl ScriptsManager {
             ShellType::PowerShell | ShellType::PowerShellCore => Some(POWERSHELL_SCRIPT),
             _ => None,
         }
+    }
+}
+
+/// Normalize embedded script line endings to LF.
+///
+/// `include_str!` embeds the checked-out bytes verbatim. Without a
+/// `text eol=lf` attribute a Windows checkout yields CRLF, and a CR inside a
+/// POSIX script breaks the shell parser.
+fn normalize_newlines(content: &str) -> String {
+    if content.contains('\r') {
+        content.replace("\r\n", "\n").replace('\r', "\n")
+    } else {
+        content.to_string()
     }
 }
 
@@ -170,5 +196,20 @@ mod tests {
         assert!(ScriptsManager::get_script_content(&ShellType::Fish).is_some());
         assert!(ScriptsManager::get_script_content(&ShellType::PowerShell).is_some());
         assert!(ScriptsManager::get_script_content(&ShellType::Cmd).is_none());
+    }
+
+    #[test]
+    fn test_generated_posix_scripts_use_lf_endings() {
+        let temp = tempfile::tempdir().expect("temp dir");
+        let manager = ScriptsManager::new(Some(temp.path().to_path_buf()));
+
+        assert!(manager.ensure_scripts().expect("generate scripts"));
+        for relative in ["bash.sh", "zsh/.zshrc", "fish.fish"] {
+            let content = fs::read_to_string(temp.path().join(relative)).expect("read script");
+            assert!(
+                !content.contains('\r'),
+                "{relative} contains CR characters and will break the POSIX shell parser"
+            );
+        }
     }
 }
