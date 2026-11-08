@@ -51,14 +51,6 @@ import { useLspPlugins } from '@/tools/lsp';
 const { plugins, loading, error, installPlugin, uninstallPlugin, reload } = useLspPlugins();
 ```
 
-Or use the ready-made component:
-
-```tsx
-import { LspPluginList } from '@/tools/lsp';
-
-<LspPluginList />
-```
-
 ## Plugin package format
 
 Plugin packages are `.vcpkg` files (ZIP under the hood):

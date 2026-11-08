@@ -28,12 +28,7 @@ import { flowChatCardAppearanceDescriptor } from '@/component-library/components
 import { contextCompressionCardAppearanceDescriptor } from '@/component-library/components/FlowChatCards/ContextCompressionCard/appearance';
 import { viewTransitionBoundaryAppearanceDescriptor } from '@/component-library/components/ViewTransitionBoundary/appearance';
 import { componentPreviewAppearanceDescriptor } from '@/component-library/preview/appearance';
-import { lspAppearanceDescriptor } from '@/tools/lsp/appearance';
 import { referencesPanelAppearanceDescriptor } from '@/tools/lsp/components/ReferencesPanel/ReferencesPanel.appearance';
-import { appearanceConfigAppearanceDescriptor } from '@/infrastructure/config/components/AppearanceConfig.appearance';
-import { lspConfigAppearanceDescriptor } from '@/infrastructure/config/components/LspConfig.appearance';
-import { basicsConfigAppearanceDescriptor } from '@/infrastructure/config/components/BasicsConfig.appearance';
-import { sessionConfigAppearanceDescriptor } from '@/infrastructure/config/components/SessionConfig.appearance';
 import { worktreesConfigAppearanceDescriptor } from '@/infrastructure/config/components/WorktreesConfig.appearance';
 import { toolCardAppearanceDescriptor } from '@/flow_chat/tool-cards/BaseToolCard.appearance';
 import { toolCardHeaderActionsAppearanceDescriptor } from '@/flow_chat/tool-cards/ToolCardHeaderActions.appearance';
@@ -349,12 +344,7 @@ export function createDefaultAppearanceRegistry(): AppearanceRegistry {
     .registerComponent(contextCompressionCardAppearanceDescriptor)
     .registerComponent(viewTransitionBoundaryAppearanceDescriptor)
     .registerComponent(componentPreviewAppearanceDescriptor)
-    .registerComponent(lspAppearanceDescriptor)
-    .registerComponent(lspConfigAppearanceDescriptor)
-    .registerComponent(appearanceConfigAppearanceDescriptor)
     .registerComponent(referencesPanelAppearanceDescriptor)
-    .registerComponent(basicsConfigAppearanceDescriptor)
-    .registerComponent(sessionConfigAppearanceDescriptor)
     .registerComponent(worktreesConfigAppearanceDescriptor)
     .registerComponent(toolCardAppearanceDescriptor)
     .registerComponent(toolCardHeaderActionsAppearanceDescriptor)

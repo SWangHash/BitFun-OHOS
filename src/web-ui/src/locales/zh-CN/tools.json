@@ -404,6 +404,36 @@
     "auto": "自动快照",
     "manual": "手动快照"
   },
+  "lsp": {
+    "referencesPanel": {
+      "title": "引用",
+      "titleWithSymbol": "{{symbol}} 的引用",
+      "emptyTitle": "未找到引用",
+      "emptyWithSymbol": "未找到 {{symbol}} 的引用",
+      "emptyDescription": "工作区中没有该符号的引用。",
+      "emptyLine": "没有代码预览",
+      "previewFallback": "没有可用的预览"
+    },
+    "errors": {
+      "loadPluginsFailed": "加载语言服务插件失败",
+      "installPluginFailed": "安装语言服务插件失败",
+      "uninstallPluginFailed": "卸载语言服务插件失败",
+      "initializeFailed": "初始化语言服务失败"
+    },
+    "editor": {
+      "goToDefinition": "转到定义",
+      "findAllReferences": "查找所有引用",
+      "goToFile": "转到 {{fileName}}"
+    },
+    "server": {
+      "starting": "正在启动 {{language}} 语言服务器",
+      "startingMessage": "正在启动服务器进程...",
+      "startFailed": "{{language}} 语言服务器启动失败",
+      "checkConfig": "请检查配置",
+      "error": "{{language}} 语言服务器错误",
+      "languageService": "{{language}} 语言服务"
+    }
+  },
   "visualization": {
     "title": "可视化",
     "mermaid": "Mermaid 图表",

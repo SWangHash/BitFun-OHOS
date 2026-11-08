@@ -364,8 +364,8 @@ export class WorkspaceLspManager {
       case 'starting':
 
         notificationService.progress({
-          title: i18nService.t('settings/lsp:server.starting', { language }),
-          message: i18nService.t('settings/lsp:server.startingMessage'),
+          title: i18nService.t('tools:lsp.server.starting', { language }),
+          message: i18nService.t('tools:lsp.server.startingMessage'),
           initialProgress: 20
         });
         break;
@@ -376,9 +376,9 @@ export class WorkspaceLspManager {
         break;
       case 'failed':
         notificationService.error(
-          message || i18nService.t('settings/lsp:server.checkConfig'),
+          message || i18nService.t('tools:lsp.server.checkConfig'),
           {
-            title: i18nService.t('settings/lsp:server.startFailed', { language }),
+            title: i18nService.t('tools:lsp.server.startFailed', { language }),
             duration: 5000
           }
         );
@@ -397,7 +397,7 @@ export class WorkspaceLspManager {
     notificationService.error(
       error,
       {
-        title: i18nService.t('settings/lsp:server.error', { language }),
+        title: i18nService.t('tools:lsp.server.error', { language }),
         duration: 5000
       }
     );
@@ -416,7 +416,7 @@ export class WorkspaceLspManager {
     if (!language || !message) return;
     
 
-    const displayName = plugin_name || i18nService.t('settings/lsp:server.languageService', { language });
+    const displayName = plugin_name || i18nService.t('tools:lsp.server.languageService', { language });
     
 
     if (!this.indexingProgressNotifications.has(language)) {

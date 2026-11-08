@@ -404,6 +404,36 @@
     "auto": "Auto Snapshot",
     "manual": "Manual Snapshot"
   },
+  "lsp": {
+    "referencesPanel": {
+      "title": "References",
+      "titleWithSymbol": "References to {{symbol}}",
+      "emptyTitle": "No references found",
+      "emptyWithSymbol": "No references found for {{symbol}}",
+      "emptyDescription": "No references to this symbol were found in the workspace.",
+      "emptyLine": "No code preview",
+      "previewFallback": "No preview available"
+    },
+    "errors": {
+      "loadPluginsFailed": "Failed to load language service plugins",
+      "installPluginFailed": "Failed to install the language service plugin",
+      "uninstallPluginFailed": "Failed to uninstall the language service plugin",
+      "initializeFailed": "Failed to initialize the language service"
+    },
+    "editor": {
+      "goToDefinition": "Go to Definition",
+      "findAllReferences": "Find All References",
+      "goToFile": "Go to {{fileName}}"
+    },
+    "server": {
+      "starting": "Starting {{language}} language server",
+      "startingMessage": "Starting server process...",
+      "startFailed": "{{language}} language server failed to start",
+      "checkConfig": "Please check configuration",
+      "error": "{{language}} language server error",
+      "languageService": "{{language}} language service"
+    }
+  },
   "visualization": {
     "title": "Visualization",
     "mermaid": "Mermaid Diagram",

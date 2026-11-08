@@ -21,10 +21,6 @@ export type { PositionCalculatorOptions, PositionResult } from './services/Hover
 export { useLspPlugins, useLspInit } from './hooks/useLsp';
 export { useMonacoLsp } from './hooks/useMonacoLsp';
 
-// Components
-export { LspPluginList } from './components/LspPluginList/LspPluginList';
-export type { LspPluginListProps } from './components/LspPluginList/LspPluginList';
-
 // Types
 export type {
   LspPlugin,

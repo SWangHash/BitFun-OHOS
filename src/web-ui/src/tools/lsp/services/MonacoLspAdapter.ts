@@ -1461,7 +1461,7 @@ export class MonacoLspAdapter {
 
     const gotoDefinitionAction = editor.addAction({
       id: 'editor.action.revealDefinition',
-      label: i18nService.t('settings/lsp:editor.goToDefinition'),
+      label: i18nService.t('tools:lsp.editor.goToDefinition'),
       keybindings: [monacoApi.KeyCode.F12],
       contextMenuGroupId: 'navigation',
       contextMenuOrder: 1.0,
@@ -1495,7 +1495,7 @@ export class MonacoLspAdapter {
 
     editor.addAction({
       id: 'lsp.findReferences',
-      label: i18nService.t('settings/lsp:editor.findAllReferences'),
+      label: i18nService.t('tools:lsp.editor.findAllReferences'),
       keybindings: [
         monacoApi.KeyMod.Shift | monacoApi.KeyMod.Alt | monacoApi.KeyCode.F12
       ],
@@ -1602,7 +1602,7 @@ export class MonacoLspAdapter {
             range: new monacoApi.Range(position.lineNumber, startColumn, position.lineNumber, endColumn),
             options: {
               inlineClassName: 'monaco-cross-file-link',  // CSS class for styling
-              hoverMessage: { value: i18nService.t('settings/lsp:editor.goToFile', { fileName: this.pendingCrossFileJump.fileName }) }
+              hoverMessage: { value: i18nService.t('tools:lsp.editor.goToFile', { fileName: this.pendingCrossFileJump.fileName }) }
             }
           }];
           
