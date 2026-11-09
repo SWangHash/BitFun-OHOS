@@ -288,6 +288,21 @@ it('reattaches a manual page whose first creation finishes after a rapid session
   expect(closeCount()).toBe(0);
 });
 
+it('retains an ArkUI page missing from the Tauri inventory across session remounts', async () => {
+  const label = 'arkui-manual-page';
+  mocks.invoke.mockImplementation(async command => command === 'browser_get_url'
+    ? 'https://example.com/filled-form' : undefined);
+  await act(async () => root.render(<Harness active targetId={label} manual />));
+  await act(async () => root.render(null));
+  await act(async () => root.render(<Harness active targetId={label} manual />));
+  expect(browser.error).toBeNull();
+  expect(browser.currentUrl).toBe('https://example.com/filled-form');
+  expect(invokeCount('browser_webview_create')).toBe(0);
+  expect(invokeCount('browser_webview_navigate')).toBe(0);
+  expect(invokeCount('browser_webview_close')).toBe(0);
+  expect(invokeCount('browser_webview_show')).toBe(2);
+});
+
 async function hostVisibility(visible: boolean) {
   await mutate(() => {
     mocks.hostVisible = visible;
@@ -695,6 +710,29 @@ it('adopts and displays the automation page without recreating or navigating its
   expect(mocks.invoke).toHaveBeenCalledWith('browser_webview_navigate', {
     request: expect.objectContaining({ label, url: 'https://example.com/next' }),
   });
+});
+
+it('adopts an ArkUI automation page without consulting the desktop WebView inventory', async () => {
+  await act(async () => root.render(<Harness active options={{
+    webviewLabel: 'embedded-browser-panel-view-agent-arkui', adoptExisting: true,
+  }} />));
+  expect(browser.error).toBeNull();
+  expect(invokeCount('browser_webview_show')).toBe(1);
+  expect(invokeCount('browser_webview_create')).toBe(0);
+  expect(invokeCount('browser_webview_navigate')).toBe(0);
+});
+
+it('keeps the exact adopted ArkWeb label when the session canvas supplies its own target id', async () => {
+  const label = 'embedded-browser-panel-view-agent-exact';
+  await act(async () => root.render(<Harness active targetId="embedded-browser-panel-view-generated-tab"
+    options={{ webviewLabel: label, adoptExisting: true }} />));
+  expect(browser.error).toBeNull();
+  expect(browser.webviewLabel).toBe(label);
+  expect(mocks.invoke).toHaveBeenCalledWith('browser_webview_set_bounds', {
+    request: expect.objectContaining({ label }),
+  });
+  expect(invokeCount('browser_webview_create')).toBe(0);
+  expect(invokeCount('browser_webview_navigate')).toBe(0);
 });
 
 it('reports a stale automation page instead of displaying a fresh empty replacement', async () => {

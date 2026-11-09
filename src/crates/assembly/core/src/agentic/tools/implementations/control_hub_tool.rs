@@ -2986,6 +2986,11 @@ Results: `{ok, domain, action, data? , error?: {code, message, hints}}`. Check o
                         if let Err(error) = Self::register_external_session(&session).await {
                             return Ok(err_response("browser", "connect", error));
                         }
+                        // Haitai connects on demand through the OHOS host,
+                        // without the desktop Settings consent flow. Publish
+                        // that successful connection to the shared status API.
+                        #[cfg(target_env = "ohos")]
+                        CdpClient::authorize_legacy_browser(port, &kind).await;
                         CdpClient::clear_browser_connection_issue(port).await;
 
                         // Enable CDP observers so network/console/error events

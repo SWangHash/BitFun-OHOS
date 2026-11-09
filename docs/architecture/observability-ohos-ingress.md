@@ -5,6 +5,11 @@ observability runtime. The signal schema and business-owner rules remain in
 `observability-telemetry-design.md`; the public ingress contract is frozen in
 `docs/telemetry-api/telemetry-api.md`.
 
+Proposed product-usage additions are specified separately in the
+[OHOS client design](ohos-product-telemetry-client-design.md) and
+[cloud coordination note](ohos-product-telemetry-cloud-handoff.md). These are
+not yet implemented and do not expand the current production allowlist below.
+
 ## Data flow
 
 ```text

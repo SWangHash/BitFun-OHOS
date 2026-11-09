@@ -313,13 +313,31 @@ describe('Browser and desktop control settings', () => {
     expect(container.textContent).toContain('browserControl.notConnected');
     expect(container.textContent).toContain('browserControl.connectOnUse');
     expect(container.textContent).not.toContain('browserControl.connected');
+    expect(button('browserControl.connect')).toBeUndefined();
     await act(async () => {
       const select = container.querySelector('select')!;
       select.value = 'haitai';
       select.dispatchEvent(new Event('change', { bubbles: true }));
     });
     expect(mocks.setConfig).toHaveBeenCalledWith('ai.browser_control_preferred_browser', 'haitai');
+    expect(mocks.invoke.mock.calls.some(([command]) => command === 'browser_control_launch'
+      || command === 'browser_control_enable_default_cdp')).toBe(false);
     expect(mocks.invoke.mock.calls.filter(([command]) => command === 'browser_control_disconnect')).toHaveLength(2);
+  });
+
+  it('keeps Haitai on-demand connection when a macOS controller displays OHOS host options', async () => {
+    status = { ...readyStatus, browserKind: 'Haitai Browser', selectedBrowser: 'haitai', defaultCdpSupported: false };
+    const invoke = mocks.invoke.getMockImplementation()!;
+    mocks.invoke.mockImplementation(async (command, ...args) => command === 'browser_control_list_browsers'
+      ? { options: [
+        { value: 'builtin', label: 'Built-in', installed: true },
+        { value: 'haitai', label: 'Haitai', installed: true },
+      ] } : invoke(command, ...args));
+    await render();
+    expect(container.querySelector('select')?.value).toBe('haitai');
+    expect(button('browserControl.connect')).toBeUndefined();
+    expect(container.textContent).toContain('browserControl.connectOnUse');
+    expect(container.textContent).not.toContain('browserControl.defaultCdp');
   });
 
   it('keeps the primary state binary and explains a failed connection separately', async () => {

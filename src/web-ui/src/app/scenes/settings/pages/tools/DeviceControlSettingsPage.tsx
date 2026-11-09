@@ -490,6 +490,10 @@ const DeviceControlSettingsPage: React.FC = () => {
     ? t('browserControl.connected')
     : t('browserControl.notConnected');
 
+  // Use the executing host's browser inventory, including when a desktop
+  // controller is displaying settings from an OHOS peer.
+  const browserConnectsOnDemand = browserOptions.some(option => option.value === 'haitai');
+
   const browserIssueDescription = browserConnectionIssue === 'launch_failed'
     ? t('browserControl.connectionIssues.launch_failed')
     : browserConnectionIssue === 'control_unavailable'
@@ -792,7 +796,7 @@ const DeviceControlSettingsPage: React.FC = () => {
                       >
                         {t('browserControl.disconnect')}
                       </Button>
-                    ) : (
+                    ) : !browserConnectsOnDemand ? (
                       <Button
                         className="bitfun-runtime-settings__row-action-btn"
                         size="sm"
@@ -806,7 +810,7 @@ const DeviceControlSettingsPage: React.FC = () => {
                           ? 'browserControl.enableDefaultCdp'
                           : 'browserControl.connect')}
                       </Button>
-                    )}
+                    ) : null}
                   </div>
                 </ConfigPageRow>
               </>
