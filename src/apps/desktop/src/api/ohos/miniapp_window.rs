@@ -163,7 +163,7 @@ pub fn miniapp_window_call(request: String) -> String {
 pub fn miniapp_window_result(request_id: String) -> String {
     let settled = {
         let mut pending = pending_calls().lock().unwrap_or_else(|p| p.into_inner());
-        let Some(call) = pending.entries.get(&request_id) else {
+        let Some(call) = pending.entries.get_mut(&request_id) else {
             return envelope(Err("The MiniApp window call is no longer pending".into()));
         };
         let Some(result) = call.result.take() else {
