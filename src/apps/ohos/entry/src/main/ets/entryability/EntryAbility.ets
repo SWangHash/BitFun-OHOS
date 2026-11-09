@@ -46,6 +46,7 @@ import {
 import { FileShareRequest, FileShareService } from '../services/FileShareService';
 import { MiniAppWindowService } from '../services/MiniAppWindowService';
 import { StatusBarTrayHost, StatusBarTrayService } from '../services/StatusBarTrayService';
+import { PetWindowService } from '../services/PetWindowService';
 import {
   PET_COMMAND_EVENT,
   PET_DELIVER_EVENT,
@@ -102,10 +103,6 @@ const STARTUP_WINDOW_CHROME_WATCHDOG_MS = 20000;
 // whole startup stays one icon on one background color. Must stay identical to
 // resources/{base,dark}/element/color.json `start_window_background`.
 const SPLASH_WINDOW_BACKGROUND: string = '#000000';
-// Ability that owns the Agent companion pet window. It is a separate task on
-// purpose: the pet keeps its own desktop position and survives the main window
-// minimizing, which an in-window overlay cannot do.
-const PET_ABILITY_NAME: string = 'AgentCompanionAbility';
 // Webview tag tauri assigns to the main window's webview (its window label).
 const MAIN_WEBVIEW_TAG: string = 'main';
 const PET_DEFAULT_PAGE_PATH: string = 'index.html?bitfunWindow=agent-companion';
@@ -192,6 +189,10 @@ export default class EntryAbility extends RustAbility implements StatusBarTrayHo
   // Relay for commands the pet window posts (it has no Tauri IPC of its own, so
   // they arrive as common events and are injected into the main webview).
   private petCommandSubscriber: commonEventManager.CommonEventSubscriber | null = null;
+  // Owns the pet subwindow. Created once the main window stage exists, so the
+  // subwindow belongs to a ready parent.
+  private petWindowService: PetWindowService | undefined = undefined;
+  private petHideSubscriber: commonEventManager.CommonEventSubscriber | null = null;
   // Pending fallback that reveals the system title buttons if the app shell
   // never reports its startup handoff. Any explicit chrome request from the
   // shell cancels it.
@@ -354,6 +355,10 @@ export default class EntryAbility extends RustAbility implements StatusBarTrayHo
     this.statusBarTray?.remove();
     disposePetSubscriber(this.petCommandSubscriber);
     this.petCommandSubscriber = null;
+    disposePetSubscriber(this.petHideSubscriber);
+    this.petHideSubscriber = null;
+    void this.petWindowService?.dispose();
+    this.petWindowService = undefined;
     RustModule.ohosMarkCleanShutdown();
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onDestroy');
   }
@@ -410,6 +415,12 @@ export default class EntryAbility extends RustAbility implements StatusBarTrayHo
         void this.showMainWindow();
       }
       this.injectAgentCompanionCommand(data);
+    });
+    // The pet page asks to be hidden (settings turned it off, or the user closed
+    // it) through its own event: it cannot terminate the ability any more, since
+    // that ability also owns the main window.
+    this.petHideSubscriber = await createPetSubscriber(PET_HIDE_EVENT, () => {
+      void this.petWindowService?.hide();
     });
   }
 
@@ -709,6 +720,9 @@ export default class EntryAbility extends RustAbility implements StatusBarTrayHo
     // cluster can be set this early; the decor geometry waits for the
     // launch-page handoff (see the deferred block).
     this.mainWindowStage = windowStage;
+    // The pet subwindow is created later, on demand, but its owner exists as
+    // soon as the window stage does so a show request never races the stage.
+    this.petWindowService = new PetWindowService(windowStage);
     this.setNativeTitleButtonsVisible(false, 'startup-sync');
     // Paint the window frame itself black for the whole launch. The system start
     // window owns the first frames; the moment it goes away the window's own
@@ -1052,10 +1066,9 @@ export default class EntryAbility extends RustAbility implements StatusBarTrayHo
       });
       return '';
     });
-    // Agent companion pet window. The window itself belongs to
-    // `AgentCompanionAbility`, so this side only starts it, asks it to close and
-    // forwards payloads into its page; geometry is applied where the window
-    // object lives.
+    // Agent companion pet window. It is a subwindow of this ability: a real
+    // top-level window with its own screen position, but without a second Dock
+    // or task entry, which a separate UIAbility would add.
     RustModule.registerArktsFunction('pet_window_show', async (_err: Error, arg: string): Promise<string> => {
       let pagePath: string = PET_DEFAULT_PAGE_PATH;
       // Rust resolves the packaged frontend directory because the HAP layout is
@@ -1072,31 +1085,27 @@ export default class EntryAbility extends RustAbility implements StatusBarTrayHo
       } catch (error) {
         hilog.warn(DOMAIN, PET_WINDOW_TAG, 'pet_window_show payload unusable, loading the default page');
       }
+      const service = this.petWindowService;
+      if (service === undefined) {
+        hilog.error(DOMAIN, PET_WINDOW_TAG, 'pet window requested before the window stage was ready');
+        return JSON.stringify({ ok: false, error: 'window stage not ready' });
+      }
       try {
-        // Same-process readers (the pet page) can pick this up immediately; the
-        // Want parameter is what survives a cold start.
-        AppStorage.setOrCreate<string>('bitfunPetPagePath', pagePath);
-        AppStorage.setOrCreate<string>('bitfunPetDistRoot', distRoot);
-        const want: Want = {
-          bundleName: this.context.abilityInfo.bundleName,
-          abilityName: PET_ABILITY_NAME,
-          parameters: { bitfunPetPagePath: pagePath, bitfunPetDistRoot: distRoot },
-        };
-        await this.context.startAbility(want);
+        await service.show(pagePath, distRoot);
         hilog.info(DOMAIN, PET_WINDOW_TAG,
           `pet window requested: page=${pagePath} distRoot=${distRoot.length > 0 ? distRoot : '(unset)'}`);
         return JSON.stringify({ ok: true });
       } catch (error) {
         const businessError: BusinessError = error as BusinessError;
         hilog.error(DOMAIN, PET_WINDOW_TAG,
-          `pet window start failed: code=${businessError.code} message=${businessError.message}`);
-        return JSON.stringify({ ok: false, error: businessError.message ?? 'startAbility failed' });
+          `pet window creation failed: code=${businessError.code} message=${businessError.message}`);
+        return JSON.stringify({ ok: false, error: businessError.message ?? 'createSubWindow failed' });
       }
     });
     // Publishing is fire-and-forget: the Rust side must never wait on a common
     // event, so these handlers answer immediately instead of awaiting delivery.
     RustModule.registerArktsFunction('pet_window_hide', async (_err: Error, _arg: string): Promise<string> => {
-      void publishPetEvent(PET_HIDE_EVENT, '{}');
+      await this.petWindowService?.hide();
       return '';
     });
     RustModule.registerArktsFunction('pet_window_set_rect', async (_err: Error, arg: string): Promise<string> => {

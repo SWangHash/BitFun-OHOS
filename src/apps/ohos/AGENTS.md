@@ -25,21 +25,36 @@ the Hvigor task integration and the native resource lookup.
 
 ## Agent companion pet window
 
-The pet renders in its own window, owned by `AgentCompanionAbility`
-(`agentcompanionability/AgentCompanionAbility.ets`, page `pages/PetWindow.ets`).
-It is a separate UIAbility rather than a `windowStage.createSubWindow`, because a
-subwindow hides whenever its parent minimizes — the behavior the pet must not
-have. `EntryAbility` starts it on demand (`pet_window_show`) and never manipulates
-it directly; geometry, focus and the move loop stay in the ability that owns the
-window object.
+The pet renders in its own window: a **subwindow of `EntryAbility`**, created on
+demand by `services/PetWindowService.ets` and rendered by `pages/PetWindow.ets`.
 
-Two window facts decided the ability's shape and both were found on device:
+A subwindow, not a second UIAbility: an extra ability owns its own task, so
+hovering the Dock icon previewed *two* windows for one app. A subwindow has no
+Dock icon, no task entry and no Alt+Tab entry, while still being a real OS window
+that can be dragged anywhere, including outside the app window.
 
-- An ability window can open maximized, and a maximized window ignores
-  `resizeAsync`/`moveWindowTo`, so `ensureFloating` (`recover`, then wait for
-  `FLOATING`) runs before any geometry.
-- A move/resize can bring the system title bar back, so chrome is hidden both
-  before and after placement.
+The cost is lifecycle, and it is the platform's rule, not a bug to fix here:
+HarmonyOS hides a subwindow with its parent, so a real minimize hides the pet.
+That is why the web-ui keeps the "minimize to pet" morph: clicking the app's own
+minimize button shrinks the main window into a pet-only surface and hides the
+subwindow (so exactly one pet is on screen), and restoring the app brings the
+subwindow back. System-level minimize still hides the pet.
+
+Consequences for the split between ArkTS and the page:
+
+- The page `hide()` publishes `PET_HIDE_EVENT`; it must never terminate the
+  ability, which now also owns the main window.
+- `pet_window_hide` from Rust destroys the subwindow; `pet_window_show` recreates
+  it. The page reconnects through `AppStorage('bitfunPetWindow')`.
+
+Two window facts came from device logs and still apply:
+
+- Chrome APIs called before the window is in a normal state fail with
+  `1300002 "window state abnormal"` and leave the title bar visible, so the
+  subwindow hides its chrome after `showWindow`. `createSubWindowWithOptions`
+  already takes `decorEnabled: false`, which avoids the flash in between.
+- A move/resize can bring the system title bar back, so chrome is hidden again
+  after geometry.
 
 The packaged-frontend directory is resolved by Rust (`pet_window::dist_root` from
 the resource directory) and passed through the launch payload; ArkTS must not

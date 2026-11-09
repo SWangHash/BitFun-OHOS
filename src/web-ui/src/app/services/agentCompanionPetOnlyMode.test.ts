@@ -15,7 +15,12 @@ const workspaceAPI = vi.hoisted(() => ({
   maximizeOhos: vi.fn(),
 }));
 
+const petWindowCommands = vi.hoisted(() => ({
+  invoke: vi.fn(() => Promise.resolve()),
+}));
+
 vi.mock('@/infrastructure/api', () => ({ workspaceAPI }));
+vi.mock('@/infrastructure/api/service-api/ApiClient', () => ({ api: petWindowCommands }));
 
 import { enterPetOnlyMode, exitPetOnlyMode, isPetOnlyModeActive } from './agentCompanionPetOnlyMode';
 import { useAgentCompanionPetOnlyModeStore } from '../stores/agentCompanionPetOnlyModeStore';
@@ -49,6 +54,7 @@ describe('agentCompanionPetOnlyMode (HarmonyOS minimize-to-pet morph)', () => {
     workspaceAPI.setDecorationsOhos.mockResolvedValue(undefined);
     workspaceAPI.setWindowSizeOhos.mockResolvedValue(undefined);
     workspaceAPI.setWindowPositionOhos.mockResolvedValue(undefined);
+    petWindowCommands.invoke.mockClear();
   });
 
   afterEach(() => {
@@ -65,6 +71,8 @@ describe('agentCompanionPetOnlyMode (HarmonyOS minimize-to-pet morph)', () => {
     // Always-on-top + no decorations applied before the resize.
     expect(workspaceAPI.setAlwaysOnTopOhos).toHaveBeenCalledWith(true);
     expect(workspaceAPI.setDecorationsOhos).toHaveBeenCalledWith(false);
+    // The pet's own window is closed so only one pet is on screen during the morph.
+    expect(petWindowCommands.invoke).toHaveBeenCalledWith('hide_agent_companion_desktop_pet');
     // Physical size derived from the CSS size and scale factor (scale=1 here).
     expect(workspaceAPI.setWindowSizeOhos).toHaveBeenCalledWith(120, 120);
     // Positioned in the bottom-right work area (1920-120-12 = 1788, 1080-120-12 = 948).
@@ -99,6 +107,16 @@ describe('agentCompanionPetOnlyMode (HarmonyOS minimize-to-pet morph)', () => {
     expect(workspaceAPI.maximizeOhos).toHaveBeenCalled();
     // Decorations are re-applied last (after maximize) per HarmonyOS chrome quirk.
     expect(workspaceAPI.setDecorationsOhos).toHaveBeenLastCalledWith(true);
+    // Restoring the app brings the pet's own window back.
+    expect(petWindowCommands.invoke).toHaveBeenCalledWith('show_agent_companion_desktop_pet');
+  });
+
+  it('keeps the pet window closed when the mode ends because the pet was disabled', async () => {
+    await enterPetOnlyMode();
+    await exitPetOnlyMode({ restorePetWindow: false });
+
+    expect(isPetOnlyModeActive()).toBe(false);
+    expect(petWindowCommands.invoke).not.toHaveBeenCalledWith('show_agent_companion_desktop_pet');
   });
 
   it('restores nothing when not in pet-only mode', async () => {

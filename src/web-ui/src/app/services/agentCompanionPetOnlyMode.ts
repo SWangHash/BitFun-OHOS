@@ -1,25 +1,26 @@
 /**
- * agentCompanionPetOnlyMode — HarmonyOS interim "minimize-to-pet" morph.
+ * agentCompanionPetOnlyMode — HarmonyOS "minimize-to-pet" morph.
  *
- * Problem: the in-app pet overlay (`AgentCompanionInAppPet`) is a child of the
- * main window DOM, so it hides when the main window minimizes — unlike the
- * desktop pet, which is a separate always-on-top OS window.
+ * Problem: HarmonyOS hides a subwindow with its parent, so minimizing the main
+ * window would take the pet's own window with it. The pet window is a subwindow
+ * (not a second UIAbility) on purpose: an extra ability adds a second Dock/task
+ * entry, which users see immediately in the Dock preview.
  *
- * Interim fix (web-ui only, no ArkTS/Rust change): when the user clicks the
- * app's own minimize button while the desktop pet is enabled, do not minimize.
- * Instead morph the main window into a small always-on-top, decoration-free
- * surface that shows only the pet (the app content under `#root` is hidden,
- * while the pet portal in the appearance overlay host stays visible). Clicking
- * the pet restores the saved window geometry.
+ * Fix: when the user clicks the app's own minimize button while the pet is
+ * enabled, do not minimize. Instead morph the main window into a small
+ * always-on-top, decoration-free surface that shows only the pet (the app
+ * content under `#root` is hidden, while the pet portal in the appearance
+ * overlay host stays visible), and hide the separate pet window so only one pet
+ * is on screen. Clicking the pet restores the saved window geometry and brings
+ * the pet window back.
  *
  * Caveat: this only intercepts the in-app minimize button. System-level
- * minimize (taskbar right-click / keyboard shortcut) bypasses the web UI and
- * still hides the pet. A true always-on-top separate window needs a dedicated
- * HarmonyOS UIAbility (see docs/architecture platform-portability-design.md,
- * HarmonyOS PC GUI is a deferred topic).
+ * minimize (Dock right-click / keyboard shortcut) bypasses the web UI, and
+ * HarmonyOS then hides the pet window too.
  */
 
 import { workspaceAPI } from '@/infrastructure/api';
+import { api } from '@/infrastructure/api/service-api/ApiClient';
 import { useAgentCompanionPetOnlyModeStore } from '../stores/agentCompanionPetOnlyModeStore';
 import { createLogger } from '@/shared/utils/logger';
 
@@ -93,10 +94,15 @@ export async function enterPetOnlyMode(): Promise<void> {
       const y = originY + Math.max(0, workH - physH - gapPhys);
 
       // Hide app content first so the morph never flashes the clipped UI; the
-      // pet lives in the appearance overlay host (a sibling of #root), so it
-      // stays visible.
+      // pet rendered inside this window lives in the appearance overlay host (a
+      // sibling of #root), so it stays visible.
       setRootHidden(true);
       useAgentCompanionPetOnlyModeStore.getState().setPetOnlyMode(true);
+      // The pet also has its own window; two pets would be on screen at once, so
+      // close that one while this window plays the pet.
+      void api.invoke('hide_agent_companion_desktop_pet').catch(error => {
+        log.warn('Failed to hide the pet window while entering pet-only mode', error);
+      });
 
       await workspaceAPI.setAlwaysOnTopOhos(true);
       await workspaceAPI.setDecorationsOhos(false);
@@ -122,8 +128,13 @@ export async function enterPetOnlyMode(): Promise<void> {
  * not in pet-only mode. Decorations are re-applied last because HarmonyOS
  * maximize()/geometry changes can reset the window to immersive chrome.
  */
-export async function exitPetOnlyMode(): Promise<void> {
+export async function exitPetOnlyMode(
+  options?: { restorePetWindow?: boolean },
+): Promise<void> {
   if (!isPetOnlyModeActive()) return;
+  // Restoring the pet's own window is right when the user is bringing the app
+  // back, and wrong when this mode is ending because the pet was disabled.
+  const restorePetWindow = options?.restorePetWindow !== false;
 
   const run = async (): Promise<void> => {
     try {
@@ -148,6 +159,14 @@ export async function exitPetOnlyMode(): Promise<void> {
       await workspaceAPI.setDecorationsOhos(true);
     } catch (error) {
       log.error('Failed to exit Agent companion pet-only mode', error);
+    } finally {
+      // Bring the pet's own window back so the pet keeps living outside the main
+      // window once the app is restored.
+      if (restorePetWindow) {
+        void api.invoke('show_agent_companion_desktop_pet').catch(error => {
+          log.warn('Failed to restore the pet window after pet-only mode', error);
+        });
+      }
     }
   };
 

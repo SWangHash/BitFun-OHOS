@@ -186,7 +186,8 @@ export const AgentCompanionInAppPet: React.FC = () => {
         (!settings.enable_agent_companion || settings.agent_companion_display_mode !== 'desktop')
         && isPetOnlyModeActive()
       ) {
-        void exitPetOnlyMode();
+        // The pet was just disabled, so do not bring its own window back.
+        void exitPetOnlyMode({ restorePetWindow: false });
       }
       setPet(settings.agent_companion_pet ?? null);
       setPetFrameSize(null);

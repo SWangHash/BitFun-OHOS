@@ -123,11 +123,11 @@ class PetWindowHostProxy {
 struct PetWindow {
   private controller: webview.WebviewController = new webview.WebviewController();
   private deliverSubscriber: commonEventManager.CommonEventSubscriber | null = null;
-  private hideSubscriber: commonEventManager.CommonEventSubscriber | null = null;
   private rectSubscriber: commonEventManager.CommonEventSubscriber | null = null;
   private petWindow: window.Window | null = null;
   private pageUrl: string = '';
   private distRoot: string = '';
+  private resolvedDistRoot: string = '';
   private lastWidth: number = 0;
   private lastHeight: number = 0;
   private servedFirstFile: boolean = false;
@@ -156,18 +156,16 @@ struct PetWindow {
 
   aboutToDisappear(): void {
     disposePetSubscriber(this.deliverSubscriber);
-    disposePetSubscriber(this.hideSubscriber);
     disposePetSubscriber(this.rectSubscriber);
     this.deliverSubscriber = null;
-    this.hideSubscriber = null;
     this.rectSubscriber = null;
   }
 
   private subscribeHostEvents(): void {
     void createPetSubscriber(PET_DELIVER_EVENT, data => this.deliverToPage(data))
       .then(subscriber => { this.deliverSubscriber = subscriber; });
-    void createPetSubscriber(PET_HIDE_EVENT, () => this.terminatePetAbility())
-      .then(subscriber => { this.hideSubscriber = subscriber; });
+    // Hiding is the host ability's job (it owns the subwindow), so the page only
+    // listens for content updates and size requests.
     void createPetSubscriber(PET_RECT_EVENT, data => {
       try {
         const rect: PetRectRequest = JSON.parse(data) as PetRectRequest;
@@ -265,14 +263,14 @@ struct PetWindow {
     });
   }
 
-  private terminatePetAbility(): void {
-    const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
-    try {
-      context.terminateSelf();
-    } catch (error) {
-      const businessError: BusinessError = error as BusinessError;
-      hilog.warn(DOMAIN, PET_WINDOW_TAG, `terminateSelf failed: ${businessError.message}`);
-    }
+  /**
+   * Ask the host ability to close the pet window.
+   *
+   * The page must not terminate the ability: it now shares that ability with the
+   * main window, so terminating it would close the whole app.
+   */
+  private requestHide(): void {
+    void publishPetEvent(PET_HIDE_EVENT, '{}');
   }
 
   /**
@@ -320,15 +318,38 @@ struct PetWindow {
   /**
    * Directory the packaged frontend is read from.
    *
-   * Rust resolves it from the resource directory and passes it in; the HAP
-   * install path stays the fallback for a launch whose payload was lost.
+   * Rust resolves it from the resource directory and passes it in. When that is
+   * missing (for example a native library older than this page), probe the
+   * layouts a HAP can install with and remember the first one that really
+   * contains `index.html`; guessing a single path silently produced a blank
+   * window, and each probe is logged so hilog names the working layout.
    */
   private resolveDistRoot(): string {
-    if (this.distRoot.length > 0) {
-      return this.distRoot;
+    if (this.resolvedDistRoot.length > 0) {
+      return this.resolvedDistRoot;
     }
     const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
-    return `${context.bundleCodeDir}/${RESFILE_DIST}`;
+    const candidates: string[] = [];
+    if (this.distRoot.length > 0) {
+      candidates.push(this.distRoot);
+    }
+    candidates.push(`${context.bundleCodeDir}/${RESFILE_DIST}`);
+    candidates.push(`${context.bundleCodeDir}/entry/${RESFILE_DIST}`);
+    for (const candidate of candidates) {
+      const hasIndex: boolean = fileIo.accessSync(`${candidate}/index.html`);
+      hilog.info(DOMAIN, PET_WINDOW_TAG,
+        `pet frontend candidate: path=${candidate} index_html=${hasIndex}`);
+      if (hasIndex) {
+        this.resolvedDistRoot = candidate;
+        return candidate;
+      }
+    }
+    // Nothing matched: keep the first candidate so the per-request failure logs
+    // point at the place the build was expected to stage.
+    this.resolvedDistRoot = candidates[0];
+    hilog.error(DOMAIN, PET_WINDOW_TAG,
+      `pet frontend missing; falling back to ${this.resolvedDistRoot}`);
+    return this.resolvedDistRoot;
   }
 
   /**
@@ -363,7 +384,7 @@ struct PetWindow {
         .javaScriptProxy({
           object: new PetWindowHostProxy(
             this.controller,
-            () => this.terminatePetAbility(),
+            () => this.requestHide(),
             rect => this.applyRect(rect.width, rect.height),
             () => this.focusPetWindow(),
             () => this.dragPetWindow(),
