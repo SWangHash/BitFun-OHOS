@@ -13,13 +13,13 @@ import {
 } from '@kit.AbilityKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { window, display } from '@kit.ArkUI';
-import { RustAbility } from '@ohos-rs/ability';
+import { RustAbility, RustWebviewNodeController } from '@ohos-rs/ability';
 import { CommonEventListener } from '../utils/CommonEventListener';
 import { harmonyShare, systemShare } from '@kit.ShareKit';
 import { fileIo, fileUri, Environment } from '@kit.CoreFileKit';
 import { uniformTypeDescriptor } from '@kit.ArkData';
 import { calendarManager } from '@kit.CalendarKit';
-import { BusinessError } from '@kit.BasicServicesKit';
+import { BusinessError, commonEventManager } from '@kit.BasicServicesKit';
 import { buffer } from '@kit.ArkTS';
 import { DesktopSystemService } from '../services/DesktopSystemService';
 import { LocalModelKeepAliveService } from '../services/LocalModelKeepAliveService';
@@ -46,6 +46,17 @@ import {
 import { FileShareRequest, FileShareService } from '../services/FileShareService';
 import { MiniAppWindowService } from '../services/MiniAppWindowService';
 import { StatusBarTrayHost, StatusBarTrayService } from '../services/StatusBarTrayService';
+import {
+  PET_COMMAND_EVENT,
+  PET_DELIVER_EVENT,
+  PET_HIDE_EVENT,
+  PET_RECT_EVENT,
+  PET_WINDOW_TAG,
+  createPetSubscriber,
+  disposePetSubscriber,
+  publishPetEvent,
+  toJavaScriptStringLiteral,
+} from '../services/PetWindowChannel';
 
 
 const DOMAIN = 0x0000;
@@ -91,6 +102,13 @@ const STARTUP_WINDOW_CHROME_WATCHDOG_MS = 20000;
 // whole startup stays one icon on one background color. Must stay identical to
 // resources/{base,dark}/element/color.json `start_window_background`.
 const SPLASH_WINDOW_BACKGROUND: string = '#000000';
+// Ability that owns the Agent companion pet window. It is a separate task on
+// purpose: the pet keeps its own desktop position and survives the main window
+// minimizing, which an in-window overlay cannot do.
+const PET_ABILITY_NAME: string = 'AgentCompanionAbility';
+// Webview tag tauri assigns to the main window's webview (its window label).
+const MAIN_WEBVIEW_TAG: string = 'main';
+const PET_DEFAULT_PAGE_PATH: string = 'index.html?bitfunWindow=agent-companion';
 
 interface SetAlwaysOnTopArg {
   isTopmost: boolean;
@@ -115,6 +133,13 @@ interface SetMinSizeArg {
 }
 interface SetResizableArg {
   resizable: boolean;
+}
+interface PetWindowShowRequest {
+  path?: string;
+}
+interface PetWindowRectRequest {
+  width: number;
+  height: number;
 }
 interface SaveFileToDownloadsArg {
   fileName: string;
@@ -163,6 +188,9 @@ export default class EntryAbility extends RustAbility implements StatusBarTrayHo
   public shareStatus: boolean = false;
   private mainWindowStage: window.WindowStage | undefined = undefined;
   private statusBarTray: StatusBarTrayService | undefined = undefined;
+  // Relay for commands the pet window posts (it has no Tauri IPC of its own, so
+  // they arrive as common events and are injected into the main webview).
+  private petCommandSubscriber: commonEventManager.CommonEventSubscriber | null = null;
   // Pending fallback that reveals the system title buttons if the app shell
   // never reports its startup handoff. Any explicit chrome request from the
   // shell cancels it.
@@ -323,6 +351,8 @@ export default class EntryAbility extends RustAbility implements StatusBarTrayHo
     this.releaseScheduledJobKeepAlive();
     this.localModelKeepAlive.dispose();
     this.statusBarTray?.remove();
+    disposePetSubscriber(this.petCommandSubscriber);
+    this.petCommandSubscriber = null;
     RustModule.ohosMarkCleanShutdown();
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onDestroy');
   }
@@ -359,6 +389,47 @@ export default class EntryAbility extends RustAbility implements StatusBarTrayHo
         STATUS_BAR_TAG,
         'status bar showWindow failed: ' + businessError.message
       );
+    }
+  }
+
+  /**
+   * Relay the pet window's commands into the main webview.
+   *
+   * The pet window's webview is a plain ArkWeb without Tauri IPC, so its page
+   * posts `{ event, payload }` over a common event instead of the Tauri bus.
+   * Firefox-style window raising stays on this side: the ability already owns the
+   * main window, so a "show" needs no webview round trip.
+   */
+  private async startPetCommandRelay(): Promise<void> {
+    if (this.petCommandSubscriber !== null) {
+      return;
+    }
+    this.petCommandSubscriber = await createPetSubscriber(PET_COMMAND_EVENT, data => {
+      if (data.indexOf('agent-companion://show-main-window') >= 0) {
+        void this.showMainWindow();
+      }
+      this.injectAgentCompanionCommand(data);
+    });
+  }
+
+  /** Hand one pet command to the main webview's injected dispatcher. */
+  private injectAgentCompanionCommand(envelopeJson: string): void {
+    const controller = AppStorage.get<RustWebviewNodeController>('rustWebviewController');
+    const helper = controller?.getWebviewData(MAIN_WEBVIEW_TAG);
+    if (!helper) {
+      hilog.debug(DOMAIN, PET_WINDOW_TAG, 'main webview not ready for a pet command');
+      return;
+    }
+    const script: string =
+      'window.__bitfunAgentCompanionCommand && window.__bitfunAgentCompanionCommand('
+      + toJavaScriptStringLiteral(envelopeJson)
+      + ');';
+    try {
+      helper.runJavaScript(script, () => {});
+    } catch (error) {
+      const businessError: BusinessError = error as BusinessError;
+      hilog.warn(DOMAIN, PET_WINDOW_TAG,
+        `pet command injection failed: code=${businessError.code} message=${businessError.message}`);
     }
   }
 
@@ -980,6 +1051,61 @@ export default class EntryAbility extends RustAbility implements StatusBarTrayHo
       });
       return '';
     });
+    // Agent companion pet window. The window itself belongs to
+    // `AgentCompanionAbility`, so this side only starts it, asks it to close and
+    // forwards payloads into its page; geometry is applied where the window
+    // object lives.
+    RustModule.registerArktsFunction('pet_window_show', async (_err: Error, arg: string): Promise<string> => {
+      let pagePath: string = PET_DEFAULT_PAGE_PATH;
+      try {
+        const request: PetWindowShowRequest = JSON.parse(arg) as PetWindowShowRequest;
+        if (typeof request.path === 'string' && request.path.length > 0) {
+          pagePath = request.path;
+        }
+      } catch (error) {
+        hilog.warn(DOMAIN, PET_WINDOW_TAG, 'pet_window_show payload unusable, loading the default page');
+      }
+      try {
+        // Same-process readers (the pet page) can pick this up immediately; the
+        // Want parameter is what survives a cold start.
+        AppStorage.setOrCreate<string>('bitfunPetPagePath', pagePath);
+        const want: Want = {
+          bundleName: this.context.abilityInfo.bundleName,
+          abilityName: PET_ABILITY_NAME,
+          parameters: { bitfunPetPagePath: pagePath },
+        };
+        await this.context.startAbility(want);
+        hilog.info(DOMAIN, PET_WINDOW_TAG, `pet window requested: page=${pagePath}`);
+        return JSON.stringify({ ok: true });
+      } catch (error) {
+        const businessError: BusinessError = error as BusinessError;
+        hilog.error(DOMAIN, PET_WINDOW_TAG,
+          `pet window start failed: code=${businessError.code} message=${businessError.message}`);
+        return JSON.stringify({ ok: false, error: businessError.message ?? 'startAbility failed' });
+      }
+    });
+    RustModule.registerArktsFunction('pet_window_hide', async (_err: Error, _arg: string): Promise<string> => {
+      await publishPetEvent(PET_HIDE_EVENT, '{}');
+      return '';
+    });
+    RustModule.registerArktsFunction('pet_window_set_rect', async (_err: Error, arg: string): Promise<string> => {
+      try {
+        const request: PetWindowRectRequest = JSON.parse(arg) as PetWindowRectRequest;
+        await publishPetEvent(PET_RECT_EVENT,
+          JSON.stringify({ width: request.width, height: request.height }));
+      } catch (error) {
+        hilog.warn(DOMAIN, PET_WINDOW_TAG, 'ignored malformed pet window rect');
+      }
+      return '';
+    });
+    RustModule.registerArktsFunction('pet_window_deliver', async (_err: Error, arg: string): Promise<string> => {
+      // The argument is already `{ event, payload }` JSON and reaches the pet
+      // page unchanged, so its parser sees the same shape the desktop window
+      // receives from a Tauri event.
+      await publishPetEvent(PET_DELIVER_EVENT, arg);
+      return '';
+    });
+    void this.startPetCommandRelay();
     RustModule.registerArktsFunction('minimize_to_tray_ohos', async (_err: Error, _arg: string): Promise<string> => {
       // HarmonyOS PC keeps minimized applications in the system dock. This is
       // the platform equivalent of the desktop system-tray close behavior.

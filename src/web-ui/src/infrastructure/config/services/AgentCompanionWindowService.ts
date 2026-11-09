@@ -1,6 +1,7 @@
 import { isTauriRuntime, isOpenHarmonyRuntime } from '@/infrastructure/runtime';
 import { createLogger } from '@/shared/utils/logger';
 import { api } from '@/infrastructure/api/service-api/ApiClient';
+import { usesHarmonyOsAgentCompanionWindow } from './agentCompanionWindowMode';
 import type { AIExperienceSettings } from './AIExperienceConfigService';
 
 const log = createLogger('AgentCompanionWindowService');
@@ -15,12 +16,11 @@ export async function syncAgentCompanionDesktopWindow(
   settings: AIExperienceSettings,
 ): Promise<void> {
   if (!isTauriRuntime()) return;
-  // HarmonyOS has no separate Agent companion OS window (see the
-  // `#[cfg(target_env = "ohos")]` Err(...) stubs in
-  // `src/apps/desktop/src/appearance.rs`). The pet is rendered instead as an
-  // in-app overlay by `AgentCompanionInAppPet`, which reads these settings
-  // directly and shows/hides itself — so do not invoke the failing stub here.
-  if (isOpenHarmonyRuntime()) return;
+  // HarmonyOS hosts the pet in its own ArkUI window (`AgentCompanionAbility`)
+  // that the show/hide commands start and stop, so they must run there. The
+  // in-app overlay fallback reads these settings itself and hides itself, so
+  // it keeps skipping the commands.
+  if (isOpenHarmonyRuntime() && !usesHarmonyOsAgentCompanionWindow()) return;
   const requestId = companionDesktopWindowSyncRequestId += 1;
 
   const run = async (): Promise<void> => {

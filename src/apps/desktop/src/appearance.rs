@@ -1262,10 +1262,14 @@ pub async fn show_agent_companion_desktop_pet(app: tauri::AppHandle) -> Result<(
     Ok(())
 }
 
+/// HarmonyOS renders the pet in its own ArkUI window (`AgentCompanionAbility`),
+/// so ArkTS owns the window and this only supplies the page it should load: the
+/// same bundle entry the desktop companion window uses.
 #[cfg(target_env = "ohos")]
 #[tauri::command]
 pub async fn show_agent_companion_desktop_pet(_app: tauri::AppHandle) -> Result<(), String> {
-    Err("Failed to show Agent companion window".to_string())
+    let page_path = builtin_frontend_path("?bitfunWindow=agent-companion");
+    crate::api::ohos::pet_window::show(&page_path).await
 }
 
 /// Keep the independent companion visible when the main window is minimized.
@@ -1331,10 +1335,10 @@ pub async fn resize_agent_companion_desktop_pet(
 #[tauri::command]
 pub async fn resize_agent_companion_desktop_pet(
     _app: tauri::AppHandle,
-    _width: f64,
-    _height: f64,
+    width: f64,
+    height: f64,
 ) -> Result<(), String> {
-    Err("Failed to resize Agent companion window".to_string())
+    crate::api::ohos::pet_window::set_rect(width, height).await
 }
 
 #[cfg(not(target_env = "ohos"))]
@@ -1358,7 +1362,7 @@ pub async fn hide_agent_companion_desktop_pet(app: tauri::AppHandle) -> Result<(
 #[cfg(target_env = "ohos")]
 #[tauri::command]
 pub async fn hide_agent_companion_desktop_pet(_app: tauri::AppHandle) -> Result<(), String> {
-    Err("Failed to hide Agent companion window".to_string())
+    crate::api::ohos::pet_window::hide().await
 }
 
 #[tauri::command]

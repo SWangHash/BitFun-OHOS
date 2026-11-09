@@ -12,6 +12,8 @@ pub mod miniapp_window;
 pub mod feedback_credentials;
 pub mod ohos_file_system;
 #[cfg(target_env = "ohos")]
+pub mod pet_window;
+#[cfg(target_env = "ohos")]
 pub mod screen_capture;
 #[cfg(target_env = "ohos")]
 pub mod secure_credentials;

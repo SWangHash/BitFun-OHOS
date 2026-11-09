@@ -44,6 +44,7 @@ import { WorkspaceKind } from '@/shared/types';
 import { SSHContext } from '@/features/ssh-remote/SSHRemoteContext';
 import { shortcutManager, parseStoredKeybindings } from '@/infrastructure/services/ShortcutManager';
 import { isMacOSDesktopRuntime, isOpenHarmonyRuntime, usesHostWindowControls } from '@/infrastructure/runtime';
+import { usesInAppAgentCompanionOverlay } from '@/infrastructure/config/services/agentCompanionWindowMode';
 import { TitleTooltipHost } from '@/app/components/TitleTooltipHost/TitleTooltipHost';
 import { flowChatSessionConfigForWorkspace } from '../utils/projectSessionWorkspace';
 import { startSessionSceneLifecycle } from '../services/sessionSceneLifecycle';
@@ -124,10 +125,13 @@ const AppLayout: React.FC<AppLayoutProps> = ({ className = '' }) => {
   const usesHostWindowChrome = useMemo(() => {
     return usesHostWindowControls();
   }, []);
-  // HarmonyOS has no separate always-on-top pet OS window, so the companion
-  // pet renders as an in-app overlay portal instead (see AgentCompanionWindowService).
   const isOpenHarmony = useMemo(() => {
     return isOpenHarmonyRuntime();
+  }, []);
+  // HarmonyOS normally renders the pet in its own window (AgentCompanionAbility),
+  // so the in-app overlay only appears when the fallback flag selects it.
+  const usesInAppPet = useMemo(() => {
+    return usesInAppAgentCompanionOverlay();
   }, []);
 
   const {
@@ -763,7 +767,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ className = '' }) => {
       <MCPInteractionDialog />
       <FileCreationDialogHost />
       {isOpenHarmony && <TitleTooltipHost />}
-      {isOpenHarmony && (
+      {isOpenHarmony && usesInAppPet && (
         <Suspense fallback={null}>
           <AgentCompanionInAppPet />
         </Suspense>

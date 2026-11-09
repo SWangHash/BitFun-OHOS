@@ -23,6 +23,51 @@ Run `node --test scripts/ohos-remote-web-resources.test.mjs` for resource isolat
 stale asset replacement, and final HAP integrity. Use a HarmonyOS build to verify
 the Hvigor task integration and the native resource lookup.
 
+## Agent companion pet window
+
+The pet renders in its own window, owned by `AgentCompanionAbility`
+(`agentcompanionability/AgentCompanionAbility.ets`, page `pages/PetWindow.ets`).
+It is a separate UIAbility rather than a `windowStage.createSubWindow`, because a
+subwindow hides whenever its parent minimizes — the behavior the pet must not
+have. `EntryAbility` starts it on demand (`pet_window_show`) and never manipulates
+it directly; geometry, focus and the move loop stay in the ability that owns the
+window object.
+
+The pet's webview is a plain ArkWeb, not the `oh-rs-ability` webview Rust creates
+for the main window, so **it has no Tauri IPC and no Tauri asset protocol**. Two
+consequences to preserve:
+
+- `PetWindow.ets` serves the packaged frontend (`resources/resfile/dist`) through
+  an app-owned `bitfunpet://` scheme registered with `customizeSchemes` and
+  answered by `onInterceptRequest`. `tauri://localhost` cannot be requested here,
+  and `file://` cannot import ES modules, so do not "simplify" this to either.
+- Cross-window traffic cannot use the Tauri event bus. `PetWindowChannel.ets`
+  carries it over custom common events: `deliver`/`hide`/`rect` from the main
+  side, `command` from the pet side, which `EntryAbility` injects into the main
+  webview as `window.__bitfunAgentCompanionCommand`. Rust
+  (`src/apps/desktop/src/api/ohos/pet_window.rs`) only taps the
+  `agent-companion://settings-updated` and `agent-companion://activity-updated`
+  events the main window already emits and forwards them.
+
+Payloads are JSON text end to end; `buildPetCommandEnvelope` splices the pet's
+payload verbatim so the page sees the same shape the desktop window receives from
+a Tauri event. Anything spliced into `runJavaScript` must go through
+`toJavaScriptStringLiteral`.
+
+Set `localStorage.bitfun.agentCompanionInAppFallback=1` to bring back the previous
+in-app overlay (`AgentCompanionInAppPet`) plus the minimize-to-pet morph without a
+rebuild; the fallback is the device escape hatch, not dead code.
+
+Cross-application always-on-top needs `ohos.permission.SYSTEM_FLOAT_WINDOW`
+(restricted); `AgentCompanionAbility` calls `setWindowAlwaysOnTop` only when the
+build exposes it, so an unsupported device degrades to a normal window.
+
+Run `node --test src/apps/ohos/tests/pet-window-channel.test.cjs` for envelope
+shapes, publish/subscribe failures, `runJavaScript` escaping, and the
+proxy-method contract between `PetWindow.ets` and the web-ui port. It mocks the
+kits and does not cover ArkTS compilation, the `bitfunpet://` interception, or
+device window behavior.
+
 ## Voice input transcript
 
 `VoiceInputService` forwards the system `speechRecognizer` stream to the web-ui,

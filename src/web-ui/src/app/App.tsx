@@ -910,6 +910,19 @@ function App() {
     };
   }, []);
 
+  // HarmonyOS: the pet's own window has no Tauri IPC, so ArkTS injects its
+  // commands into this window instead of emitting them on the event bus.
+  useEffect(() => {
+    if (!isOpenHarmonyRuntime()) {
+      return;
+    }
+    void import('./services/agentCompanionHostCommandBridge')
+      .then(({ ensureAgentCompanionHostCommandBridge }) => ensureAgentCompanionHostCommandBridge())
+      .catch(error => {
+        log.warn('Failed to install the Agent companion host command bridge', error);
+      });
+  }, []);
+
   // Control typography and block browser-native find/print. Reload remains available while the
   // frontend runs in dev mode and is blocked in release builds. The desktop
   // host independently applies the matching Rust build-profile policy.

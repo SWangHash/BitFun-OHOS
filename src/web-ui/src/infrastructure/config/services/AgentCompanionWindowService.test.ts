@@ -129,8 +129,40 @@ describe('syncAgentCompanionDesktopWindow', () => {
     expect(tauriEvent.emit).not.toHaveBeenCalled();
   });
 
-  it('skips the separate-window show/hide stubs on HarmonyOS (in-app overlay owns the surface)', async () => {
+  it('starts and stops the pet window on HarmonyOS, which owns a real OS window', async () => {
     runtime.isOpenHarmonyRuntime.mockReturnValue(true);
+    try {
+      const { syncAgentCompanionDesktopWindow } = await import('./AgentCompanionWindowService');
+
+      await syncAgentCompanionDesktopWindow(settings(true));
+      await syncAgentCompanionDesktopWindow(settings(false));
+
+      expect(tauriCore.invoke.mock.calls.map(call => call[0])).toEqual([
+        'show_agent_companion_desktop_pet',
+        'hide_agent_companion_desktop_pet',
+      ]);
+      // The show path hands the fresh settings to the pet window; Rust relays
+      // them into its webview.
+      expect(tauriEvent.emit).toHaveBeenCalledTimes(1);
+      expect(tauriEvent.emit).toHaveBeenCalledWith(
+        'agent-companion://settings-updated',
+        expect.objectContaining({ enable_agent_companion: true }),
+      );
+    } finally {
+      runtime.isOpenHarmonyRuntime.mockReturnValue(false);
+    }
+  });
+
+  it('keeps the in-app overlay contract when the HarmonyOS fallback flag is set', async () => {
+    runtime.isOpenHarmonyRuntime.mockReturnValue(true);
+    const storage = new Map<string, string>([['bitfun.agentCompanionInAppFallback', '1']]);
+    const originalWindow = globalThis.window;
+    vi.stubGlobal('window', {
+      localStorage: {
+        getItem: (key: string) => storage.get(key) ?? null,
+        setItem: (key: string, value: string) => storage.set(key, value),
+      },
+    });
     try {
       const { syncAgentCompanionDesktopWindow } = await import('./AgentCompanionWindowService');
 
@@ -140,6 +172,10 @@ describe('syncAgentCompanionDesktopWindow', () => {
       expect(tauriCore.invoke).not.toHaveBeenCalled();
       expect(tauriEvent.emit).not.toHaveBeenCalled();
     } finally {
+      vi.unstubAllGlobals();
+      if (originalWindow === undefined) {
+        delete (globalThis as { window?: unknown }).window;
+      }
       runtime.isOpenHarmonyRuntime.mockReturnValue(false);
     }
   });

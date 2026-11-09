@@ -13,10 +13,8 @@ import {
 import { OverflowText, Menu, MenuItem, ScrollArea } from '@bitfun/ui';
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { emit, listen } from '@tauri-apps/api/event';
-import { cursorPosition, getCurrentWindow } from '@tauri-apps/api/window';
 import { aiExperienceConfigService, type AgentCompanionPetSelection, type AIExperienceSettings } from '@/infrastructure/config/services/AIExperienceConfigService';
-import { api } from '@/infrastructure/api/service-api/ApiClient';
+import { resolveAgentCompanionPetWindowHost } from '@/infrastructure/config/services/agentCompanionPetWindowHost';
 import { workspaceAPI } from '@/infrastructure/api';
 import { AgentCompanionPet, type AgentCompanionPetMood } from '@/flow_chat/components/AgentCompanionPet';
 import type { AgentCompanionMood } from '@/flow_chat/utils/agentCompanionMood';
@@ -164,6 +162,9 @@ function advanceTypewriterOutput(visible: string, target: string): string {
 
 export const AgentCompanionDesktopPet: React.FC = () => {
   const { t } = useTranslation('flow-chat');
+  // The pet window is a single-purpose page, so its host is resolved once. The
+  // desktop host talks to Tauri; the HarmonyOS host talks to the ArkTS proxy.
+  const petWindowHost = useMemo(() => resolveAgentCompanionPetWindowHost(), []);
   const [pet, setPet] = useState<AgentCompanionPetSelection | null>(
     () => aiExperienceConfigService.getSettings().agent_companion_pet ?? null,
   );
@@ -214,9 +215,9 @@ export const AgentCompanionDesktopPet: React.FC = () => {
   const [hoveredBubbleSessionId, setHoveredBubbleSessionId] = useState<string | null>(null);
   const dockRef = useRef<HTMLDivElement>(null);
   const windowResizer = useMemo(() => createCompanionWindowResizer(
-    size => api.invoke('resize_agent_companion_desktop_pet', { width: size.width, height: size.height }),
+    size => petWindowHost.resizeWindow(size),
     error => log.warn('Failed to resize Agent companion window', error),
-  ), []);
+  ), [petWindowHost]);
   const bubblesRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const composerInputRef = useRef<HTMLInputElement>(null);
@@ -249,7 +250,7 @@ export const AgentCompanionDesktopPet: React.FC = () => {
     document.body.classList.add('bitfun-agent-companion-window-body');
 
     const hidePetWindowForInactiveSettings = () => {
-      void getCurrentWindow().hide().catch(error => {
+      void petWindowHost.hideWindow().catch(error => {
         log.warn('Failed to hide inactive Agent companion window', error);
       });
     };
@@ -275,8 +276,8 @@ export const AgentCompanionDesktopPet: React.FC = () => {
       });
 
     let removeTauriListener: (() => void) | null = null;
-    const settingsListenerReady = listen<AIExperienceSettings>('agent-companion://settings-updated', event => {
-      applySettings(event.payload);
+    const settingsListenerReady = petWindowHost.listen<AIExperienceSettings>('agent-companion://settings-updated', settings => {
+      applySettings(settings);
     }).then(unlisten => {
       if (disposed) {
         unlisten();
@@ -290,9 +291,9 @@ export const AgentCompanionDesktopPet: React.FC = () => {
     });
 
     let removeActivityListener: (() => void) | null = null;
-    const activityListenerReady = listen<AgentCompanionActivityPayload>('agent-companion://activity-updated', event => {
-      const emittedAt = event.payload.emittedAt ?? 0;
-      const sequence = event.payload.sequence ?? 0;
+    const activityListenerReady = petWindowHost.listen<AgentCompanionActivityPayload>('agent-companion://activity-updated', activity => {
+      const emittedAt = activity.emittedAt ?? 0;
+      const sequence = activity.sequence ?? 0;
       if (
         emittedAt < lastActivityEmittedAtRef.current
         || (emittedAt === lastActivityEmittedAtRef.current && sequence <= lastActivitySequenceRef.current)
@@ -301,10 +302,10 @@ export const AgentCompanionDesktopPet: React.FC = () => {
       }
       lastActivityEmittedAtRef.current = emittedAt;
       lastActivitySequenceRef.current = sequence;
-      setMood(event.payload.mood);
+      setMood(activity.mood);
       // The first snapshot is hydration, not a new request.
-      if (previousTasksRef.current === null) previousTasksRef.current = event.payload.tasks;
-      setTasks(event.payload.tasks);
+      if (previousTasksRef.current === null) previousTasksRef.current = activity.tasks;
+      setTasks(activity.tasks);
     }).then(unlisten => {
       if (disposed) {
         unlisten();
@@ -320,7 +321,7 @@ export const AgentCompanionDesktopPet: React.FC = () => {
     void Promise.all([settingsListenerReady, activityListenerReady])
       .then(([settingsReady, activityReady]) => {
         if (!disposed && settingsReady && activityReady) {
-          void emit('agent-companion://ready');
+          void petWindowHost.emit('agent-companion://ready');
         }
       })
       .catch(error => {
@@ -336,7 +337,7 @@ export const AgentCompanionDesktopPet: React.FC = () => {
       document.documentElement.classList.remove('bitfun-agent-companion-window-root');
       document.body.classList.remove('bitfun-agent-companion-window-body');
     };
-  }, []);
+  }, [petWindowHost]);
 
   // Drop dismissals whose bubble kind changed (a silenced task now needs
   // attention or finished) or whose session left the activity payload.
@@ -539,8 +540,14 @@ export const AgentCompanionDesktopPet: React.FC = () => {
     if (IS_WINDOWS_WEBVIEW && !trackPetLook) {
       return;
     }
+    // Only a host with a real OS window and a global cursor can poll pointer
+    // geometry. The HarmonyOS window drives hover from DOM pointer events, so
+    // its port reports no pointer host.
+    const pointerHost = petWindowHost.pointer;
+    if (!pointerHost) {
+      return;
+    }
 
-    const tauriWindow = getCurrentWindow();
     let disposed = false;
     let windowPosition: { x: number; y: number } | null = null;
     let scaleFactor = 1;
@@ -550,7 +557,7 @@ export const AgentCompanionDesktopPet: React.FC = () => {
     let removeWindowMovedListener: (() => void) | null = null;
     let removeScaleChangedListener: (() => void) | null = null;
 
-    void tauriWindow.outerPosition()
+    void pointerHost.windowPosition()
       .then(position => {
         windowPosition = position;
       })
@@ -558,7 +565,7 @@ export const AgentCompanionDesktopPet: React.FC = () => {
         log.warn('Failed to read Agent companion window position', error);
       });
 
-    void tauriWindow.scaleFactor()
+    void pointerHost.scaleFactor()
       .then(rawScaleFactor => {
         const nextScaleFactor = Number(rawScaleFactor);
         scaleFactor = Number.isFinite(nextScaleFactor) && nextScaleFactor > 0 ? nextScaleFactor : 1;
@@ -567,11 +574,11 @@ export const AgentCompanionDesktopPet: React.FC = () => {
         log.warn('Failed to read Agent companion window scale factor', error);
       });
 
-    void tauriWindow.onMoved(event => {
-      if (!USE_CONTROLLED_PET_DRAG && petPointerSessionRef.current?.dragStarted && windowPosition && event.payload.x !== windowPosition.x) {
-        setDragDirection(event.payload.x > windowPosition.x ? 'right' : 'left');
+    void pointerHost.onMoved(position => {
+      if (!USE_CONTROLLED_PET_DRAG && petPointerSessionRef.current?.dragStarted && windowPosition && position.x !== windowPosition.x) {
+        setDragDirection(position.x > windowPosition.x ? 'right' : 'left');
       }
-      windowPosition = event.payload;
+      windowPosition = position;
     }).then(unlisten => {
       if (disposed) {
         unlisten();
@@ -582,8 +589,8 @@ export const AgentCompanionDesktopPet: React.FC = () => {
       log.warn('Failed to listen for Agent companion window moves', error);
     });
 
-    void tauriWindow.onScaleChanged(event => {
-      const nextScaleFactor = Number(event.payload.scaleFactor);
+    void pointerHost.onScaleChanged(rawScaleFactor => {
+      const nextScaleFactor = Number(rawScaleFactor);
       scaleFactor = Number.isFinite(nextScaleFactor) && nextScaleFactor > 0 ? nextScaleFactor : 1;
     }).then(unlisten => {
       if (disposed) {
@@ -632,10 +639,10 @@ export const AgentCompanionDesktopPet: React.FC = () => {
       pointerPollInFlight = true;
       try {
         if (!windowPosition) {
-          windowPosition = await tauriWindow.outerPosition();
+          windowPosition = await pointerHost.windowPosition();
         }
 
-        const pointer = await cursorPosition();
+        const pointer = await pointerHost.cursorPosition();
         if (disposed) {
           return;
         }
@@ -699,15 +706,15 @@ export const AgentCompanionDesktopPet: React.FC = () => {
       removeWindowMovedListener?.();
       removeScaleChangedListener?.();
     };
-  }, [trackPetLook]);
+  }, [petWindowHost, trackPetLook]);
 
   const showMainWindowFromPet = useCallback(async () => {
     try {
-      await api.invoke('show_main_window');
+      await petWindowHost.showMainWindow();
     } catch (error) {
       log.warn('Failed to show main window from Agent companion pet', error);
     }
-  }, []);
+  }, [petWindowHost]);
 
   const onContextMenu = useCallback((event: React.MouseEvent) => {
     event.preventDefault();
@@ -718,8 +725,8 @@ export const AgentCompanionDesktopPet: React.FC = () => {
   }, []);
 
   const sendPetCommand = useCallback(async (command: AgentCompanionPetCommand) => {
-    await emit(PET_COMMAND_EVENT, command);
-  }, []);
+    await petWindowHost.emit(PET_COMMAND_EVENT, command);
+  }, [petWindowHost]);
 
   const onPetContextMenu = useCallback((event: React.MouseEvent) => {
     event.preventDefault();
@@ -780,11 +787,11 @@ export const AgentCompanionDesktopPet: React.FC = () => {
     setComposerValue('');
     setIsSendingComposer(false);
     setOverlay({ kind: 'composer', sessionId });
-    void getCurrentWindow().setFocus()
+    void petWindowHost.focusWindow()
       .catch(error => {
         log.warn('Failed to focus Agent companion window for composer', error);
       });
-  }, []);
+  }, [petWindowHost]);
 
   const cancelBubbleComposer = useCallback(() => {
     setComposerValue('');
@@ -967,7 +974,10 @@ export const AgentCompanionDesktopPet: React.FC = () => {
       });
       return;
     }
-    void workspaceAPI.startWindowDragging()
+    // A host that owns the window's move loop (HarmonyOS) drags it directly;
+    // elsewhere the main-window drag command is the platform's own gesture.
+    const hostDrag = petWindowHost.startHostDrag;
+    void (hostDrag ? hostDrag() : workspaceAPI.startWindowDragging())
       .catch(error => {
         log.warn('Failed to start Agent companion window drag', error);
         if (petPointerSessionRef.current === session) petPointerSessionRef.current = null;
@@ -1015,11 +1025,13 @@ export const AgentCompanionDesktopPet: React.FC = () => {
 
   const openTaskSession = async (task: AgentCompanionTaskStatus) => {
     try {
-      await emit('agent-companion://open-session', {
+      // Keep the surface/workspace routing the main window expects, delivered
+      // through the host port so the desktop and HarmonyOS windows share it.
+      await petWindowHost.emit('agent-companion://open-session', {
         sessionId: task.sessionId,
         ...(task.surfaceId ? { surfaceId: task.surfaceId, workspaceId: task.workspaceId } : {}),
       });
-      await api.invoke('show_main_window');
+      await petWindowHost.showMainWindow();
     } catch (error) {
       log.warn('Failed to open Agent companion task session', {
         sessionId: task.sessionId,

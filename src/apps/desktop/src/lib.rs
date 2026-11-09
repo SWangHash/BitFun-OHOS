@@ -1134,6 +1134,14 @@ pub async fn _run() {
                 }
             }
 
+            // The HarmonyOS pet window is a separate ArkUI window whose webview
+            // is outside the Tauri event bus, so tap the events the main window
+            // publishes for it and forward them through the ArkTS host functions.
+            #[cfg(target_env = "ohos")]
+            {
+                crate::api::ohos::pet_window::start_event_forwarder(app.handle());
+            }
+
             #[cfg(target_os = "macos")]
             {
                 app.on_menu_event(|app, event| {

@@ -13,6 +13,7 @@ import { isOpenHarmonyRuntime, supportsNativeWindowControls } from '@/infrastruc
 import { systemAPI } from '@/infrastructure/api/service-api/SystemAPI';
 import { aiExperienceConfigService } from '@/infrastructure/config/services/AIExperienceConfigService';
 import { enterPetOnlyMode } from '../services/agentCompanionPetOnlyMode';
+import { usesInAppAgentCompanionOverlay } from '@/infrastructure/config/services/agentCompanionWindowMode';
 import {
   captureFocusedEditable,
   restoreWindowKeyboardFocus,
@@ -263,12 +264,14 @@ export const useWindowControls = (options?: { isToolbarMode?: boolean }) => {
   const handleMinimize = useCallback(async () => {
     if (!canUseNativeWindowControls) return;
 
-    // HarmonyOS interim: the in-app pet overlay is a child of the main window
+    // HarmonyOS in-app fallback only: the overlay is a child of the main window
     // DOM, so it would hide with the window on minimize. When the desktop pet
     // is enabled, morph the main window into a small always-on-top pet-only
     // surface instead of minimizing, so the pet stays visible. System-level
     // minimize (taskbar/shortcut) is not intercepted — only the in-app button.
-    if (isOpenHarmonyRuntime()) {
+    // The pet's own window needs none of this: it outlives the main window's
+    // minimize, so the plain minimize path below runs.
+    if (usesInAppAgentCompanionOverlay() && isOpenHarmonyRuntime()) {
       const aiSettings = aiExperienceConfigService.getSettings();
       if (aiSettings.enable_agent_companion && aiSettings.agent_companion_display_mode === 'desktop') {
         await enterPetOnlyMode();
