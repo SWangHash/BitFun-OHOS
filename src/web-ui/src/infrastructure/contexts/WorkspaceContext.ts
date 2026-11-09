@@ -8,6 +8,10 @@ import {
   type WorkspaceSection,
 } from '../services/business/workspaceManager';
 import { WorkspaceInfo, WorkspaceKind } from '../../shared/types';
+import type {
+  DeleteWorkspaceResponse,
+  WorkspaceDeletionPlan,
+} from '../api/service-api/GlobalAPI';
 
 export const getWorkspaceDisplayName = (workspace: WorkspaceInfo | null): string => {
   if (!workspace) {
@@ -33,7 +37,8 @@ export interface WorkspaceContextValue extends WorkspaceState {
   closeWorkspace: () => Promise<void>;
   closeWorkspaceById: (workspaceId: string) => Promise<void>;
   deleteAssistantWorkspace: (workspaceId: string) => Promise<void>;
-  deleteWorkspace: (workspaceId: string) => Promise<void>;
+  previewWorkspaceDeletion: (workspaceId: string) => Promise<WorkspaceDeletionPlan>;
+  deleteWorkspace: (workspaceId: string) => Promise<DeleteWorkspaceResponse>;
   resetAssistantWorkspace: (workspaceId: string) => Promise<WorkspaceInfo>;
   switchWorkspace: (workspace: WorkspaceInfo) => Promise<WorkspaceInfo>;
   setActiveWorkspace: (workspaceId: string) => Promise<WorkspaceInfo>;

@@ -10,6 +10,10 @@ import {
   type WorkspaceContextValue,
   getWorkspaceDisplayName,
 } from './WorkspaceContext';
+import type {
+  DeleteWorkspaceResponse,
+  WorkspaceDeletionPlan,
+} from '@/infrastructure/api/service-api/GlobalAPI';
 
 const log = createLogger('WorkspaceProvider');
 
@@ -45,6 +49,8 @@ export const WorkspaceProvider: React.FC<WorkspaceProviderProps> = ({ children }
         closeWorkspaceById: async (workspaceId: string) => workspaceManager.closeWorkspaceById(workspaceId),
         deleteAssistantWorkspace: async (workspaceId: string) =>
           workspaceManager.deleteAssistantWorkspace(workspaceId),
+        previewWorkspaceDeletion: async (workspaceId: string) =>
+          workspaceManager.previewWorkspaceDeletion(workspaceId),
         deleteWorkspace: async (workspaceId: string) =>
           workspaceManager.deleteWorkspace(workspaceId),
         resetAssistantWorkspace: async (workspaceId: string) =>
@@ -102,6 +108,8 @@ export const WorkspaceProvider: React.FC<WorkspaceProviderProps> = ({ children }
         closeWorkspaceById: async (workspaceId: string) => workspaceManager.closeWorkspaceById(workspaceId),
         deleteAssistantWorkspace: async (workspaceId: string) =>
           workspaceManager.deleteAssistantWorkspace(workspaceId),
+        previewWorkspaceDeletion: async (workspaceId: string) =>
+          workspaceManager.previewWorkspaceDeletion(workspaceId),
         deleteWorkspace: async (workspaceId: string) =>
           workspaceManager.deleteWorkspace(workspaceId),
         resetAssistantWorkspace: async (workspaceId: string) =>
@@ -264,8 +272,14 @@ export const WorkspaceProvider: React.FC<WorkspaceProviderProps> = ({ children }
     return await workspaceManager.deleteAssistantWorkspace(workspaceId);
   }, []);
 
-  const deleteWorkspace = useCallback(async (workspaceId: string): Promise<void> => {
+  const deleteWorkspace = useCallback(async (workspaceId: string): Promise<DeleteWorkspaceResponse> => {
     return await workspaceManager.deleteWorkspace(workspaceId);
+  }, []);
+
+  const previewWorkspaceDeletion = useCallback(async (
+    workspaceId: string
+  ): Promise<WorkspaceDeletionPlan> => {
+    return await workspaceManager.previewWorkspaceDeletion(workspaceId);
   }, []);
 
   const resetAssistantWorkspace = useCallback(async (workspaceId: string): Promise<WorkspaceInfo> => {
@@ -343,6 +357,7 @@ export const WorkspaceProvider: React.FC<WorkspaceProviderProps> = ({ children }
       closeWorkspace,
       closeWorkspaceById,
       deleteAssistantWorkspace,
+      previewWorkspaceDeletion,
       deleteWorkspace,
       resetAssistantWorkspace,
       switchWorkspace,
@@ -365,6 +380,7 @@ export const WorkspaceProvider: React.FC<WorkspaceProviderProps> = ({ children }
     closeWorkspace,
     closeWorkspaceById,
     deleteAssistantWorkspace,
+    previewWorkspaceDeletion,
     deleteWorkspace,
     resetAssistantWorkspace,
     switchWorkspace,
