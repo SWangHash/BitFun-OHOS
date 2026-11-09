@@ -31,6 +31,7 @@ const PET_SCHEME: string = 'bitfunpet';
 const PET_SCHEME_HOST: string = 'local';
 const RESFILE_DIST: string = 'resources/resfile/dist';
 const PAGE_PATH_KEY: string = 'bitfunPetPagePath';
+const DIST_ROOT_KEY: string = 'bitfunPetDistRoot';
 
 interface PetRectRequest {
   width: number;
@@ -126,8 +127,10 @@ struct PetWindow {
   private rectSubscriber: commonEventManager.CommonEventSubscriber | null = null;
   private petWindow: window.Window | null = null;
   private pageUrl: string = '';
+  private distRoot: string = '';
   private lastWidth: number = 0;
   private lastHeight: number = 0;
+  private servedFirstFile: boolean = false;
 
   aboutToAppear(): void {
     // The scheme has to be registered before the Web component attaches its
@@ -143,9 +146,11 @@ struct PetWindow {
         `customizeSchemes failed: code=${businessError.code} message=${businessError.message}`);
     }
     const pagePath: string = AppStorage.get<string>(PAGE_PATH_KEY) ?? 'index.html?bitfunWindow=agent-companion';
+    this.distRoot = AppStorage.get<string>(DIST_ROOT_KEY) ?? '';
     this.pageUrl = `${PET_SCHEME}://${PET_SCHEME_HOST}/${pagePath}`;
     this.petWindow = AppStorage.get<window.Window>('bitfunPetWindow') ?? null;
-    hilog.info(DOMAIN, PET_WINDOW_TAG, `pet page loading: ${this.pageUrl}`);
+    hilog.info(DOMAIN, PET_WINDOW_TAG,
+      `pet page loading: ${this.pageUrl} distRoot=${this.distRoot.length > 0 ? this.distRoot : '(fallback)'}`);
     this.subscribeHostEvents();
   }
 
@@ -241,6 +246,25 @@ struct PetWindow {
     });
   }
 
+  /**
+   * Report whether the bundle actually mounted.
+   *
+   * A loaded page with an empty `#root` means the frontend threw during startup
+   * (for example a transport it needs is missing here), which looks identical to
+   * "nothing loaded" from the outside. One log line tells the two apart.
+   */
+  private reportMountedContent(): void {
+    const script: string =
+      '(function(){var root=document.getElementById("root");'
+      + 'return root ? String(root.childElementCount) : "no-root";})()';
+    this.controller.runJavaScript(script).then((result: string) => {
+      hilog.info(DOMAIN, PET_WINDOW_TAG, `pet page mounted children=${result}`);
+    }).catch((error: BusinessError) => {
+      hilog.warn(DOMAIN, PET_WINDOW_TAG,
+        `pet mount probe failed: code=${error.code} message=${error.message}`);
+    });
+  }
+
   private terminatePetAbility(): void {
     const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
     try {
@@ -270,14 +294,17 @@ struct PetWindow {
       // blob:/data: subresources never reach the intercept.
       return this.buildResponse('text/plain', '', 404);
     }
-    const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
-    const path: string = `${context.bundleCodeDir}/${RESFILE_DIST}/${relative}`;
+    const path: string = `${this.resolveDistRoot()}/${relative}`;
     try {
       const file = fileIo.openSync(path, fileIo.OpenMode.READ_ONLY);
       try {
         const stat = fileIo.statSync(file.fd);
         const buffer: ArrayBuffer = new ArrayBuffer(stat.size);
         fileIo.readSync(file.fd, buffer);
+        if (!this.servedFirstFile) {
+          this.servedFirstFile = true;
+          hilog.info(DOMAIN, PET_WINDOW_TAG, `serving ${relative} from ${path}`);
+        }
         return this.buildResponse(mimeTypeFor(relative), buffer, 200);
       } finally {
         fileIo.closeSync(file);
@@ -288,6 +315,20 @@ struct PetWindow {
         `serve ${relative} failed: code=${businessError.code} message=${businessError.message} path=${path}`);
       return this.buildResponse('text/plain', '', 404);
     }
+  }
+
+  /**
+   * Directory the packaged frontend is read from.
+   *
+   * Rust resolves it from the resource directory and passes it in; the HAP
+   * install path stays the fallback for a launch whose payload was lost.
+   */
+  private resolveDistRoot(): string {
+    if (this.distRoot.length > 0) {
+      return this.distRoot;
+    }
+    const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
+    return `${context.bundleCodeDir}/${RESFILE_DIST}`;
   }
 
   /**
@@ -334,6 +375,7 @@ struct PetWindow {
         .onInterceptRequest(event => this.servePackagedFile(event.request.getRequestUrl()))
         .onPageEnd(() => {
           hilog.info(DOMAIN, PET_WINDOW_TAG, 'pet page loaded');
+          this.reportMountedContent();
         })
         .onErrorReceive(event => {
           hilog.error(DOMAIN, PET_WINDOW_TAG,

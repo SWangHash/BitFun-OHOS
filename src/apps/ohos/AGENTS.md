@@ -33,6 +33,20 @@ have. `EntryAbility` starts it on demand (`pet_window_show`) and never manipulat
 it directly; geometry, focus and the move loop stay in the ability that owns the
 window object.
 
+Two window facts decided the ability's shape and both were found on device:
+
+- An ability window can open maximized, and a maximized window ignores
+  `resizeAsync`/`moveWindowTo`, so `ensureFloating` (`recover`, then wait for
+  `FLOATING`) runs before any geometry.
+- A move/resize can bring the system title bar back, so chrome is hidden both
+  before and after placement.
+
+The packaged-frontend directory is resolved by Rust (`pet_window::dist_root` from
+the resource directory) and passed through the launch payload; ArkTS must not
+derive the HAP install path itself. `pages/PetWindow.ets` logs the served path and
+a mount probe (`#root` child count) so "page did not load" and "page loaded but
+the bundle threw" are distinguishable in hilog.
+
 The pet's webview is a plain ArkWeb, not the `oh-rs-ability` webview Rust creates
 for the main window, so **it has no Tauri IPC and no Tauri asset protocol**. Two
 consequences to preserve:

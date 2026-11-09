@@ -136,6 +136,7 @@ interface SetResizableArg {
 }
 interface PetWindowShowRequest {
   path?: string;
+  distRoot?: string;
 }
 interface PetWindowRectRequest {
   width: number;
@@ -1057,10 +1058,16 @@ export default class EntryAbility extends RustAbility implements StatusBarTrayHo
     // object lives.
     RustModule.registerArktsFunction('pet_window_show', async (_err: Error, arg: string): Promise<string> => {
       let pagePath: string = PET_DEFAULT_PAGE_PATH;
+      // Rust resolves the packaged frontend directory because the HAP layout is
+      // platform knowledge, not something ArkTS can derive safely.
+      let distRoot: string = '';
       try {
         const request: PetWindowShowRequest = JSON.parse(arg) as PetWindowShowRequest;
         if (typeof request.path === 'string' && request.path.length > 0) {
           pagePath = request.path;
+        }
+        if (typeof request.distRoot === 'string') {
+          distRoot = request.distRoot;
         }
       } catch (error) {
         hilog.warn(DOMAIN, PET_WINDOW_TAG, 'pet_window_show payload unusable, loading the default page');
@@ -1069,13 +1076,15 @@ export default class EntryAbility extends RustAbility implements StatusBarTrayHo
         // Same-process readers (the pet page) can pick this up immediately; the
         // Want parameter is what survives a cold start.
         AppStorage.setOrCreate<string>('bitfunPetPagePath', pagePath);
+        AppStorage.setOrCreate<string>('bitfunPetDistRoot', distRoot);
         const want: Want = {
           bundleName: this.context.abilityInfo.bundleName,
           abilityName: PET_ABILITY_NAME,
-          parameters: { bitfunPetPagePath: pagePath },
+          parameters: { bitfunPetPagePath: pagePath, bitfunPetDistRoot: distRoot },
         };
         await this.context.startAbility(want);
-        hilog.info(DOMAIN, PET_WINDOW_TAG, `pet window requested: page=${pagePath}`);
+        hilog.info(DOMAIN, PET_WINDOW_TAG,
+          `pet window requested: page=${pagePath} distRoot=${distRoot.length > 0 ? distRoot : '(unset)'}`);
         return JSON.stringify({ ok: true });
       } catch (error) {
         const businessError: BusinessError = error as BusinessError;
