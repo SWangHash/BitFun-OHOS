@@ -31,11 +31,17 @@ function channelHost(overrides = {}) {
   const published = [];
   const warnings = [];
   const commonEventManager = {
-    publish: async (event, options) => {
+    // The platform exposes only the callback form; failures arrive through it.
+    publish: (event, options, callback) => {
       if (overrides.publishFails) {
-        throw { code: 1500001, message: 'publish rejected' };
+        callback({ code: 1500001, message: 'publish rejected' });
+        return;
+      }
+      if (overrides.publishThrows) {
+        throw { code: 1500003, message: 'publish threw' };
       }
       published.push({ event, data: options.data });
+      callback();
     },
     createSubscriber: (info, callback) => {
       if (overrides.createFails) {
@@ -79,13 +85,17 @@ test('pet commands keep their payload structured', () => {
   );
 });
 
-test('publish failures are logged instead of rejecting the caller', async () => {
-  const { exports, warnings } = channelHost({ publishFails: true });
+test('publish failures settle the call and are logged, never thrown', async () => {
+  const delivered = channelHost({ publishFails: true });
+  await delivered.exports.publishPetEvent('bitfun.agentCompanion.deliver', '{"event":"x"}');
+  assert.equal(delivered.warnings.length, 1);
+  assert.match(delivered.warnings[0], /publish rejected/);
 
-  await exports.publishPetEvent('bitfun.agentCompanion.deliver', '{"event":"x"}');
-
-  assert.equal(warnings.length, 1);
-  assert.match(warnings[0], /publish rejected/);
+  // A synchronously throwing publish must not leave the caller waiting either.
+  const thrown = channelHost({ publishThrows: true });
+  await thrown.exports.publishPetEvent('bitfun.agentCompanion.deliver', '{"event":"x"}');
+  assert.equal(thrown.warnings.length, 1);
+  assert.match(thrown.warnings[0], /publish threw/);
 });
 
 test('published events carry the payload as their data string', async () => {

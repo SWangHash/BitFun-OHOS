@@ -135,7 +135,7 @@ struct PetWindow {
     // blank until a reload.
     try {
       webview.WebviewController.customizeSchemes([
-        { schemeName: PET_SCHEME, isSupportCors: true, isSupportFetch: true },
+        { schemeName: PET_SCHEME, isSupportCORS: true, isSupportFetch: true },
       ]);
     } catch (error) {
       const businessError: BusinessError = error as BusinessError;
@@ -258,14 +258,17 @@ struct PetWindow {
    * `resources/resfile/dist`, read through the HAP install directory because the
    * page needs a real HTTP-like origin for ES modules and fetch.
    */
-  private servePackagedFile(url: string): webview.WebResourceResponse | null {
+  private servePackagedFile(url: string): WebResourceResponse {
     const prefix: string = `${PET_SCHEME}://${PET_SCHEME_HOST}/`;
-    if (!url.startsWith(prefix)) {
-      return null;
-    }
-    const relative: string = url.slice(prefix.length).split('?')[0].split('#')[0];
+    const relative: string = url.startsWith(prefix)
+      ? url.slice(prefix.length).split('?')[0].split('#')[0]
+      : '';
     if (relative.length === 0) {
-      return null;
+      // The callback type is non-nullable, so ArkWeb cannot be told to fall back
+      // to its default loader: answer misses explicitly instead of leaving the
+      // page waiting on a body. The bundle only requests its own scheme, and
+      // blob:/data: subresources never reach the intercept.
+      return this.buildResponse('text/plain', '', 404);
     }
     const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
     const path: string = `${context.bundleCodeDir}/${RESFILE_DIST}/${relative}`;
@@ -275,10 +278,7 @@ struct PetWindow {
         const stat = fileIo.statSync(file.fd);
         const buffer: ArrayBuffer = new ArrayBuffer(stat.size);
         fileIo.readSync(file.fd, buffer);
-        const response: webview.WebResourceResponse =
-          new webview.WebResourceResponse(mimeTypeFor(relative), 'utf-8', buffer);
-        response.responseCode = 200;
-        return response;
+        return this.buildResponse(mimeTypeFor(relative), buffer, 200);
       } finally {
         fileIo.closeSync(file);
       }
@@ -286,8 +286,27 @@ struct PetWindow {
       const businessError: BusinessError = error as BusinessError;
       hilog.error(DOMAIN, PET_WINDOW_TAG,
         `serve ${relative} failed: code=${businessError.code} message=${businessError.message} path=${path}`);
-      return null;
+      return this.buildResponse('text/plain', '', 404);
     }
+  }
+
+  /**
+   * Build an intercept response. `onInterceptRequest` must answer every request
+   * it receives, so a miss still returns a response instead of leaving the page
+   * waiting on a body that never arrives.
+   */
+  private buildResponse(
+    mimeType: string,
+    data: ArrayBuffer | string,
+    responseCode: number,
+  ): WebResourceResponse {
+    const response: WebResourceResponse = new WebResourceResponse();
+    response.setResponseMimeType(mimeType);
+    response.setResponseEncoding('utf-8');
+    response.setResponseData(data);
+    response.setResponseCode(responseCode);
+    response.setResponseIsReady(true);
+    return response;
   }
 
   build() {

@@ -74,13 +74,15 @@ export default class AgentCompanionAbility extends UIAbility {
     const size: number = Math.max(1, Math.round(PET_WINDOW_INITIAL_SIZE * scale));
     const gap: number = Math.round(PET_WINDOW_EDGE_GAP * scale);
 
+    // Both of these are synchronous in the ArkUI window API, so there is nothing
+    // to await; they only fail through a thrown BusinessError.
     try {
-      await petWindow.setWindowBackgroundColor('#00000000');
+      petWindow.setWindowBackgroundColor('#00000000');
     } catch (error) {
       this.logWindowError('setWindowBackgroundColor', error);
     }
     try {
-      await petWindow.setWindowDecorVisible(false);
+      petWindow.setWindowDecorVisible(false);
     } catch (error) {
       this.logWindowError('setWindowDecorVisible', error);
     }
@@ -93,16 +95,13 @@ export default class AgentCompanionAbility extends UIAbility {
       this.logWindowError('setWindowFocusable', error);
     }
 
-    // Cross-application "always on top" is a restricted platform capability
-    // (SYSTEM_FLOAT_WINDOW); call it only when this build exposes it, so an
-    // unsupported device degrades to a normal window instead of failing.
-    const extensibleWindow: ESObject = petWindow as ESObject;
-    if (typeof extensibleWindow.setWindowAlwaysOnTop === 'function') {
-      try {
-        await extensibleWindow.setWindowAlwaysOnTop(true);
-      } catch (error) {
-        this.logWindowError('setWindowAlwaysOnTop', error);
-      }
+    // Cross-application stacking is a restricted platform capability: without it
+    // the call rejects and the pet degrades to a normal window, so a failure is
+    // logged instead of aborting the launch.
+    try {
+      await petWindow.setWindowTopmost(true);
+    } catch (error) {
+      this.logWindowError('setWindowTopmost', error);
     }
 
     try {

@@ -40,16 +40,32 @@ export function buildPetCommandEnvelope(event: string, payloadJson: string): str
   return '{"event":' + JSON.stringify(event) + ',"payload":' + payload + '}';
 }
 
-/** Publish a common event, logging instead of throwing on delivery failure. */
+/**
+ * Publish a common event, logging instead of throwing on delivery failure.
+ *
+ * `publish` only offers the callback form, so it is wrapped here to keep the
+ * bridge's call sites linear.
+ */
 export async function publishPetEvent(eventName: string, data: string): Promise<void> {
   const options: commonEventManager.CommonEventPublishData = { data: data };
-  try {
-    await commonEventManager.publish(eventName, options);
-  } catch (error) {
-    const businessError: BusinessError = error as BusinessError;
-    hilog.warn(DOMAIN, PET_WINDOW_TAG,
-      `publish ${eventName} failed: code=${businessError.code} message=${businessError.message}`);
-  }
+  await new Promise<void>((resolve) => {
+    try {
+      commonEventManager.publish(eventName, options, (error: BusinessError) => {
+        if (error) {
+          hilog.warn(DOMAIN, PET_WINDOW_TAG,
+            `publish ${eventName} failed: code=${error.code} message=${error.message}`);
+        }
+        resolve();
+      });
+    } catch (error) {
+      // A rejected publish call must settle the promise too, otherwise a caller
+      // that awaits a delivery would wait forever.
+      const businessError: BusinessError = error as BusinessError;
+      hilog.warn(DOMAIN, PET_WINDOW_TAG,
+        `publish ${eventName} threw: ${businessError.message ?? String(error)}`);
+      resolve();
+    }
+  });
 }
 
 /**
@@ -86,7 +102,9 @@ export async function createPetSubscriber(
           `${eventName} delivery error: code=${error.code} message=${error.message}`);
         return;
       }
-      handler(data.data);
+      // `data` is optional on the platform event; a delivery without a body is
+      // forwarded as empty text so handlers keep one parameter shape.
+      handler(data.data ?? '');
     });
   } catch (error) {
     const businessError: BusinessError = error as BusinessError;

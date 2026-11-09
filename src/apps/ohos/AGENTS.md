@@ -58,9 +58,17 @@ Set `localStorage.bitfun.agentCompanionInAppFallback=1` to bring back the previo
 in-app overlay (`AgentCompanionInAppPet`) plus the minimize-to-pet morph without a
 rebuild; the fallback is the device escape hatch, not dead code.
 
-Cross-application always-on-top needs `ohos.permission.SYSTEM_FLOAT_WINDOW`
-(restricted); `AgentCompanionAbility` calls `setWindowAlwaysOnTop` only when the
-build exposes it, so an unsupported device degrades to a normal window.
+Cross-application stacking is `window.Window.setWindowTopmost(true)`, which
+requires `ohos.permission.WINDOW_TOPMOST` (system-level). The ability does not
+declare it, so the call rejects on a normal build and the pet stays a normal
+window; it is wrapped in a logged try/catch for exactly that reason.
+
+ArkUI API notes worth keeping in mind here: `WebResourceResponse` is a global
+ArkUI class with setters (`setResponseData`/`setResponseMimeType`/
+`setResponseCode`/`setResponseIsReady`) rather than a `@ohos.web.webview` export,
+`onInterceptRequest` must answer every request, `customizeSchemes` uses
+`isSupportCORS`, and `setWindowBackgroundColor`/`setWindowDecorVisible` are
+synchronous while `commonEventManager.publish` only offers a callback form.
 
 Run `node --test src/apps/ohos/tests/pet-window-channel.test.cjs` for envelope
 shapes, publish/subscribe failures, `runJavaScript` escaping, and the

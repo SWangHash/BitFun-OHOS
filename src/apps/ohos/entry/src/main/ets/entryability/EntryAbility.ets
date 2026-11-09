@@ -1084,14 +1084,16 @@ export default class EntryAbility extends RustAbility implements StatusBarTrayHo
         return JSON.stringify({ ok: false, error: businessError.message ?? 'startAbility failed' });
       }
     });
+    // Publishing is fire-and-forget: the Rust side must never wait on a common
+    // event, so these handlers answer immediately instead of awaiting delivery.
     RustModule.registerArktsFunction('pet_window_hide', async (_err: Error, _arg: string): Promise<string> => {
-      await publishPetEvent(PET_HIDE_EVENT, '{}');
+      void publishPetEvent(PET_HIDE_EVENT, '{}');
       return '';
     });
     RustModule.registerArktsFunction('pet_window_set_rect', async (_err: Error, arg: string): Promise<string> => {
       try {
         const request: PetWindowRectRequest = JSON.parse(arg) as PetWindowRectRequest;
-        await publishPetEvent(PET_RECT_EVENT,
+        void publishPetEvent(PET_RECT_EVENT,
           JSON.stringify({ width: request.width, height: request.height }));
       } catch (error) {
         hilog.warn(DOMAIN, PET_WINDOW_TAG, 'ignored malformed pet window rect');
@@ -1102,7 +1104,7 @@ export default class EntryAbility extends RustAbility implements StatusBarTrayHo
       // The argument is already `{ event, payload }` JSON and reaches the pet
       // page unchanged, so its parser sees the same shape the desktop window
       // receives from a Tauri event.
-      await publishPetEvent(PET_DELIVER_EVENT, arg);
+      void publishPetEvent(PET_DELIVER_EVENT, arg);
       return '';
     });
     void this.startPetCommandRelay();
