@@ -462,6 +462,27 @@ export function buildBuiltinAppearance(palette: AppearancePalette): AppearancePa
     'diffEditor.insertedTextBorder': '#00000000',
     'diffEditor.removedTextBorder': '#00000000',
   };
+  // Structure guides (indent guides + bracket-pair guide lines): render them
+  // in muted border tones instead of Monaco's defaults. Monaco 0.52 falls
+  // back to the bracket-highlight colors for undefined bracket-pair guide
+  // tokens (`editorBracketHighlight.foreground1` is #FFD700 in dark themes),
+  // so the ACTIVE pair guide — the one lit while the caret sits inside the
+  // range — painted a solid gold vertical line that swallowed the accent
+  // caret wherever a foldable brace column coincided with it (issue #409:
+  // "cursor on the yellow fold line is hard to see").
+  //
+  // The active guides must still read as a highlight, though: the first pass
+  // of this mapping set them to border.base, one barely-visible step above
+  // the border.subtle resting tone, which erased the "caret is inside this
+  // range" feedback entirely. text.muted is a clearly brighter neutral: it
+  // restores the highlight, stays hue-neutral against the accent caret, and
+  // never returns to the gold family.
+  for (let level = 1; level <= 6; level += 1) {
+    monacoColors[`editorIndentGuide.background${level}`] = palette.colors.border.subtle;
+    monacoColors[`editorIndentGuide.activeBackground${level}`] = palette.colors.text.muted;
+    monacoColors[`editorBracketPairGuide.background${level}`] = palette.colors.border.subtle;
+    monacoColors[`editorBracketPairGuide.activeBackground${level}`] = palette.colors.text.muted;
+  }
   Object.entries(monaco?.colors ?? {}).forEach(([key, value]) => {
     if (!['background', 'foreground', 'lineHighlight', 'selection', 'cursor'].includes(key)) {
       monacoColors[key] = value;
