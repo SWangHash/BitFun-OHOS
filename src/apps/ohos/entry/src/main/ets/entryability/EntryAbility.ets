@@ -719,10 +719,12 @@ export default class EntryAbility extends RustAbility implements StatusBarTrayHo
     // cluster can be set this early; the decor geometry waits for the
     // launch-page handoff (see the deferred block).
     this.mainWindowStage = windowStage;
+    this.setNativeTitleButtonsVisible(false, 'startup-sync');
     // The pet subwindow is created later, on demand, but its owner exists as
     // soon as the window stage does so a show request never races the stage.
+    // It stays after the launch-chrome step, which must remain the first
+    // synchronous action of this method.
     this.petWindowService = new PetWindowService(windowStage);
-    this.setNativeTitleButtonsVisible(false, 'startup-sync');
     // Paint the window frame itself black for the whole launch. The system start
     // window owns the first frames; the moment it goes away the window's own
     // background shows through until the launch page paints, and its default is
