@@ -1,33 +1,38 @@
 import {
-  INACTIVE_KNOWLEDGE_ACTIONS,
+  AGENT_DEFAULT_OWNER,
+  DIAGNOSTIC_STAGES,
+  LEDGER_TSV_HEADERS,
+  DEVICE_RUN_DONE,
   MIGRATION_PHASES,
   PHASE_LEDGERS,
   SUPPORTING_LEDGERS,
-  hasLegacyHeader,
-  isBootstrapId,
+  decisionAnswer,
+  isLegacyLayout,
   isPlaceholder,
+  ledgerRowStatus,
   normalizeStatus,
   phaseIdFromLabel,
 } from '../model/ledgerSchema';
 import type {
+  AgentDecisionView,
+  DeviceRunView,
   DiagnosticView,
   DocumentRefView,
-  KnowledgeRefView,
   LedgerRow,
-  MigrationGateResult,
   MigrationLedgerInput,
   MigrationLiveStatus,
   MigrationPhaseId,
   MigrationSnapshot,
   MigrationStatus,
-  PendingDecisionView,
+  ParsedTsv,
   PhaseItemView,
+  PhaseNoteView,
   PhaseView,
+  StateProgressRow,
 } from '../model/types';
 import {
   ADOPTION_LEDGER,
   buildExternalFeatures,
-  buildFeatureSelection,
   featureHostPhase,
   featureRows,
   featureTitle,
@@ -36,21 +41,36 @@ import {
 /** A ledger write newer than this marks the migration as "active". */
 export const ACTIVE_WRITE_WINDOW_MS = 30_000;
 
+/** A parsed ledger in the current layout; a ledger of an older skill reads as absent (it is reported instead). */
+function current(input: MigrationLedgerInput, file: string): ParsedTsv | undefined {
+  const parsed = input.tsv[file];
+  return parsed && !isLegacyLayout(parsed) ? parsed : undefined;
+}
+
 function rows(input: MigrationLedgerInput, file: string): LedgerRow[] {
-  return input.tsv[file]?.rows ?? [];
+  return current(input, file)?.rows ?? [];
 }
 
+/** Data rows that have an id. */
 function meaningfulRows(input: MigrationLedgerInput, file: string): LedgerRow[] {
-  return rows(input, file).filter((row) => row.id && !isBootstrapId(row.id));
+  return rows(input, file).filter((row) => row.id);
 }
 
-function value(row: LedgerRow, key: string): string {
-  const raw = row[key] ?? '';
+function value(row: LedgerRow | undefined, key: string): string {
+  const raw = (row?.[key] ?? '').trim();
   return isPlaceholder(raw) ? '' : raw;
 }
 
-function item(id: string, label: string, rawStatus: string, detail?: string): PhaseItemView {
-  return { id, label: label || id, status: normalizeStatus(rawStatus), rawStatus, detail: detail || undefined };
+function splitIds(raw: string | undefined): string[] {
+  return (raw ?? '').split(/[,;\s]+/).map((entry) => entry.trim()).filter((entry) => entry && !isPlaceholder(entry));
+}
+
+function shorten(text: string, max = 140): string {
+  return text.length > max ? `${text.slice(0, max - 1)}…` : text;
+}
+
+function item(id: string, label: string, status: MigrationStatus, rawStatus: string, detail?: string): PhaseItemView {
+  return { id, label: label || id, status, rawStatus, detail: detail || undefined };
 }
 
 export function getAppRoot(ledgerRoot: string): string {
@@ -59,20 +79,6 @@ export function getAppRoot(ledgerRoot: string): string {
 
 function baseName(path: string): string | undefined {
   return path.split(/[\\/]+/).filter(Boolean).pop() || undefined;
-}
-
-/**
- * Title fallback when STATE.md has no project name. A ledger created inside
- * the HarmonyOS output project (e.g. `<repo>/project/migration/ohos`) is named
- * after the directory that contains that project, not after the output folder.
- */
-function fallbackProjectName(appRoot: string, appRootIsOhosProject?: boolean): string | undefined {
-  if (appRootIsOhosProject) {
-    const segments = appRoot.split(/[\\/]+/).filter(Boolean);
-    const parent = segments[segments.length - 2];
-    if (parent && !/^[A-Za-z]:$/.test(parent)) return parent;
-  }
-  return baseName(appRoot);
 }
 
 function separatorOf(path: string): string {
@@ -93,185 +99,166 @@ function resolveAgainst(appRoot: string, path: string): string {
   return isAbsolutePath(clean) ? clean : joinPath(appRoot, clean);
 }
 
-function aggregateStatus(items: PhaseItemView[]): MigrationStatus {
-  if (items.length === 0) return 'pending';
-  if (items.every((entry) => entry.status === 'done')) return 'done';
-  if (items.some((entry) => entry.status === 'error')) return 'error';
-  if (items.some((entry) => entry.status === 'blocked')) return 'blocked';
-  if (items.some((entry) => entry.status === 'done' || entry.status === 'doing')) return 'doing';
-  return 'pending';
-}
+// ------------------------------------------------------------ phase rows
 
-function migrationState(rawStatus: string): NonNullable<PhaseItemView['migration']> {
-  const status = normalizeStatus(rawStatus);
-  if (status === 'done') return 'done';
-  if (status === 'doing') return 'doing';
-  if (status === 'blocked' || status === 'error') return 'blocked';
-  return 'pending';
-}
+const ENV_NOTICE_TONES: Record<string, NonNullable<PhaseItemView['notice']>['tone']> = {
+  warn: 'warning',
+  fixed: 'fixed',
+  error: 'error',
+  missing: 'error',
+};
 
 /**
- * The inventory phase closes once every gap is recorded (scan evidence and a
- * linked validation row), not once it is migrated. The row's `status` column
- * is the capability's migration state, closed in later phases, and is shown
- * as a separate tag.
+ * Phase 1: one row per environment item (env_probe.py). The right column is
+ * always the version; the issue goes on its own line so it never squeezes the
+ * item name. warn/fixed rows are done (only error/missing block the gate).
  */
-function inventoryItems(input: MigrationLedgerInput): PhaseItemView[] {
-  return meaningfulRows(input, 'inventory.tsv').map((row) => {
-    const detail = [value(row, 'disposition'), value(row, 'risk') && `risk=${value(row, 'risk')}`]
-      .filter(Boolean)
-      .join(' · ');
-    const recorded = !!value(row, 'validation_id') && !!(value(row, 'scan_evidence') || value(row, 'evidence'));
-    const rawStatus = row.status ?? '';
-    return {
-      ...item(row.id, value(row, 'category') || value(row, 'source_location') || row.id, rawStatus, detail),
-      status: recorded ? 'done' : 'pending',
-      migration: migrationState(rawStatus),
-    };
-  });
-}
-
-function decisionItems(input: MigrationLedgerInput): PhaseItemView[] {
-  return meaningfulRows(input, 'decisions.tsv').map((row) =>
-    item(row.id, value(row, 'question') || row.id, row.status ?? '', value(row, 'selected')));
-}
-
-function implementationItems(input: MigrationLedgerInput): PhaseItemView[] {
-  const queue = meaningfulRows(input, 'work-queue.tsv');
-  const doneIds = new Set(queue.filter((row) => normalizeStatus(row.status) === 'done').map((row) => row.id));
-  return queue.map((row) => {
-    const entry = item(row.id, value(row, 'capability') || row.id, row.status ?? '', value(row, 'next_action'));
-    const raw = (row.status ?? '').trim().toLowerCase();
-    if (raw === 'planned' || raw === 'ready') {
-      const prerequisites = (row.prerequisites ?? '')
-        .split(',')
-        .map((prerequisite) => prerequisite.trim())
-        .filter((prerequisite) => prerequisite && prerequisite.toLowerCase() !== 'none');
-      if (prerequisites.every((prerequisite) => doneIds.has(prerequisite))) {
-        entry.status = 'ready';
-      }
-    }
-    const attempts = Number.parseInt(row.attempts ?? '', 10);
-    if (Number.isFinite(attempts) && attempts > 0) {
-      entry.detail = [entry.detail, `×${attempts}`].filter(Boolean).join(' · ');
-    }
+function environmentItems(input: MigrationLedgerInput): PhaseItemView[] {
+  return rows(input, 'environment.tsv').filter((row) => row.id).map((row) => {
+    const raw = (row.status ?? '').trim();
+    const entry = item(row.id, value(row, 'item') || row.id, ledgerRowStatus('environment.tsv', row), raw,
+      value(row, 'version'));
+    entry.hint = value(row, 'path') || undefined;
+    const tone = ENV_NOTICE_TONES[raw.toLowerCase()];
+    const issue = value(row, 'issue');
+    if (tone && (issue || tone === 'warning')) entry.notice = { tone, text: issue || raw };
     return entry;
   });
 }
 
-function isPilotRow(row: LedgerRow): boolean {
-  return (row.phase ?? '').trim().toLowerCase() === 'pilot';
-}
-
 /**
- * Attempt rows of the pilot (`pilot.tsv`) or of the build loop
- * (`diagnostics.tsv`). Ledgers created before `pilot.tsv` existed kept pilot
- * attempts in `diagnostics.tsv` with `phase=pilot`; they still count as pilot.
+ * Phase 2: an inventory row is done once a TASK row names it in `inventory_ids`
+ * (what the inventory gate checks). Inventory rows have no status: what became
+ * of a row is the state of the TASK rows that name it (phase 4).
  */
-function attemptRows(input: MigrationLedgerInput, pilot: boolean): LedgerRow[] {
-  const legacy = meaningfulRows(input, 'diagnostics.tsv').filter((row) => isPilotRow(row) === pilot);
-  return pilot ? [...legacy, ...meaningfulRows(input, 'pilot.tsv')] : legacy;
+function inventoryItems(input: MigrationLedgerInput): PhaseItemView[] {
+  const named = new Set(rows(input, 'tasks.tsv').flatMap((row) => splitIds(row.inventory_ids)));
+  return meaningfulRows(input, 'inventory.tsv').map((row) => {
+    const label = [value(row, 'category'), value(row, 'location')].filter(Boolean).join(' · ');
+    const detail = [value(row, 'disposition'), value(row, 'target_behavior')].filter(Boolean).join(' · ');
+    const tags = [...new Set((row.found_by ?? '').split(';')
+      .map((part) => part.split(':')[0].trim().toLowerCase())
+      .filter((source) => source && !isPlaceholder(source)))];
+    return {
+      ...item(row.id, label || row.id, named.has(row.id) ? 'done' : 'pending', '', shorten(detail)),
+      tags: tags.length > 0 ? tags : undefined,
+    };
+  });
 }
 
-function diagnosticItems(input: MigrationLedgerInput, pilot: boolean): PhaseItemView[] {
-  return attemptRows(input, pilot)
-    .map((row) => item(
-      row.id,
-      value(row, 'first_causal_signature') || value(row, 'category') || row.id,
-      row.status ?? '',
-      value(row, 'category'),
-    ));
+function isAgentDefault(row: LedgerRow): boolean {
+  return value(row, 'owner').toLowerCase() === AGENT_DEFAULT_OWNER;
+}
+
+function decisionItem(row: LedgerRow): PhaseItemView {
+  const entry = item(row.id, value(row, 'question') || row.id, ledgerRowStatus('decisions.tsv', row),
+    decisionAnswer(row) ? 'answered' : 'unanswered', decisionAnswer(row));
+  if (isAgentDefault(row) && decisionAnswer(row)) entry.decidedByAgent = true;
+  return entry;
+}
+
+/** Phase 3: every question (external-feature answers are never decisions.tsv rows). */
+function decisionsItems(input: MigrationLedgerInput): PhaseItemView[] {
+  return meaningfulRows(input, 'decisions.tsv').map(decisionItem);
+}
+
+const LAST_BATCH_RE = /\[last batch ([^\]]+)\]/;
+
+/** Phase 4: TASK rows. */
+function tasksItems(input: MigrationLedgerInput): PhaseItemView[] {
+  return meaningfulRows(input, 'tasks.tsv').map((row) => {
+    const caps = splitIds(row.inventory_ids).length;
+    const vals = splitIds(row.validation_ids).length;
+    const batch = (row.evidence ?? '').match(LAST_BATCH_RE)?.[1];
+    const detail = [caps && `INV ×${caps}`, vals && `VAL ×${vals}`, batch && `batch ${batch}`].filter(Boolean).join(' · ');
+    return item(row.id, value(row, 'task') || row.id, ledgerRowStatus('tasks.tsv', row), row.status ?? '', detail);
+  });
+}
+
+/** Phase 6: the capability FEAT rows (the user's answers are in their notes, shown on the feature cards). */
+function featuresItems(input: MigrationLedgerInput): PhaseItemView[] {
+  return featurePhaseItems(input, 'features');
+}
+
+/** Phase 7: acceptance scenarios, then the verification FEAT rows. */
+function validationItems(input: MigrationLedgerInput): PhaseItemView[] {
+  return [
+    ...meaningfulRows(input, 'validation.tsv').map((row) => item(
+      row.id, value(row, 'scenario') || row.id, ledgerRowStatus('validation.tsv', row), row.status ?? '',
+      shorten(value(row, 'evidence') || value(row, 'expected')))),
+    ...featurePhaseItems(input, 'validation'),
+  ];
 }
 
 function phaseItems(input: MigrationLedgerInput, phase: MigrationPhaseId): PhaseItemView[] {
   switch (phase) {
-    case 'baseline':
-      return rows(input, 'environment.tsv').filter((row) => row.id).map((row) =>
-        item(row.id, value(row, 'name') || row.id, row.status ?? '', value(row, 'value')));
+    case 'environment':
+      return environmentItems(input);
     case 'inventory':
       return inventoryItems(input);
-    case 'contract':
-      return decisionItems(input);
-    case 'pilot':
-      return diagnosticItems(input, true);
-    case 'implementation':
-      return implementationItems(input);
-    case 'features':
-      return featurePhaseItems(input, 'features');
+    case 'decisions':
+      return decisionsItems(input);
+    case 'tasks':
+      return tasksItems(input);
     case 'diagnostics':
-      return diagnosticItems(input, false);
-    case 'handoff':
-      return [
-        ...meaningfulRows(input, 'validation.tsv').map((row) =>
-          item(row.id, value(row, 'scenario') || row.id, row.status ?? '', value(row, 'platform'))),
-        ...featurePhaseItems(input, 'handoff'),
-      ];
+      // The problems are listed in their own section; the phase shows counts (phaseNotes).
+      return [];
+    case 'features':
+      return featuresItems(input);
+    case 'validation':
+      return validationItems(input);
     default:
       return [];
   }
 }
 
-/**
- * FEAT rows of the external features that hook into `phase` (legacy rows and
- * rows without a host phase belong to `features`). Legacy "no feature
- * selected" template rows still count for the features phase.
- */
+/** FEAT rows of the external features that hook into `phase`. */
 function featurePhaseItems(input: MigrationLedgerInput, phase: MigrationPhaseId): PhaseItemView[] {
-  const selected = new Set(featureRows(input));
-  return rows(input, ADOPTION_LEDGER)
-    .filter((row) => row.id && !isBootstrapId(row.id))
-    .filter((row) => (selected.has(row) ? featureHostPhase(row, input) === phase : phase === 'features'))
+  return featureRows(input)
+    .filter((row) => featureHostPhase(row, input) === phase)
     .map((row) => item(
       row.id,
-      selected.has(row) ? featureTitle(row, input) : value(row, 'feature_id') || row.id,
+      featureTitle(row, input),
+      normalizeStatus(row.status),
       row.status ?? '',
-      value(row, 'current_step') || value(row, 'kind') || value(row, 'playbook_path'),
+      value(row, 'current_step') || value(row, 'kind'),
     ));
 }
+
+/** device-runs.tsv status → the phase note shown for it. */
+const DEVICE_RUN_NOTES: Record<string, Pick<PhaseNoteView, 'kind' | 'tone'>> = {
+  run: { kind: 'deviceRun', tone: 'success' },
+  'no-device': { kind: 'noDevice', tone: 'neutral' },
+  checked: { kind: 'hapChecked', tone: 'warning' },
+  'hap-failed': { kind: 'hapFailed', tone: 'error' },
+};
+
+/** Phase 5 facts: problem counts and the application HAP's latest result (device-runs.tsv). */
+function phaseNotes(
+  phase: MigrationPhaseId,
+  diagnostics: DiagnosticView[],
+  deviceRun: DeviceRunView | undefined,
+): PhaseNoteView[] | undefined {
+  if (phase !== 'diagnostics') return undefined;
+  const open = diagnostics.filter((entry) => entry.open).length;
+  const blocked = diagnostics.filter((entry) => entry.status === 'blocked').length;
+  const fixed = diagnostics.filter((entry) => entry.status === 'done').length;
+  const notes: PhaseNoteView[] = [{
+    kind: 'problems',
+    tone: open > 0 ? 'error' : blocked > 0 ? 'warning' : diagnostics.length > 0 ? 'success' : 'neutral',
+    values: { open, blocked, fixed },
+  }];
+  notes.push(DEVICE_RUN_NOTES[deviceRun?.status ?? ''] ?? { kind: 'noHap', tone: 'warning' });
+  return notes;
+}
+
+// ------------------------------------------------------------ phases and gates
 
 function resolveCurrentPhase(raw: string | undefined): MigrationPhaseId | undefined {
   if (!raw) return undefined;
   const text = raw.replace(/`/g, '').trim().toLowerCase();
   const exact = MIGRATION_PHASES.find((phase) => text === phase || text.startsWith(`${phase} `));
   return exact ?? phaseIdFromLabel(text);
-}
-
-/** Newest gate verdict per phase: stdout of this app run vs. STATE.md "Last gate". */
-export function collectGates(input: MigrationLedgerInput): Partial<Record<MigrationPhaseId, MigrationGateResult>> {
-  const gates: Partial<Record<MigrationPhaseId, MigrationGateResult>> = { ...(input.gates ?? {}) };
-  const fromState = input.state?.gate.lastGate;
-  if (fromState) {
-    const live = gates[fromState.phase];
-    // Equal / unknown times prefer stdout: it carries the full unmet list.
-    if (!live || (fromState.at !== undefined && (live.at === undefined || fromState.at > live.at + 1_000))) {
-      gates[fromState.phase] = fromState;
-    }
-  }
-  return gates;
-}
-
-/**
- * Phase the agent is working on. A READY gate for (or past) the phase named in
- * STATE.md means the agent has moved on even if STATE.md was not updated yet.
- */
-export function effectiveCurrentPhase(
-  fromState: MigrationPhaseId | undefined,
-  gates: Partial<Record<MigrationPhaseId, MigrationGateResult>>,
-): MigrationPhaseId | undefined {
-  let latestReady: MigrationGateResult | undefined;
-  for (const gate of Object.values(gates)) {
-    if (gate?.verdict !== 'ready') continue;
-    if (!latestReady || (gate.at ?? 0) > (latestReady.at ?? 0)
-      || ((gate.at ?? 0) === (latestReady.at ?? 0)
-        && MIGRATION_PHASES.indexOf(gate.phase) > MIGRATION_PHASES.indexOf(latestReady.phase))) {
-      latestReady = gate;
-    }
-  }
-  if (!latestReady) return fromState;
-  const passedIndex = MIGRATION_PHASES.indexOf(latestReady.phase);
-  const next = MIGRATION_PHASES[Math.min(passedIndex + 1, MIGRATION_PHASES.length - 1)];
-  if (!fromState) return next;
-  return MIGRATION_PHASES.indexOf(fromState) <= passedIndex ? next : fromState;
 }
 
 /** An agent is working right now: running session, gate script or fresh write. */
@@ -285,208 +272,127 @@ function allItemsDone(phase: PhaseView): boolean {
   return phase.total > 0 && phase.done === phase.total;
 }
 
+/**
+ * Phase status is STATE.md's Progress row alone (the skill's gate and ledger
+ * scripts keep it current: planned / in-progress / blocked / failed / passed).
+ * Whether an agent is working only decides how `in-progress` is drawn.
+ */
 function buildPhases(
   input: MigrationLedgerInput,
-  currentPhase: MigrationPhaseId | undefined,
-  gates: Partial<Record<MigrationPhaseId, MigrationGateResult>>,
+  notesOf: (phase: MigrationPhaseId) => PhaseNoteView[] | undefined,
 ): PhaseView[] {
   const working = agentWorking(input);
-  const currentIndex = currentPhase ? MIGRATION_PHASES.indexOf(currentPhase) : -1;
-  // Gates are cumulative: a READY gate also proves every phase before it.
-  const lastReadyIndex = Math.max(-1, ...MIGRATION_PHASES
-    .filter((phase) => gates[phase]?.verdict === 'ready')
-    .map((phase) => MIGRATION_PHASES.indexOf(phase)));
-  const progressByPhase = new Map<MigrationPhaseId, { status: string; evidence: string }>();
+  const progressByPhase = new Map<MigrationPhaseId, StateProgressRow>();
   for (const row of input.state?.progress ?? []) {
-    if (row.phaseId && !progressByPhase.has(row.phaseId)) {
-      progressByPhase.set(row.phaseId, { status: row.status, evidence: row.evidence });
-    }
+    if (row.phaseId && !progressByPhase.has(row.phaseId)) progressByPhase.set(row.phaseId, row);
   }
 
   return MIGRATION_PHASES.map((phase) => {
     const items = phaseItems(input, phase);
     const done = items.filter((entry) => entry.status === 'done').length;
     const fromState = progressByPhase.get(phase);
-    const stateStatus = fromState && !isPlaceholder(fromState.status) ? normalizeStatus(fromState.status) : undefined;
-    const gate = gates[phase];
-    let status: MigrationStatus;
-    let statusSource: PhaseView['statusSource'];
-    if (stateStatus && stateStatus !== 'unknown') {
-      status = stateStatus;
-      statusSource = 'state';
-    } else {
-      status = aggregateStatus(items);
-      statusSource = 'ledger';
-    }
-    if (status !== 'done' && MIGRATION_PHASES.indexOf(phase) <= lastReadyIndex) {
-      // The gate script is authoritative; STATE.md may lag behind it.
-      status = 'done';
-      statusSource = 'gate';
-    }
-    if (
-      status !== 'done' && statusSource === 'state' && currentIndex > MIGRATION_PHASES.indexOf(phase)
-      && items.length > 0 && done === items.length
-    ) {
-      // The agent moved past this phase and its ledger rows are all closed;
-      // STATE.md's Progress row simply was not updated.
-      status = 'done';
-      statusSource = 'ledger';
-    }
-    if (working && phase === currentPhase && (status === 'pending' || status === 'ready')) {
-      status = 'doing';
-    }
+    const status: MigrationStatus = fromState && !isPlaceholder(fromState.status) ? normalizeStatus(fromState.status) : 'unknown';
     const ledger = PHASE_LEDGERS[phase];
     return {
       id: phase,
       ledger,
       ledgerPath: input.tsv[ledger] ? joinPath(input.ledgerRoot, ledger) : undefined,
       status,
-      statusSource,
       rawStatus: fromState?.status,
-      evidence: fromState && !isPlaceholder(fromState.evidence) ? fromState.evidence : undefined,
       done,
       total: items.length,
       items,
-      gate,
+      notes: notesOf(phase),
+      gate: fromState?.gate,
       paused: status === 'doing' && !working ? true : undefined,
     };
   });
 }
 
 /**
- * Finished migration: the skill's final completion tier, no agent working,
- * and handoff either passed or with every deliverable row closed. A BLOCKED
- * handoff gate is then reported next to the result instead of keeping the
- * phases "in progress" forever.
+ * The migration has ended: the validation phase passed, or the agent ran the
+ * validation gate, stopped, and every validation row is closed. A NOT-READY
+ * validation gate is then reported next to the result. Whether it ended
+ * *verified* is `liveStatus`'s call.
  */
-function isCompleted(input: MigrationLedgerInput, phases: PhaseView[]): boolean {
-  const tier = (input.state?.gate.completionTier ?? '').toLowerCase();
-  if (!tier.includes('behavior-verified')) return false;
-  const handoff = phases.find((phase) => phase.id === 'handoff');
-  if (!handoff) return false;
-  if (handoff.status === 'done') return true;
-  return !agentWorking(input) && allItemsDone(handoff);
+function isFinished(input: MigrationLedgerInput, phases: PhaseView[]): boolean {
+  const validation = phases.find((phase) => phase.id === 'validation');
+  if (!validation) return false;
+  if (validation.status === 'done') return true;
+  return !!validation.gate && !agentWorking(input) && allItemsDone(validation);
 }
 
-/**
- * First phase that is still open. Phases run in order, so STATE.md's
- * "Current phase" cannot be trusted when it points past an open phase (an
- * agent hand-edited it). Legacy phases with neither a Progress row nor ledger
- * rows carry no evidence either way and are not treated as open.
- */
-function firstOpenPhase(phases: PhaseView[]): MigrationPhaseId | undefined {
-  return phases.find((phase) => (
-    phase.status !== 'done' && (phase.statusSource === 'state' || phase.total > 0)
-  ))?.id;
+// ------------------------------------------------------------ sections
+
+/** Answers the runtime chose on the user's behalf (`owner=agent-default`). */
+function buildAgentDecisions(input: MigrationLedgerInput): AgentDecisionView[] {
+  return meaningfulRows(input, 'decisions.tsv')
+    .filter((row) => isAgentDefault(row) && decisionAnswer(row))
+    .map((row) => ({ id: row.id, question: value(row, 'question') || row.id, answer: decisionAnswer(row) }));
 }
 
-function closeCompletedPhases(phases: PhaseView[]): PhaseView[] {
-  return phases.map((phase) => (
-    phase.status !== 'done' && (allItemsDone(phase) || phase.total === 0)
-      ? { ...phase, status: 'done', statusSource: 'ledger', paused: undefined }
-      : phase
-  ));
-}
-
-function buildPendingDecisions(input: MigrationLedgerInput): PendingDecisionView[] {
-  const pending: PendingDecisionView[] = [];
-  const seen = new Set<string>();
-  for (const row of meaningfulRows(input, 'decisions.tsv')) {
-    const status = normalizeStatus(row.status);
-    const awaitingUser = (row.owner ?? '').trim().toLowerCase() === 'user' && !value(row, 'approved_at');
-    if (status === 'done' || !awaitingUser) continue;
-    seen.add(row.id);
-    pending.push({
-      id: row.id,
-      question: value(row, 'question') || row.id,
-      options: value(row, 'options') || undefined,
-      impact: value(row, 'impact') || undefined,
-      owner: value(row, 'owner') || undefined,
-      status,
-      rawStatus: row.status ?? '',
-      source: 'decisions.tsv',
-    });
-  }
-  for (const row of input.state?.decisions ?? []) {
-    if (isPlaceholder(row.id) || isPlaceholder(row.item) || seen.has(row.id) || isBootstrapId(row.id)) continue;
-    const ownerStatus = row.ownerStatus.toLowerCase();
-    if (/\b(approved|closed|resolved|done|passed|accepted|not-applicable)\b/.test(ownerStatus)) continue;
-    pending.push({
-      id: row.id,
-      question: row.item,
-      owner: row.ownerStatus || undefined,
-      status: /blocked/.test(ownerStatus) ? 'blocked' : 'pending',
-      rawStatus: row.ownerStatus,
-      source: 'STATE.md',
-    });
-  }
-  return pending;
-}
-
-/** Raw statuses that mean a problem was met (fixed or not). */
-const PROBLEM_STATUSES = new Set(['failed', 'timeout', 'blocked', 'resolved', 'open', 'error']);
-const OPEN_PROBLEM_STATUSES = new Set(['failed', 'timeout', 'blocked', 'open', 'error']);
 /** Logs worth opening in the editor; binaries, directories and command labels are skipped. */
-const TEXT_LOG_RE = /[\\/][^\\/]+\.(log|txt|json|md|tsv|out|err)$/i;
+const TEXT_LOG_RE = /\.(log|txt|json|md|tsv|out|err)$/i;
+const STAGE_SET = new Set<string>(DIAGNOSTIC_STAGES);
 
-function splitIds(raw: string | undefined): string[] {
-  return (raw ?? '').split(',').map((entry) => entry.trim()).filter(Boolean);
+/** `reproduce` is `<command> (cwd <dir>); log: <path>`. */
+function splitReproduce(raw: string): { command: string; log?: string } {
+  const match = raw.match(/^(.*?)(?:;\s*)?\blog:\s*(.+)$/i);
+  if (!match) return { command: raw.trim() };
+  return { command: match[1].trim().replace(/;$/, '').trim(), log: match[2].trim() };
 }
 
+/** One card per problem: open first, then blocked, then fixed; newest first within each group. */
 function buildDiagnostics(input: MigrationLedgerInput, appRoot: string): DiagnosticView[] {
-  // Chronological: pilot attempts precede the build loop.
-  const source = [...attemptRows(input, true), ...attemptRows(input, false)];
-  const isProblem = (row: LedgerRow) => {
-    const raw = (row.status ?? '').trim().toLowerCase();
-    return PROBLEM_STATUSES.has(raw)
-      || /^unclassified$/i.test((row.category ?? '').trim())
-      || /^unclassified$/i.test((row.first_causal_signature ?? '').trim());
-  };
-  const problemRows = source.filter(isProblem);
-
-  const views = source.map((row): DiagnosticView => {
-    const attempts = Number.parseInt(row.attempts ?? '', 10);
-    const logRaw = value(row, 'log_path');
-    const logPath = logRaw ? resolveAgainst(appRoot, logRaw) : '';
-    const signature = (row.first_causal_signature ?? '').trim();
-    const rawStatus = (row.status ?? '').trim().toLowerCase();
-    const unclassified = /^unclassified$/i.test(signature) || /^unclassified$/i.test(row.category ?? '');
-    const problem = isProblem(row);
-    let unrecordedFailures = 0;
-    if (!problem && Number.isFinite(attempts) && attempts > 1) {
-      const first = splitIds(row.affected_ids)[0];
-      const runId = (row.build_or_device_run_id ?? '').trim();
-      const recorded = problemRows.filter((other) =>
-        (first && splitIds(other.affected_ids)[0] === first)
-        || (runId && (other.build_or_device_run_id ?? '').trim() === runId)).length;
-      unrecordedFailures = Math.max(0, attempts - 1 - recorded);
-    }
+  const views = meaningfulRows(input, 'diagnostics.tsv').map((row): DiagnosticView => {
+    const location = value(row, 'location');
+    const colon = location.indexOf(':');
+    const head = colon >= 0 ? location.slice(0, colon).trim().toLowerCase() : '';
+    const stage = STAGE_SET.has(head) ? head : '';
+    const where = stage ? location.slice(colon + 1).trim() : location;
+    const status = ledgerRowStatus('diagnostics.tsv', row);
+    const reproduce = splitReproduce(value(row, 'reproduce'));
+    const logPath = reproduce.log ? resolveAgainst(appRoot, reproduce.log) : '';
+    const open = status === 'error';
     return {
       id: row.id,
-      kind: problem ? 'problem' : 'receipt',
-      open: problem && (OPEN_PROBLEM_STATUSES.has(rawStatus) || (unclassified && rawStatus !== 'resolved')),
-      phase: value(row, 'phase'),
-      category: value(row, 'category'),
-      signature: isPlaceholder(signature) ? '' : signature,
-      rootCause: value(row, 'root_cause'),
-      attempts: Number.isFinite(attempts) ? attempts : 0,
-      status: normalizeStatus(row.status),
+      stage,
+      where,
+      symptom: value(row, 'symptom'),
+      cause: value(row, 'cause'),
+      fix: value(row, 'fix'),
+      status,
       rawStatus: row.status ?? '',
-      recurrence: value(row, 'recurrence'),
+      open,
+      needsCause: open && !value(row, 'cause'),
+      reproduce: reproduce.command,
       logPath: TEXT_LOG_RE.test(logPath) ? logPath : undefined,
-      nextAction: value(row, 'fix_or_next_action'),
-      unclassified,
-      unrecordedFailures,
     };
   });
-  // Open problems first, then fixed problems, then receipts; newest first within each group.
-  const rank = (view: DiagnosticView) => (view.kind === 'receipt' ? 2 : view.open ? 0 : 1);
+  const rank = (view: DiagnosticView) => (view.open ? 0 : view.status === 'blocked' ? 1 : 2);
   const order = new Map(views.map((view, index) => [view, index]));
   return [...views].sort((left, right) => rank(left) - rank(right) || order.get(right)! - order.get(left)!);
 }
 
-/** Navigation and handoff documents, in reading order. Package payloads and logs are not listed. */
-const DOCUMENT_ORDER = ['report.md', 'STATE.md', 'PORTING_CONTRACT.md', 'assessment.md'];
+/** The one device-runs.tsv row (the skill rewrites it; the last row wins if a hand edit added more). */
+function buildDeviceRun(input: MigrationLedgerInput): DeviceRunView | undefined {
+  const runs = meaningfulRows(input, 'device-runs.tsv');
+  const row = runs[runs.length - 1];
+  return row && {
+    id: row.id,
+    hap: value(row, 'hap'),
+    status: (row.status ?? '').trim().toLowerCase(),
+    evidence: value(row, 'evidence'),
+  };
+}
+
+/** The path part of a device-runs.tsv `hap` cell (`<path> (<bundle>)`). */
+function hapPath(cell: string): string {
+  return cell.trimEnd().endsWith(')') && cell.includes(' (') ? cell.slice(0, cell.lastIndexOf(' (')).trim() : cell.trim();
+}
+
+/** Navigation and delivery documents, in reading order. Package payloads and logs are not listed. */
+const DOCUMENT_ORDER = ['report.md', 'STATE.md'];
 
 function buildDocuments(input: MigrationLedgerInput): DocumentRefView[] {
   const documents = Object.entries(input.documents)
@@ -500,7 +406,7 @@ function buildDocuments(input: MigrationLedgerInput): DocumentRefView[] {
     })
     .map(([name, doc]): DocumentRefView => ({ id: `doc:${name}`, kind: 'document', label: name, path: doc.path }));
   const ledgers = SUPPORTING_LEDGERS
-    .filter((name) => input.tsv[name])
+    .filter((name) => current(input, name))
     .map((name): DocumentRefView => ({
       id: `ledger:${name}`,
       kind: 'ledger',
@@ -508,23 +414,16 @@ function buildDocuments(input: MigrationLedgerInput): DocumentRefView[] {
       path: joinPath(input.ledgerRoot, name),
       rows: meaningfulRows(input, name).length,
     }));
-  return [...documents, ...ledgers];
+  // The deliverable: the application HAP of device-runs.tsv once it passed hap_check.py.
+  const run = buildDeviceRun(input);
+  const hap = run && (DEVICE_RUN_DONE.has(run.status) || run.status === 'checked') ? hapPath(run.hap) : '';
+  const artifacts: DocumentRefView[] = hap
+    ? [{ id: 'artifact:hap', kind: 'artifact', label: baseName(hap) ?? hap, path: '', target: hap }]
+    : [];
+  return [...documents, ...ledgers, ...artifacts];
 }
 
-function buildKnowledge(input: MigrationLedgerInput): KnowledgeRefView[] {
-  return rows(input, 'knowledge-manifest.tsv')
-    .filter((row) => (row.used ?? '').trim().toLowerCase() === 'yes')
-    .filter((row) => !INACTIVE_KNOWLEDGE_ACTIONS.has((row.action ?? '').trim().toLowerCase()))
-    .filter((row) => value(row, 'source_path'))
-    .map((row) => ({
-      id: row.source_path,
-      sourcePath: row.source_path,
-      snapshotPath: value(row, 'snapshot_path') || undefined,
-      modified: value(row, 'modified') || undefined,
-      action: value(row, 'action') || undefined,
-    }));
-}
-
+/** Done phases count 1; the others count their share of closed rows (phase 5: no open problem). */
 function overallPercent(phases: PhaseView[]): number {
   if (phases.length === 0) return 0;
   const sum = phases.reduce((total, phase) => {
@@ -538,15 +437,15 @@ function overallPercent(phases: PhaseView[]): number {
 function liveStatus(
   input: MigrationLedgerInput,
   phases: PhaseView[],
-  decisions: PendingDecisionView[],
   diagnostics: DiagnosticView[],
+  deviceRun: DeviceRunView | undefined,
 ): MigrationLiveStatus {
-  if (isCompleted(input, phases)) return 'completed';
+  // Done only when the application HAP ran on a device; otherwise the migration merely ended.
+  if (isFinished(input, phases)) return deviceRun?.status === 'run' ? 'completed' : 'ended';
   if (agentWorking(input)) return 'active';
   const assessment = (input.state?.gate.assessment ?? '').toLowerCase();
   if (
     assessment === 'blocked'
-    || decisions.some((decision) => decision.status === 'blocked')
     || diagnostics.some((diagnostic) => diagnostic.status === 'blocked')
     || phases.some((phase) => phase.status === 'blocked')
   ) {
@@ -555,12 +454,16 @@ function liveStatus(
   return 'idle';
 }
 
+/** Ledgers written with another column layout (an older skill): reported, not rendered. */
 function schemaWarnings(input: MigrationLedgerInput): string[] {
   const warnings: string[] = [];
   for (const [file, parsed] of Object.entries(input.tsv)) {
-    if (parsed && parsed.header.length > 0 && parsed.missingColumns.length > 0 && !hasLegacyHeader(file, parsed.header)) {
-      warnings.push(`${file}: ${parsed.missingColumns.join(', ')}`);
-    }
+    if (!parsed || !isLegacyLayout(parsed) || !LEDGER_TSV_HEADERS[file]) continue;
+    const detail = [
+      parsed.missingColumns.length > 0 && `-${parsed.missingColumns.join(',')}`,
+      parsed.extraColumns.length > 0 && `+${parsed.extraColumns.join(',')}`,
+    ].filter(Boolean).join(' ');
+    warnings.push(`${file} (${detail})`);
   }
   return warnings;
 }
@@ -569,60 +472,44 @@ function schemaWarnings(input: MigrationLedgerInput): string[] {
  * Pure function: parsed ledgers → panel view-model.
  *
  * This is a display approximation of the skill's phase gates. The authoritative
- * READY/BLOCKED verdict remains `validate_ledgers.py --phase <phase>`.
+ * READY/NOT-READY verdict remains `validate_ledgers.py --phase <phase>`.
  */
 export function deriveSnapshot(input: MigrationLedgerInput): MigrationSnapshot {
-  const appRoot = getAppRoot(input.ledgerRoot);
   const gate = input.state?.gate ?? {};
   const scope = input.state?.scope ?? {};
-  const gates = collectGates(input);
-  let currentPhase = effectiveCurrentPhase(resolveCurrentPhase(gate.currentPhase), gates);
-  let builtPhases = buildPhases(input, currentPhase, gates);
-  if (currentPhase && !isCompleted(input, builtPhases)) {
-    const open = firstOpenPhase(builtPhases);
-    if (open && MIGRATION_PHASES.indexOf(open) < MIGRATION_PHASES.indexOf(currentPhase)) {
-      currentPhase = open;
-      builtPhases = buildPhases(input, currentPhase, gates);
-    }
-  }
-  const completed = isCompleted(input, builtPhases);
-  const phases = completed ? closeCompletedPhases(builtPhases) : builtPhases;
-  const handoffGate = gates.handoff;
-  const decisionsPending = buildPendingDecisions(input);
+  // The ledger lives in the output container; relative paths resolve against the Qt sources.
+  const appRoot = scope.source || getAppRoot(input.ledgerRoot);
   const diagnostics = buildDiagnostics(input, appRoot);
+  const deviceRun = buildDeviceRun(input);
+  const notesOf = (phase: MigrationPhaseId) => phaseNotes(phase, diagnostics, deviceRun);
 
-  const scopeValue = (pattern: RegExp): string | undefined => {
-    const key = Object.keys(scope).find((candidate) => pattern.test(candidate.toLowerCase()));
-    const raw = key ? scope[key] : undefined;
-    return raw && !isPlaceholder(raw) ? raw : undefined;
-  };
+  const phases = buildPhases(input, notesOf);
+  const finished = isFinished(input, phases);
+  const validationGate = phases.find((phase) => phase.id === 'validation')?.gate;
 
   return {
     ledgerRoot: input.ledgerRoot,
     appRoot,
     header: {
-      project: scopeValue(/project|repositor/) ?? fallbackProjectName(appRoot, input.appRootIsOhosProject),
-      revision: scopeValue(/revision/),
-      assessment: gate.assessment,
-      completionTier: gate.completionTier,
-      currentPhase,
+      project: scope.target || baseName(appRoot),
+      scope,
+      revision: scope.revision,
+      // STATE.md alone: the gate advances it and moves back a hand edit that skips phases.
+      currentPhase: resolveCurrentPhase(gate.currentPhase),
       currentPhaseRaw: gate.currentPhase,
-      lastUpdated: gate.lastUpdated,
-      lastCompletedAction: gate.lastCompletedAction,
       nextAction: gate.nextExecutableAction,
       activeAction: input.activeAction,
       overallPercent: overallPercent(phases),
-      liveStatus: liveStatus(input, phases, decisionsPending, diagnostics),
+      liveStatus: liveStatus(input, phases, diagnostics, deviceRun),
       lastWriteAt: input.lastWriteAt,
-      completedGateBlocked: completed && handoffGate?.verdict === 'blocked' ? handoffGate : undefined,
+      completedGateNotReady: finished && validationGate?.verdict === 'not-ready' ? validationGate : undefined,
     },
-    decisionsPending,
+    decisionsByAgent: buildAgentDecisions(input),
     phases,
     diagnostics,
-    externalFeatures: buildExternalFeatures(input, agentWorking(input)),
-    featureSelection: buildFeatureSelection(input),
+    deviceRun,
+    externalFeatures: current(input, ADOPTION_LEDGER) ? buildExternalFeatures(input, agentWorking(input)) : [],
     documents: buildDocuments(input),
-    knowledge: buildKnowledge(input),
     skillInvoked: input.skillInvoked ?? false,
     schemaWarnings: schemaWarnings(input),
   };

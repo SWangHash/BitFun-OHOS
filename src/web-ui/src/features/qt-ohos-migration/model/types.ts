@@ -1,20 +1,19 @@
 /**
  * View-model types for the qt-harmonyos-migration progress panel.
  *
- * The skill persists its state in `<app>/migration/ohos/` (STATE.md + TSV
+ * The skill persists its state in `<container>/migration/ohos/` (STATE.md + TSV
  * ledgers). These types describe the parsed ledgers and the derived snapshot
  * rendered by `MigrationProgressPanel`. The panel is strictly read-only.
  */
 
 export type MigrationPhaseId =
-  | 'baseline'
+  | 'environment'
   | 'inventory'
-  | 'contract'
-  | 'pilot'
-  | 'implementation'
+  | 'decisions'
+  | 'tasks'
   | 'features'
   | 'diagnostics'
-  | 'handoff';
+  | 'validation';
 
 /** Normalized status used for icons, colors and `data-bitfun-status`. */
 export type MigrationStatus =
@@ -26,7 +25,11 @@ export type MigrationStatus =
   | 'error'
   | 'unknown';
 
-export type MigrationLiveStatus = 'active' | 'blocked' | 'completed' | 'idle';
+/**
+ * `completed`: the migration ended and the application HAP ran on a device (device-runs.tsv `run`);
+ * `ended`: the migration ended without that proof (no device, or the HAP never ran) — not shown as done.
+ */
+export type MigrationLiveStatus = 'active' | 'blocked' | 'completed' | 'ended' | 'idle';
 
 export type LedgerRow = Record<string, string>;
 
@@ -37,54 +40,53 @@ export interface ParsedTsv {
   extraColumns: string[];
 }
 
-export type MigrationGateVerdict = 'ready' | 'blocked';
+export type MigrationGateVerdict = 'ready' | 'not-ready';
 
-/** A phase-gate verdict, from gate stdout (tool events) or `STATE.md` "Last gate". */
+/** A phase's latest gate verdict: the Gate cell of its STATE.md Progress row. */
 export interface MigrationGateResult {
   phase: MigrationPhaseId;
   verdict: MigrationGateVerdict;
   /** Epoch ms when the verdict was produced, when known. */
   at?: number;
-  /** Unmet conditions (stdout lists all; STATE.md keeps only the first). */
+  /** The first unmet condition (STATE.md keeps only that one; `unmetCount` has the total). */
   unmet: string[];
   unmetCount: number;
   /** `validate_ledgers.py` reported INVALID ledgers (never counted as passed). */
   invalid?: boolean;
-  tool?: string;
-  source: 'stdout' | 'state';
 }
 
 export interface StateGate {
   assessment?: string;
   currentPhase?: string;
   completionTier?: string;
-  lastUpdated?: string;
-  lastCompletedAction?: string;
   nextExecutableAction?: string;
-  /** Parsed `- Last gate:` line written by the skill's gate scripts. */
-  lastGate?: MigrationGateResult;
 }
 
 export interface StateProgressRow {
   phase: string;
   phaseId?: MigrationPhaseId;
   status: string;
-  evidence: string;
+  /** The Gate column, written by the gate scripts. */
+  gate?: MigrationGateResult;
 }
 
-export interface StateDecisionRow {
-  id: string;
-  item: string;
-  evidence: string;
-  ownerStatus: string;
-  nextAction: string;
+/** STATE.md "Scope and target" table (what the porting contract used to hold). */
+export interface StateScope {
+  /** Application target: the TARGET name of the authoritative build file (library `lib<target>.so`). */
+  target?: string;
+  /** Qt source root (the ledger lives in the output container, not in the sources). */
+  source?: string;
+  /** HarmonyOS output project (a subdirectory of the output container, next to `migration/`). */
+  outputProject?: string;
+  /** Source revision (and dirty paths) at the start of the migration. */
+  revision?: string;
 }
 
+/** STATE.md keeps only what no ledger holds: the scope, the gate fields and the Progress status per phase. */
 export interface ParsedStateMd {
+  scope: StateScope;
   gate: StateGate;
   progress: StateProgressRow[];
-  scope: Record<string, string>;
-  decisions: StateDecisionRow[];
 }
 
 export interface LedgerDocument {
@@ -103,20 +105,13 @@ export interface MigrationLedgerInput {
   documents: Record<string, LedgerDocument>;
   /** Most recent modification time (ms) across all ledger files. */
   lastWriteAt?: number;
-  /**
-   * The ledger's parent directory is a HarmonyOS project (AppScope/hvigor
-   * files), i.e. the ledger was created inside the converted output project.
-   */
-  appRootIsOhosProject?: boolean;
   /** Script currently executed by the agent, from tool events. */
   activeAction?: string;
   /** Whether the skill was invoked in the current app run. */
   skillInvoked?: boolean;
   /** The migration agent session is currently running (PROCESSING / FINISHING). */
   sessionRunning?: boolean;
-  /** Gate verdicts parsed from tool output in this app run, per phase. */
-  gates?: Partial<Record<MigrationPhaseId, MigrationGateResult>>;
-  /** Metadata of the external feature packages referenced by feature-adoption.tsv, by package_path. */
+  /** Metadata of the external feature packages referenced by features.tsv, by package_path. */
   featurePackages?: Record<string, FeaturePackageInfo>;
   /** Files of each feature's private work directory (`<root>/features/<FEAT>/`), by FEAT id. */
   featureWorkdirs?: Record<string, FeatureWorkdirInfo>;
@@ -155,9 +150,9 @@ export interface FeatureWorkdirInfo {
   files: FeatureWorkdirFile[];
 }
 
-export type FeatureGateVerdict = 'ready' | 'blocked' | 'closed';
+export type FeatureGateVerdict = 'ready' | 'not-ready';
 
-/** Parsed `entry_gate` / `exit_gate` column of feature-adoption.tsv. */
+/** Parsed `entry_gate` (last entry verdict) / `exit_gate` (last failed exit attempt) column of features.tsv. */
 export interface FeatureGateView {
   verdict: FeatureGateVerdict;
   raw: string;
@@ -166,9 +161,6 @@ export interface FeatureGateView {
   firstUnmet?: string;
   /** Entry gate re-entered with `--restart`. */
   restart?: boolean;
-  /** `CLOSED <status> by <decision>`. */
-  closedStatus?: string;
-  closedBy?: string;
 }
 
 export type FeatureMilestoneState = 'done' | 'current' | 'pending';
@@ -178,12 +170,15 @@ export interface FeatureMilestoneView {
   state: FeatureMilestoneState;
 }
 
-export interface FeatureLinkView {
-  id: string;
-  status: MigrationStatus;
-  rawStatus: string;
-  /** Ledger the id was found in; undefined when it is not recorded anywhere yet. */
-  ledger?: string;
+/** When the user gave an answer recorded in a FEAT row's notes. */
+export type FeatureAnswerContext = 'activate' | 'retry' | 'close';
+
+/** One `user answer: …` entry of a FEAT row's `notes` (written by feature_hooks.py / feature_gate.py). */
+export interface FeatureAnswerView {
+  context: FeatureAnswerContext;
+  text: string;
+  /** `closed <status>` entries: the status the feature was closed with. */
+  status?: string;
 }
 
 /** One external feature (FEAT row) registered through the skill's hook mechanism. */
@@ -208,17 +203,14 @@ export interface ExternalFeatureView {
   stepMatched: boolean;
   entryGate?: FeatureGateView;
   exitGate?: FeatureGateView;
-  decisionId?: string;
-  links: FeatureLinkView[];
+  /** The user's answers about this feature (selection, retry, close), oldest first. */
+  answers: FeatureAnswerView[];
   notes?: string;
-  evidence?: string;
   /** Package metadata could be read. */
   packageResolved: boolean;
   playbookPath?: string;
   workdir?: string;
   files: FeatureWorkdirFile[];
-  /** Row written before the hook mechanism (playbook_path header). */
-  legacy: boolean;
 }
 
 export interface PhaseItemView {
@@ -228,11 +220,33 @@ export interface PhaseItemView {
   rawStatus: string;
   detail?: string;
   /**
-   * Inventory rows only: the capability's own migration state. The row is
-   * "done" for the inventory phase once it is recorded; the capability is
-   * migrated later (implementation/handoff), shown as a separate tag.
+   * Decision rows only: nobody answered in time and the runtime chose the
+   * recommended option (`owner=agent-default`).
    */
-  migration?: 'pending' | 'doing' | 'done' | 'blocked';
+  decidedByAgent?: boolean;
+  /** Short labels shown next to the row (e.g. inventory `found_by` sources). */
+  tags?: string[];
+  /** Tooltip of the version (environment: the item's path). */
+  hint?: string;
+  /**
+   * A finding shown on its own line under the row (environment `issue`):
+   * `warning` = `warn`, usable but risky (does not block the gate); `fixed` =
+   * env_probe found the problem and repaired it; `error` = `error`/`missing`.
+   */
+  notice?: { tone: 'warning' | 'fixed' | 'error'; text: string };
+}
+
+/**
+ * A one-line fact a phase card shows above its rows. `problems`: open / blocked
+ * / fixed counts of diagnostics.tsv; the rest is the device-runs.tsv status of
+ * the application HAP: `deviceRun` (run), `noDevice` (no-device: no connected
+ * device, no run required), `hapChecked` (checked: not run yet), `hapFailed`
+ * (hap-failed) and `noHap` (no row yet).
+ */
+export interface PhaseNoteView {
+  kind: 'problems' | 'deviceRun' | 'noDevice' | 'hapChecked' | 'hapFailed' | 'noHap';
+  tone: 'neutral' | 'success' | 'warning' | 'error';
+  values?: Record<string, number>;
 }
 
 export interface PhaseView {
@@ -241,14 +255,15 @@ export interface PhaseView {
   ledger: string;
   /** Absolute path of that ledger when it exists. */
   ledgerPath?: string;
+  /** STATE.md Progress status of the phase (`unknown` without a Progress row). */
   status: MigrationStatus;
-  statusSource: 'state' | 'ledger' | 'gate';
   rawStatus?: string;
-  evidence?: string;
   done: number;
   total: number;
   items: PhaseItemView[];
-  /** Latest gate verdict for this phase (stdout or STATE.md, newest wins). */
+  /** Phase facts shown above the rows (diagnostics: problem counts and the latest device run). */
+  notes?: PhaseNoteView[];
+  /** Latest gate verdict of this phase (its STATE.md Progress Gate cell). */
   gate?: MigrationGateResult;
   /**
    * `doing` while no agent is working on it: render statically, not as a
@@ -257,116 +272,95 @@ export interface PhaseView {
   paused?: boolean;
 }
 
-export interface PendingDecisionView {
+/**
+ * A question nobody answered in time, so the runtime chose the recommended
+ * option (`owner=agent-default`). Shown so the user can see and overrule it.
+ */
+export interface AgentDecisionView {
   id: string;
   question: string;
-  options?: string;
-  impact?: string;
-  owner?: string;
-  status: MigrationStatus;
-  rawStatus: string;
-  source: 'decisions.tsv' | 'STATE.md';
+  answer?: string;
 }
 
-/**
- * `problem`: something went wrong (failed / timeout / blocked / resolved, or
- * not yet classified). `receipt`: a passing batch or bootstrap-style record.
- */
-export type DiagnosticKind = 'problem' | 'receipt';
-
+/** One problem of `diagnostics.tsv` (one row per problem; passing batches write nothing). */
 export interface DiagnosticView {
   id: string;
-  kind: DiagnosticKind;
-  /** Problem that is not fixed yet (failed / timeout / blocked / unclassified). */
-  open: boolean;
-  phase: string;
-  category: string;
-  signature: string;
-  rootCause: string;
-  attempts: number;
+  /** Pipeline stage: the part of `location` before ':' (vocab.STAGES). */
+  stage: string;
+  /** The rest of `location`: step, file:line or component. */
+  where: string;
+  symptom: string;
+  cause: string;
+  fix: string;
+  /** `open` → error, `blocked` → blocked, `fixed` → done. */
   status: MigrationStatus;
   rawStatus: string;
-  recurrence: string;
-  /** Only set when `log_path` names a text log the editor can open. */
+  /** Not fixed yet (open). */
+  open: boolean;
+  /** Open without a cause: the next batch refuses to start until it is written. */
+  needsCause: boolean;
+  /** Command and cwd of `reproduce` (before `; log:`). */
+  reproduce: string;
+  /** Only set when `reproduce` names a text log the editor can open. */
   logPath?: string;
-  /** `fix_or_next_action`: the applied fix for a resolved problem, else the next step. */
-  nextAction: string;
-  unclassified: boolean;
-  /**
-   * Receipt only: earlier failed attempts (attempts - 1) that have no problem
-   * row of their own, i.e. the failure was overwritten instead of recorded.
-   */
-  unrecordedFailures: number;
+}
+
+/** The one `device-runs.tsv` row: the application HAP's latest result. */
+export interface DeviceRunView {
+  id: string;
+  hap: string;
+  /** hap-failed | checked | no-device | run (`DEVICE_RUN_STATUSES`). */
+  status: string;
+  evidence: string;
 }
 
 /**
- * A migration document (STATE.md, report.md, ...) or a supporting ledger
- * shared by several phases (baseline.tsv, ...) that exists on disk.
+ * A migration document (report.md, STATE.md), a supporting ledger shared by
+ * several phases (device-runs.tsv) or the deliverable (the application HAP of
+ * device-runs.tsv once it passed hap_check.py).
  */
 export interface DocumentRefView {
   id: string;
-  kind: 'document' | 'ledger';
+  kind: 'document' | 'ledger' | 'artifact';
   label: string;
+  /** What a click opens; empty for an artifact (a binary file). */
   path: string;
   /** Data rows of a ledger. */
   rows?: number;
-}
-
-export interface KnowledgeRefView {
-  id: string;
-  sourcePath: string;
-  snapshotPath?: string;
-  modified?: string;
-  action?: string;
+  /** Artifacts: the file path. */
+  target?: string;
 }
 
 export interface MigrationHeaderView {
   project?: string;
+  /** STATE.md Scope table. */
+  scope: StateScope;
   revision?: string;
-  assessment?: string;
-  completionTier?: string;
   currentPhase?: MigrationPhaseId;
   currentPhaseRaw?: string;
-  lastUpdated?: string;
-  lastCompletedAction?: string;
   nextAction?: string;
   activeAction?: string;
   overallPercent: number;
   liveStatus: MigrationLiveStatus;
   lastWriteAt?: number;
-  /** Migration is completed but the handoff gate's last verdict is BLOCKED. */
-  completedGateBlocked?: MigrationGateResult;
-}
-
-/**
- * The user's external-feature selection: the newest `decisions.tsv` row with
- * `feature_or_scope=external-features`. `unconfirmed` mirrors the skill gate
- * (`phase_gate.user_approved`): not owner=user + approved + "user: ..." evidence,
- * or evidence recording a question that was never answered (timeout/skip).
- */
-export interface FeatureSelectionView {
-  decisionId: string;
-  /** Selected feature ids; empty when the user chose none. */
-  selected: string[];
-  confirmed: boolean;
-  /** The evidence says the question timed out / was skipped / got no reply. */
-  unanswered: boolean;
-  evidence?: string;
+  /** Migration has ended (completed or ended) but the validation gate's last verdict is NOT-READY. */
+  completedGateNotReady?: MigrationGateResult;
 }
 
 export interface MigrationSnapshot {
   ledgerRoot: string;
   appRoot: string;
   header: MigrationHeaderView;
-  decisionsPending: PendingDecisionView[];
+  /** Decisions the agent made for the user after a question went unanswered. */
+  decisionsByAgent: AgentDecisionView[];
   phases: PhaseView[];
   diagnostics: DiagnosticView[];
-  /** External features activated through the hook mechanism (feature-adoption.tsv). */
+  /** The application HAP's latest result (device-runs.tsv), if a HAP was checked yet. */
+  deviceRun?: DeviceRunView;
+  /** External features activated through the hook mechanism (features.tsv). */
   externalFeatures: ExternalFeatureView[];
-  /** The user's external-feature selection decision, when one is recorded. */
-  featureSelection?: FeatureSelectionView;
   documents: DocumentRefView[];
-  knowledge: KnowledgeRefView[];
   skillInvoked: boolean;
+  /** Ledgers whose header is not the current skill's (an older migration): `file: detail`. */
   schemaWarnings: string[];
 }

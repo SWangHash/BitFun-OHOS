@@ -103,7 +103,7 @@ summary: >
 
 | # | 严重度 | 规则 | 为什么 | 出处 |
 |---|:------:|------|--------|------|
-| G1 | 🟢 | `Q_OS_OHOS` **隐含** `Q_OS_LINUX` — `#ifdef Q_OS_LINUX` 在鸿蒙上也会命中 | 必须检查所有 Q_OS_LINUX 分支是否兼容鸿蒙 | [[qt-harmonyos-porting-workflow]] §原则1 |
+| G1 | 🟢 | `Q_OS_LINUX` **必然命中**：鸿蒙下 `Q_OS_OHOS`/`Q_OS_HARMONY` 均隐含 `Q_OS_LINUX` — 必须检查所有 Q_OS_LINUX 分支是否兼容鸿蒙。**平台宏名随 kit 版本不同**：Qt 5.15/5.12 与部分 Qt6 源码构建定义 `Q_OS_OHOS`；**Qt 6.12-beta3 预构建 kit 只定义 `Q_OS_HARMONY`**（`Q_OS_OHOS` 未定义，`#ifdef Q_OS_OHOS` 是死代码）。守卫统一写 `#if defined(Q_OS_OHOS) || defined(Q_OS_HARMONY)`，动手前先 `grep` 实际 kit 的 qsystemdetection.h 确认 | [[qt-harmonyos-porting-workflow]] §原则1、[build-qt612-qos-harmony-macro](../problems/build-qt612-qos-harmony-macro.md) |
 | G2 | 🟢 | 拖放事件数据**只能**在 `dropEvent` 中读取，`dragEnterEvent`/`dragMoveEvent` 中只有 MIME 类型 | 鸿蒙拖放协议数据传输是异步的 | [[qt-harmonyos-code-patterns]] §模式9 |
 
 ---

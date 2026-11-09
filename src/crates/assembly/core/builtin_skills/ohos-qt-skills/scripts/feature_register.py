@@ -16,10 +16,10 @@ script does the two mechanical parts of that conversation:
         --kind capability|verification --title <title> --owner <owner> \
         --summary <one line> --keyword <word> [--keyword ...] --device yes|no \
         [--milestone <step> ...] [--after <feature-id> ...] [--exit-command "<cmd>" ...] \
-        [--exit-artifact <path-in-workdir> [--exit-json key=value ...]] [--register draft|none]
+        [--exit-artifact <path-in-workdir> [--exit-json key=value ...]] [--no-register]
         Copies features/_templates/<kind>/ to features/<feature-id>/,
         copies the skill unchanged to features/<feature-id>/skill/, fills
-        hook.json from the answers, and adds a draft registry row. The agent
+        hook.json from the answers, and adds the registry row. The agent
         then fills the adapter feature.md and runs feature_hooks.py lint.
 
 The skill directory is never modified; scaffold checks that the copy is
@@ -55,13 +55,13 @@ OVERRIDE_RULES = [
     ("own-state-or-output", re.compile(r"(state|状态|进度|输出|output|report|报告|日志|log)[^\n]{0,30}(文件|目录|dir|file|folder|写入|保存|save|write)", re.I),
      "skill 自带的状态/输出位置：一律改写到 {workdir}"),
     ("edits-sources", re.compile(r"(修复|直接修改|修改源码|改代码|自动修|fix (it|the|them|issues)|apply (a )?patch|patch the|edit the source)", re.I),
-     "修改源码：verification 只记录缺陷，修复回主流程；capability 的改动必须在平台守卫内并落 CAP 行"),
+     "修改源码：verification 只记录缺陷，修复回主流程；capability 的改动必须在平台守卫内，改动清单写到 {workdir}"),
     ("own-phases", re.compile(r"^(#+\s*)?(phase|stage|阶段|第[一二三四五六七八九十0-9]+[步阶])", re.I),
      "skill 自带的阶段划分：按本 feature 的 milestones 执行，门禁由主流程负责"),
     ("signing-material", re.compile(r"(签名|证书|keystore|\.p12|\.cer\b|profile|signing)", re.I),
      "签名材料：不读写、不记录密钥；签名沿用主流程的签名配置"),
     ("asks-user", re.compile(r"(询问用户|问用户|ask the user|confirm with the user|让用户选择)", re.I),
-     "向用户提问：执行期间的问题按主流程的决策方式记录到 decisions.tsv"),
+     "向用户提问：回答写进本 FEAT 行的 notes（feature_hooks.py progress --note），不写 decisions.tsv"),
 ]
 STEP_HEADING = re.compile(r"^(步骤|第[一二三四五六七八九十0-9]+步|step\s*\d+|\d+[.)、]\s*\S)", re.I)
 QUOTED = re.compile(r"[“\"「`《]([^”\"」`》\n]{2,20})[”\"」`》]")
@@ -141,9 +141,12 @@ def overrides(skill: Path) -> list[dict]:
     return kept
 
 
+# The exit verdict file each template declares when no script or artifact of the skill fits.
+TEMPLATE_VERDICT = {"capability": "result.json", "verification": "report.json"}
+
+
 def exit_options(skill: Path, kind: str, body: str) -> list[dict]:
-    options = [{"label": "迁移台账中本 feature 的 VAL-* 全部通过（默认，始终包含）",
-                "predicate": {"check": "validation-passed", "ids": "row"}}]
+    options: list[dict] = []
     for path in all_files(skill):
         runner = SCRIPT_SUFFIXES.get(path.suffix.lower())
         rel = path.relative_to(skill).as_posix()
@@ -155,9 +158,10 @@ def exit_options(skill: Path, kind: str, body: str) -> list[dict]:
         options.append({"label": f"{{workdir}}/{name} 中的结论为通过",
                         "predicate": {"check": "artifact", "path": f"{{workdir}}/{name}", "json": {"result": "pass"}},
                         "note": "按 skill 实际输出的字段名改写 json 键值"})
-    if kind == "verification" and len(options) == 1:
-        options.append({"label": "skill 的结论转换成 {workdir}/report.json 且 result=pass（模板默认）",
-                        "predicate": {"check": "artifact", "path": "{workdir}/report.json", "json": {"result": "pass"}}})
+    if not options:
+        name = TEMPLATE_VERDICT[kind]
+        options.append({"label": f"skill 的结论转换成 {{workdir}}/{name} 且 result=pass（模板默认）",
+                        "predicate": {"check": "artifact", "path": f"{{workdir}}/{name}", "json": {"result": "pass"}}})
     return options
 
 
@@ -213,25 +217,14 @@ def cmd_inspect(args) -> int:
             "ohos_permissions": sorted(set(re.findall(r"ohos\.permission\.[A-Z0-9_]+", body))),
             "overrides": overrides(skill),
         },
-        "registered_features": [{"feature_id": fid, "kind": row.get("kind", ""), "title": row.get("title", ""),
-                                 "status": row.get("status", "")} for fid, row in registry.items()],
+        "registered_features": [{"feature_id": fid, "kind": row.get("kind", ""), "title": row.get("title", "")}
+                                for fid, row in registry.items()],
     }
     print(json.dumps(report, ensure_ascii=False, indent=2))
     return 1 if problems else 0
 
 
 # --------------------------------------------------------------------------- scaffold
-
-def tree_hashes(root: Path, skip_top_git: bool = True) -> dict[str, str]:
-    result = {}
-    for path in sorted(root.rglob("*")):
-        rel = path.relative_to(root)
-        if skip_top_git and rel.parts[0] == ".git":
-            continue
-        if path.is_file():
-            result[rel.as_posix()] = fp.sha256_file(path)
-    return result
-
 
 def append_registry(features_root: Path, row: dict[str, str]) -> None:
     path = features_root / "registry.tsv"
@@ -298,9 +291,6 @@ def cmd_scaffold(args) -> int:
     else:
         shutil.copytree(template, package)
         shutil.copytree(source, target, copy_function=shutil.copy2, ignore=lambda d, names: [".git"] if Path(d) == source else [])
-    if tree_hashes(source) != tree_hashes(target):
-        print(f"ERROR the copy in {target} differs from {source}; remove {package} and retry")
-        return 1
 
     hook = fp.load_hook(package)
     front = fp.skill_frontmatter(target / "SKILL.md")
@@ -320,7 +310,7 @@ def cmd_scaffold(args) -> int:
     if device and "device-runs.tsv" not in ledgers:
         ledgers.append("device-runs.tsv")
     outputs["ledgers"] = ledgers
-    criteria = [{"check": "validation-passed", "ids": "row"}]
+    criteria = []
     for command in args.exit_command:
         criteria.append({"check": "command", "run": shlex.split(command), "timeout_s": args.exit_timeout})
     evidence = []
@@ -331,8 +321,8 @@ def cmd_scaffold(args) -> int:
             item["json"] = json_expect
         criteria.append(item)
         evidence.append(path)
-    elif kind == "verification" and not args.exit_command:
-        criteria = hook["exit"]["criteria"]  # keep the template's report.json verdict
+    elif not args.exit_command:
+        criteria = hook["exit"]["criteria"]  # keep the template's verdict file
         evidence = list(outputs.get("evidence_files", []))
     hook["exit"]["criteria"] = criteria
     outputs["evidence_files"] = evidence
@@ -342,14 +332,13 @@ def cmd_scaffold(args) -> int:
     text = playbook.read_text(encoding="utf-8").replace("<中文名称>", args.title).replace("<feature-id>", feature_id)
     playbook.write_text(text, encoding="utf-8")
 
-    if args.register == "draft":
+    if not args.no_register:
         append_registry(features_root, {"feature_id": feature_id, "title": args.title, "kind": kind,
-                                        "hook_phase": hook["hook"]["phase"], "status": "draft",
                                         "package_path": f"{feature_id}/", "owner": args.owner, "summary": args.summary})
     todo = text.count("TODO")
     print(f"created {package}")
-    print(f"skill copied unchanged: {len(tree_hashes(target))} files -> {target}")
-    print(f"hook.json filled; registry: {'draft row added' if args.register == 'draft' else 'not registered'}")
+    print(f"skill copied: {sum(1 for path in target.rglob('*') if path.is_file())} files -> {target}")
+    print(f"hook.json filled; registry: {'not registered' if args.no_register else 'row added'}")
     print(f"next: fill the {todo} TODO(s) in {playbook} from the skill, then run "
           f"python scripts/feature_hooks.py lint {feature_id}")
     return 0
@@ -380,7 +369,7 @@ def main(argv: list[str] | None = None) -> int:
     scaffold.add_argument("--exit-timeout", type=int, default=600)
     scaffold.add_argument("--exit-artifact", default="", help="file inside {workdir} holding the verdict, e.g. report.json")
     scaffold.add_argument("--exit-json", action="append", default=[], metavar="KEY=VALUE")
-    scaffold.add_argument("--register", choices=["draft", "none"], default="draft")
+    scaffold.add_argument("--no-register", action="store_true", help="do not add the registry row")
     scaffold.set_defaults(func=cmd_scaffold)
 
     args = parser.parse_args(argv)

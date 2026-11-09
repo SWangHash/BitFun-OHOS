@@ -46,12 +46,14 @@ not bundled in this repository:
 | Qt OHOS SDK binaries | external-required | `<skill>/scripts/bitfun-download-qt-sdk.sh` (BitFun backstop; the runtime provisioner owns the normal install) or compile with `compile-qt-sdk.sh`; record exact path/version in `migration/ohos/environment.tsv` |
 | Qt source tree | external-required | `clone-qt-src.sh`; its `qtbase/src/harmonyos/templates` directory is also a template source |
 | OHOS SDK native (clang, sysroot, CMake toolchain) | external-required | DevEco/Command Line Tools installation; verify with `verify-env.sh` and record API/ABI/tool versions |
-| DevEco Studio / `devecocli` / HDC / Hvigor / CMake / Ninja / JDK / Node | external-required | platform-specific `deveco-install.md` and dependency scripts; record executable paths and versions |
+| DevEco Studio (Windows/macOS) or the HarmonyOS command line tools (HarmonyOS PC: on PATH, `DEVECO_SDK_HOME` names the SDK) / `devecocli` / CMake / Ninja | external-required | platform-specific `deveco-install.md` and dependency scripts; `devecocli` builds, installs and runs the app (it brings hvigor, ohpm, node and hdc) |
 | Qt HarmonyOS glue template project | not-present-in-skill | copy the complete directory from `<QT_SRC>/qtbase/src/harmonyos/templates`, or run `<skill>/scripts/bitfun-download-template.sh` for `templates-0625.zip`; inspect expected files before use |
 
-Do not mark a template or toolchain row `verified` merely because a path is
-configured. Require the executable/version or complete template-tree checks
-and attach the command output digest to the environment or pilot evidence.
+A template or toolchain counts only as `env_probe.py` checked it (the
+executable runs and reports its version, the template tree is complete; its
+`environment.tsv` row is not `missing`/`error`), never because a path is
+configured; the environment smoke test (`env_smoke.py`) is what proves a template and a
+toolchain work together.
 
 ## BitFun acquisition entry points
 
@@ -73,6 +75,18 @@ Use the printed path as `OHOS_TEMPLATE_SRC` / the toolchain path; do not add
 that require an explicit `--dest` and install outside the scanned root, so the
 intake would not see the result.
 
+Acquisition is a user-confirmed step, not an automatic repair. The toolchain and
+template of this migration are the ones the user bound at intake; when a bound
+toolchain or template cannot be used here — another platform's binaries, a missing
+or non-executable `qmake`, an incomplete tree — stop and ask the user which way to
+go (they fix or repoint the path, or the skill downloads the platform-appropriate
+kit), then record the answer as a `decisions.tsv` row: the question, the user's
+words as `answer`, `owner=user`. Asking `--platform` of the host and downloading
+is not an answer, and a timed-out or skipped question (`owner=agent-default`) is
+not one either. Only after that row exists may an acquisition script run; then
+rerun `env_probe.py` with the acquired path, so `environment.tsv` records it
+instead of the bound one. The same rule covers swapping one acquired input for
+another after the fact.
 
 ## Template handling contract
 
@@ -82,39 +96,22 @@ There are two distinct operations:
    `<skill>/scripts/bitfun-download-template.sh` is the canonical fallback when no
    Qt source checkout exists.
 2. **Materialize it into the migration project** as a whole directory: the
-   template root is the migrated output container's `<app-name>-ohos`
-   subdirectory, never the container itself — a template root placed in the
-   container root is a layout error even when the container is the current
-   workspace root. `environment.tsv` (`category=layout`) records the container
-   and that project directory, and the pair recorded there is what the layout
-   gate checks. Preserve
+   template root is the `HarmonyOS output project` of the STATE.md Scope, a
+   subdirectory of the output container that holds `migration/` (recorded in
+   the decisions phase); that path is what the layout gate checks. Preserve
    `AppScope/`, `entry/`, `qEmbeddedUiExtensionHost/`, `build-profile.json5`,
-   `hvigorfile.ts`, `oh-package.json5`, and all nested resources. Then record
-   the template source path, archive/source revision, complete-tree hash, and
-   any intentional edits in the migration ledgers (`environment.tsv`,
-   `work-queue.tsv` 的 change/evidence 字段, and `knowledge-manifest.tsv` 的 used 字段和 evidence 引用).
+   `hvigorfile.ts`, `oh-package.json5`, and all nested resources. The
+   template source path is the `qt-template` row of `environment.tsv`
+   (`env_probe.py`; no version, and template changes are not tracked); the
+   edits `template_patch.py` printed go into the `tasks.tsv` evidence.
 
 Never copy only a convenient snippet from a template file into the skill. If a
 real template tree is later made available, add it as a versioned, whole-tree
 asset with its own manifest rows; until then, report the template as an
 external prerequisite and do not claim it is bundled.
 
-## Required startup gate
-
-Before changing application source, resume in this order:
-
-```text
-pinned knowledge manifest
-  -> environment detection
-  -> Qt SDK/source and OHOS native path confirmation
-  -> complete template acquisition and tree check
-  -> pilot configure/build/package check
-  -> Qt application migration
-```
-
-If any prerequisite is missing, keep the affected queue rows `blocked` or
-`planned`; do not hide the gap by generating a substitute template or by
-recording an unverified tool path.
+A missing prerequisite keeps the affected rows `blocked` or `planned`; never
+hide the gap with a substitute template or an unverified tool path.
 
 ## Credential boundary
 
@@ -124,4 +121,3 @@ device identifiers in `STATE.md`, TSV ledgers, logs, shell history, or the
 knowledge manifest. Prefer an authenticated credential helper or an ephemeral
 environment supplied by the user, then record only the redacted command shape
 and resulting revision/hash.
-

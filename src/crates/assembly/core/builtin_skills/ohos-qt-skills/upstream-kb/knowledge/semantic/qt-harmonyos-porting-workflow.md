@@ -336,7 +336,7 @@ QtNetwork, QtSQL, QtMultimedia
 
 完成 8 步后的最终确认：
 
-- [ ] 所有 `Q_OS_*` 宏分支已添加 `Q_OS_OHOS` 处理
+- [ ] 所有 `Q_OS_*` 宏分支已添加鸿蒙处理（**守卫用 `Q_OS_OHOS || Q_OS_HARMONY` 双宏**——Qt 6.12-beta3 预构建 kit 定义 `Q_OS_HARMONY`，`Q_OS_OHOS` 未定义；动手前先 `grep` 实际 kit 的 qsystemdetection.h 确认，见 [build-qt612-qos-harmony-macro](../problems/build-qt612-qos-harmony-macro.md)）
 - [ ] 子进程已按场景处理：无界面 `QProcess` 保留 / 有界面 Qt `startAppProcess` / 有界面非 Qt `startAbility` / 需托管 `startNoUiChildProcess`
 - [ ] 所有无 parent 的顶层窗口已标记为子窗口（使用 `tagWindowOrWidgetAsSubWindowOf`）
 - [ ] 窗口标记函数在 `show()` / `winId()` 之前调用

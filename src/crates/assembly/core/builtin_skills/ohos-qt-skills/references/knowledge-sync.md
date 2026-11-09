@@ -27,7 +27,7 @@ python scripts/init_migration.py --target <app>
 initializes the ledgers and records provenance, or on its own:
 
 ```text
-python scripts/sync_knowledge.py --target <app>/migration/ohos
+python scripts/sync_knowledge.py --target <container>/migration/ohos
 ```
 
 The command verifies every active skill baseline file against the skill
@@ -54,7 +54,7 @@ Agents read skill-baseline files directly (`upstream-kb/knowledge/...` under
 the skill root) and mark consulted pages after reading:
 
 ```text
-python scripts/mark_knowledge_used.py <app>/migration/ohos/knowledge-manifest.tsv \
+python scripts/mark_knowledge_used.py <container>/migration/ohos/knowledge-manifest.tsv \
   semantic/qt-harmonyos-golden-rules.md semantic/qt-harmonyos-modules.md
 ```
 
@@ -65,11 +65,11 @@ evolves.
 ## The modified-page exception
 
 Only when the target genuinely needs a locally adapted page: create the
-adapted copy at `<app>/migration/ohos/knowledge/<source_path>` (adapted from
+adapted copy at `<container>/migration/ohos/knowledge/<source_path>` (adapted from
 the pinned baseline page), then register it:
 
 ```text
-python scripts/sync_knowledge.py --target <app>/migration/ohos \
+python scripts/sync_knowledge.py --target <container>/migration/ohos \
   --register-modified semantic/qt-harmonyos-window-model.md
 ```
 
@@ -81,25 +81,24 @@ further edits to refresh the recorded hash.
 
 ## If the baseline changes mid-migration
 
-`sync_knowledge.py` refuses to rewrite the manifest when the installed skill
-baseline's manifest hash differs from the pinned one, and lists the differing
-pages. This is a report, not a decision: surface it to the user. The user
-alone decides whether to restart the migration — delete
-`migration/ohos/knowledge-manifest.tsv` (or the whole migration directory) and
-re-run inheritance. Never resume on a changed baseline, and never patch
-manifest rows toward the newer baseline by hand.
+When the installed skill baseline differs from the pinned one (the skill was
+updated during the migration), `sync_knowledge.py` re-pins the manifest to the
+installed baseline, keeps the `used`/`modified` marks and registered local
+adaptations, lists the changed pages with the consulted ones marked `[used]`,
+and exits 0. Tell the user which pages changed (a `[used]` page may affect
+rows recorded earlier) and continue. Never patch manifest rows by hand.
 
 ## Verifying the evidence chain
 
 ```text
-python scripts/validate_ledgers.py <app>/migration/ohos
+python scripts/validate_ledgers.py <container>/migration/ohos
 ```
 
 Beyond the cross-ledger ID checks, it verifies registered modified pages
 against their recorded hashes and, when the skill is installed, that the
 pinned baseline hash and per-page skill hashes still match the installed
-skill. Baseline drift is reported as a warning for the user's restart
-decision; a corrupted ledger or an untracked knowledge file is an error. Use
+skill. Baseline drift is a warning (run `sync_knowledge.py` to re-pin and
+tell the user); a corrupted ledger or an untracked knowledge file is an error. Use
 `--no-skill-check` for archive-only audits where the skill is not installed.
 
 ## Maintainer-only refresh

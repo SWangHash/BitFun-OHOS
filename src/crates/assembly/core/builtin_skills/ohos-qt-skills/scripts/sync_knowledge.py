@@ -6,6 +6,11 @@ released baseline, then writes <target>/knowledge-manifest.tsv: the single
 evidence chain that pins, per page, the baseline set, upstream revision, and
 content hash the migration consulted. Local files exist only for pages the
 project adapted for the target (--register-modified).
+
+When the installed skill baseline differs from the pinned one (the skill was
+updated during the migration), the manifest is re-pinned to the installed
+baseline, keeping the used/modified marks, and the changed pages are listed,
+the used ones first: the agent tells the user and continues.
 """
 from __future__ import annotations
 
@@ -116,7 +121,7 @@ def build_row(baseline: dict[str, str], old: dict[str, str], baseline_hash: str,
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument(
         "--target", required=True, type=Path,
         help="target migration directory, normally <Qt project>/migration/ohos",
@@ -165,16 +170,14 @@ def main() -> int:
                 row["source_path"] for row in baseline_rows
                 if previous.get(row["source_path"], {}).get("source_sha256") != row.get("source_sha256", "")
             ]
-            print("skill baseline changed since this migration pinned it:")
+            used = [rel for rel in differing if previous.get(rel, {}).get("used") == "yes"]
+            print("skill baseline changed since this migration pinned it; re-pinned to the installed baseline:")
             print(f"  pinned_baseline={old_hash}")
             print(f"  current_baseline={baseline_hash}")
-            print(f"  new_or_changed_pages={len(differing)}")
-            for rel in differing[:20]:
-                print(f"  - {rel}")
-            print("A migration runs against one frozen baseline. Report this to the user;")
-            print("only the user decides to restart the migration (delete the project")
-            print("knowledge-manifest.tsv, or the whole migration directory, and re-run).")
-            return 2
+            print(f"  new_or_changed_pages={len(differing)} (already used by this migration: {len(used)})")
+            for rel in (used + [rel for rel in differing if rel not in used])[:20]:
+                print(f"  - {rel}{' [used]' if rel in used else ''}")
+            print("Tell the user which pages changed (the [used] ones may affect earlier rows) and continue.")
 
     if args.register_modified:
         rel = args.register_modified.strip().replace("\\", "/").strip("/")

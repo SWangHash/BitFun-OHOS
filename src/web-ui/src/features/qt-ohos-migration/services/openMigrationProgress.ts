@@ -6,7 +6,7 @@ export const MIGRATION_PROGRESS_PANEL_TYPE = 'migration-progress' as const;
 const MIGRATION_PROGRESS_CONTENT_ROLE = 'migration-progress';
 
 export interface MigrationProgressPanelData {
-  /** Explicit ledger root (`<app>/migration/ohos`). Resolved from the workspace when absent. */
+  /** Explicit ledger root (`<container>/migration/ohos`). Resolved from the workspace when absent. */
   ledgerRoot?: string;
   workspacePath?: string;
   remoteConnectionId?: string;
@@ -21,7 +21,7 @@ export type OpenMigrationProgressOptions = MigrationProgressPanelData;
 /**
  * Open (or focus) the migration progress tab in the agent-scene aux pane.
  * One tab per workspace; the panel re-resolves its ledger root itself.
- * Callers open it only for a workspace that holds `migration/ohos/STATE.md`.
+ * Callers open it only for a workspace whose bound output container holds `migration/ohos/STATE.md`.
  */
 export function openMigrationProgressPanel(options: OpenMigrationProgressOptions): void {
   const data = { ...options };

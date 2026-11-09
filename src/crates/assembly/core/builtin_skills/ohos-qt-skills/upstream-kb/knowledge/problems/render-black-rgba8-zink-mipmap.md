@@ -153,6 +153,6 @@ Qt3D 的 `PlanetEffect`/`ShadowEffect`/`SunEffect` 都注释 "no special render 
 
 ## 相关
 
-- 见 _lookup 速查表 — 同为 OHOS ZINK 渲染管线问题（EGL_BAD_CONFIG 12293 setSamples(4)，已用 `#ifndef Q_OS_OHOS` 守卫修）
+- [render-fail-egl-bad-config-samples](render-fail-egl-bad-config-samples.md) — 同为 OHOS 渲染管线问题（EGL_BAD_CONFIG 12293，setSamples(4) 4x MSAA 无匹配 config，已用 `#ifndef Q_OS_OHOS` 守卫修）
 - [[semantic-qt-harmonyos-platform-limits]] — ZINK GL 级限制补在此页的"OpenGL/ZINK 渲染"小节
 - [[semantic-qt-harmonyos-project-structure]] — Qt3D 应用的 qrc/Texture2D 部署模型

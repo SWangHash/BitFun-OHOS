@@ -477,6 +477,55 @@
     line-height: var(--bitfun-type-flow-support-line-height);
   }
 
+  // A phase row: glyph | id | name | right column, then an optional note line
+  // under the name. The right column is capped so it never squeezes the name.
+  &__item-row {
+    display: grid;
+    grid-template-columns: auto auto minmax(0, 1fr) auto;
+    column-gap: var(--bitfun-space-2);
+    row-gap: 2px;
+  }
+
+  &__item-trail {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--bitfun-space-2);
+    min-width: 0;
+    max-width: 22em;
+
+    > * {
+      flex-shrink: 0;
+    }
+
+    > .bitfun-migration-panel__item-detail {
+      flex-shrink: 1;
+    }
+  }
+
+  &__item-detail {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--bitfun-color-content-muted);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__item-note {
+    grid-column: 3 / -1;
+    margin: 0;
+    color: var(--bitfun-color-content-muted);
+    overflow-wrap: anywhere;
+  }
+
+  &__item-note--warning {
+    color: var(--bitfun-color-status-warning-content);
+  }
+
+  &__item-note--error {
+    color: var(--bitfun-color-status-danger-content);
+  }
+
   &__row--action {
     width: 100%;
     border: 0;
@@ -639,11 +688,10 @@
     color: var(--bitfun-color-accent-default);
   }
 
-  &__feature-selection {
+  &__feature-answers {
     display: flex;
     flex-direction: column;
     gap: var(--bitfun-space-1);
-    margin-bottom: var(--bitfun-space-2);
 
     .bitfun-migration-panel__row {
       padding-inline: 0;
@@ -747,25 +795,6 @@
     &:hover {
       color: var(--bitfun-color-accent-hover);
     }
-  }
-
-  // ------------------------------------------------------------- footer
-
-  &__footer {
-    display: flex;
-    align-items: center;
-    gap: var(--bitfun-space-2);
-    min-width: 0;
-    padding: var(--bitfun-space-1) var(--bitfun-space-3);
-    border-top: 1px solid var(--bitfun-color-border-subtle);
-    color: var(--bitfun-color-content-muted);
-    font-size: var(--bitfun-type-flow-meta-font-size);
-  }
-
-  &__path {
-    flex: 1;
-    min-width: 0;
-    font-family: var(--bitfun-type-code-sm-font-family);
   }
 }
 

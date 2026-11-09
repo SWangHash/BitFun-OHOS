@@ -42,10 +42,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from kb_common import (  # noqa: E402
-    ACTIVE_ACTIONS, EXCLUSIONS, KB_DIR, KNOWLEDGE_DIR, MANIFEST, SKILL_ROOT, SYNC_LOG,
-    WORK_DIR, excluded_by, is_ignored_local, read_exclusion_rows, read_exclusions,
-    read_lock, read_manifest, read_required, required_missing, sha256_bytes,
-    sha256_file, snapshot_path, write_exclusions, write_lock, write_manifest,
+    ACTIVE_ACTIONS, ADDED_LOCAL, EXCLUSIONS, KB_DIR, KNOWLEDGE_DIR, MANIFEST, SKILL_ROOT,
+    SYNC_LOG, WORK_DIR, excluded_by, is_ignored_local, read_exclusion_rows, read_exclusions,
+    read_lock, read_manifest, read_required, required_missing, sha256_bytes, sha256_file,
+    snapshot_path, write_exclusions, write_lock, write_manifest,
 )
 
 REVIEW_FIELDS = ["path", "change", "size", "hint", "decision", "reason"]
@@ -57,7 +57,7 @@ DECISIONS = {
 }
 NEEDS_REASON = {"exclude", "keep-local"}
 DEFAULT_DECISION = {"changed": "update"}
-DEFAULT_CACHE = Path.home() / ".cache" / "qt-harmonyos-migration" / "upstream"
+DEFAULT_CACHE = Path.home() / ".cache" / "ohos-qt-skills" / "upstream"
 
 BINARY_EXT = {".png", ".jpg", ".jpeg", ".gif", ".ico", ".pdf", ".zip", ".tar", ".gz", ".tgz",
               ".xz", ".7z", ".so", ".a", ".dll", ".exe", ".hap", ".har", ".bin", ".jar", ".whl"}
@@ -300,7 +300,10 @@ def cmd_plan(args) -> int:
                 entry["category"] = "unchanged"
             elif old["snapshot_sha256"] != old["source_sha256"]:
                 entry["category"] = "blocked-diverged"
-                entry["note"] = "page intentionally diverged from upstream (kept-local) and upstream changed it"
+                entry["note"] = ("locally added page (added-local); upstream now has this path - "
+                                 "decide take-upstream / keep-local"
+                                 if old.get("action") == ADDED_LOCAL else
+                                 "page intentionally diverged from upstream (kept-local) and upstream changed it")
             else:
                 entry["category"] = "changed"
         if entry["category"] in DECISIONS:
@@ -323,7 +326,9 @@ def cmd_plan(args) -> int:
 
     upstream_paths = set(tree.entries)
     for rel, old in sorted(manifest.items()):
-        if rel not in upstream_paths and old.get("action") in ACTIVE_ACTIONS:
+        if rel in upstream_paths or old.get("action") == ADDED_LOCAL:
+            continue
+        if old.get("action") in ACTIVE_ACTIONS:
             entries.append({"path": rel, "category": "removed"})
     tracked = {rel for rel, row in manifest.items() if row.get("action") in ACTIVE_ACTIONS}
     untracked = sorted(local_files() - tracked)

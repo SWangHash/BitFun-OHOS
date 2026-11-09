@@ -1,66 +1,42 @@
 # HarmonyOS migration state
 
+Only what no ledger holds. Read it with `ledger.py state <root>`, which adds the
+live views of the ledgers (environment, env smoke, capability dispositions,
+decisions, external features, knowledge baseline). The agent writes its fields with
+`ledger.py state <root> --set "<field>=<value>"`; the gate writes Current phase,
+Last gate and the Progress status and Gate (every ledger write also refreshes the
+open phase's status: blocked / failed / in-progress); feature_hooks.py writes
+Feature selection. Progress Status `blocked` means waiting for the user; Gate is the
+phase's latest gate verdict (`READY`, or `NOT-READY` with the unmet count).
+
 ## Scope and target
 
 | Field | Value | Evidence |
 |---|---|---|
-| Project / repository | TODO | TODO |
-| Migration output (container / project inside it) | TODO | TODO |
-| Source revision / dirty baseline | TODO | TODO |
-| Qt distribution and version | TODO | TODO |
-| HarmonyOS SDK/API and ABI | TODO | TODO |
-| Template/deployment/build/package route | TODO | TODO |
-| Host platforms and essential flows | TODO | TODO |
+| Application target | TODO | TODO |
+| Qt source root | TODO | TODO |
+| HarmonyOS output project | TODO | TODO |
+| Source revision at start | TODO | TODO |
 
 ## Gate
 
-- Assessment: `TODO` (`ready` / `ready-with-decisions` / `blocked` / `not-recommended`)
+- Assessment: `TODO` (`ready` / `blocked` / `not-recommended`)
+- Verdict basis: TODO
+- Deciding risk: TODO
 - Current phase: `TODO`
 - Last gate: `TODO` (written by `validate_ledgers.py --phase` / `phase_gate.py`)
-- Completion tier: `TODO` (`implemented-unverified` → `behavior-verified`)
-- Last updated: `TODO`
-- Last completed action: `TODO`
+- Completion tier: `TODO` (`implemented-unverified` → `scenario-verified`)
+- Feature selection: `TODO` (`pending` / `answered`, written by `feature_hooks.py`)
 - Next executable action: `TODO`
-- Resume check: run `validate_ledgers.py --phase <current phase>` and inspect pending `work-queue.tsv` rows
-- After a context compaction: trust the newest `diagnostics.tsv` row and its `log_path`, not the summary
 
 ## Progress
 
-| Phase | Status | Evidence / next action |
+| Phase | Status | Gate |
 |---|---|---|
-| Environment preparation (`baseline`, environment.tsv) | planned | TODO |
-| Migration inventory (`inventory`, inventory.tsv) | planned | TODO |
-| Migration plan contract (`contract`, decisions.tsv) | planned | TODO |
-| Pilot verification (`pilot`, pilot.tsv) | planned | TODO |
-| Capability migration (`implementation`, work-queue.tsv) | planned | TODO |
-| HarmonyOS capability features (`features`, feature-adoption.tsv) | planned | TODO |
-| Build and diagnostics (`diagnostics`, diagnostics.tsv) | planned | TODO |
-| Acceptance and handoff (`handoff`, validation.tsv) | planned | TODO |
-
-## External features
-
-Written by `feature_hooks.py` / `feature_gate.py`; do not edit by hand.
-
-No external feature activated.
-
-## Invalidation rules
-
-| Changed external state | Evidence to invalidate and refresh |
-|---|---|
-| Used KB page or source revision | linked `knowledge-manifest.tsv` rows and affected inventory/contract/pilot/diagnostic rows |
-| Qt/HarmonyOS SDK, ABI, template, or tool version | `environment.tsv`, configure/build/package evidence, affected package rows |
-| Device, signing profile, bundle identity, or installed data | `device-runs.tsv` and install/launch/behavior validation rows |
-| Shared source or root build file | host baseline, affected capability rows, package evidence, host regression |
-
-## Decisions and blockers
-
-| ID | Decision/blocker | Evidence | Owner/status | Next action |
-|---|---|---|---|---|
-| DEC-001 | TODO | TODO | TODO | TODO |
-
-## Evidence policy
-
-Keep raw logs/screenshots local or gitignored. Track only redacted summaries,
-safe paths, and digests. Never store credentials, signing material, tokens, or
-unredacted user/device data.
-
+| Environment (`environment`, environment.tsv) | planned |  |
+| Inventory (`inventory`, inventory.tsv) | planned |  |
+| Decisions (`decisions`, decisions.tsv) | planned |  |
+| Tasks (`tasks`, tasks.tsv) | planned |  |
+| Diagnostics (`diagnostics`, diagnostics.tsv) | planned |  |
+| Features (`features`, features.tsv) | planned |  |
+| Validation (`validation`, validation.tsv) | planned |  |

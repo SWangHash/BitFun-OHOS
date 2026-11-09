@@ -1,9 +1,28 @@
 #!/usr/bin/env python3
-"""Initialize migration/ohos ledgers without overwriting existing records."""
+"""Create the migration ledger ``<container>/migration/ohos/`` from the templates.
+
+The first action of every migration, before reading the knowledge baseline,
+probing the environment or running any build or device command::
+
+    python <skill>/scripts/init_migration.py --target <app> --output-project <container> \
+        --template-root <skill>/assets/templates/migration/ohos
+
+``<app>`` is the root of the Qt application (the directory with its
+``.pro``/``CMakeLists.txt``, or the repository root), never the HarmonyOS
+output project; a missing directory or a HarmonyOS project is refused.
+``--output-project`` is the bound output container (it may be any directory,
+also the Qt repository root): the ledger goes into its ``migration/ohos`` and
+the HarmonyOS project into another subdirectory of it, recorded in the
+decisions phase. The script copies the ledger templates without overwriting
+existing files (the ledgers start with only their header), sets the first
+phase in STATE.md, records the Qt source root and its source revision and dirty
+paths before any edit in the STATE.md Scope table, and runs sync_knowledge.py
+for ``knowledge-manifest.tsv``. Rerunning it on an existing ledger only adds
+missing files and records the Qt source root again.
+"""
 from __future__ import annotations
 
 import argparse
-import csv
 import shutil
 import subprocess
 import sys
@@ -11,147 +30,16 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 
-BOOTSTRAP_ROWS = {
-    "inventory.tsv": {
-        "id": "CAP-BOOT-001",
-        "category": "bootstrap",
-        "source_location": "migration/ohos",
-        "source_kind": "receipt",
-        "current_behavior": "Initialization completed",
-        "ohos_constraint": "Replace this receipt with application scan evidence",
-        "prerequisites": "none",
-        "scan_scope": "migration root",
-        "scan_evidence": "init_migration.py created the ledger; no source scan performed",
-        "disposition": "blocked",
-        "target_behavior": "Application inventory required before contract gate",
-        "files": "none",
-        "risk": "high",
-        "status": "planned",
-        "evidence": "init_migration.py receipt",
-        "validation_id": "VAL-BOOT-001",
-    },
-    "work-queue.tsv": {
-        "id": "CAP-BOOT-001",
-        "capability": "Migration inventory",
-        "category": "bootstrap",
-        "prerequisites": "none",
-        "inputs": "source repository and build files",
-        "owner": "migration-owner",
-        "status": "planned",
-        "attempts": "0",
-        "next_action": "Run the scoped source/build scan; do not implement yet",
-        "change_refs": "none",
-        "change_hashes": "none",
-        "evidence": "init_migration.py receipt; bootstrap row is not application evidence",
-        "validation_ids": "VAL-BOOT-001",
-        "inventory_ids": "CAP-BOOT-001",
-    },
-    "validation.tsv": {
-        "id": "VAL-BOOT-001",
-        "scenario": "Initialization receipt",
-        "platform": "host+ohos",
-        "command_or_steps": "init_migration.py and ledger header check",
-        "expected": "Core ledgers exist and require real evidence before phase advancement",
-        "result": "bootstrap receipt",
-        "status": "planned",
-        "reviewer": "migration-owner",
-        "negative_control": "Empty inventory/queue must fail phase_gate.py",
-        "evidence": "init_migration.py receipt",
-    },
-    "diagnostics.tsv": {
-        "id": "DIAG-BOOT-001",
-        "build_or_device_run_id": "INIT-001",
-        "phase": "baseline",
-        "category": "receipt",
-        "first_causal_signature": "Initialization only",
-        "root_cause": "No build or device result exists yet",
-        "attempts": "0",
-        "command": "init_migration.py",
-        "tree_or_environment_hash": "not-computed",
-        "log_path": "none",
-        "fix_or_next_action": "Run baseline and record the first real receipt",
-        "affected_ids": "ENV-001,BASE-001,VAL-BOOT-001",
-        "evidence": "init_migration.py receipt",
-        "status": "planned",
-        "recurrence": "Bootstrap receipt must be replaced or supplemented by real build diagnostics",
-    },
-    "pilot.tsv": {
-        "id": "PILOT-BOOT-001",
-        "build_or_device_run_id": "INIT-001",
-        "phase": "pilot",
-        "category": "receipt",
-        "first_causal_signature": "Initialization only",
-        "root_cause": "No pilot attempt exists yet",
-        "attempts": "0",
-        "command": "init_migration.py",
-        "tree_or_environment_hash": "not-computed",
-        "log_path": "none",
-        "fix_or_next_action": "Run the pilot through batch_checks.py --phase pilot after the contract gate",
-        "affected_ids": "VAL-BOOT-001",
-        "evidence": "init_migration.py receipt",
-        "status": "planned",
-        "recurrence": "Bootstrap receipt must be supplemented by a reviewed pilot attempt",
-    },
-    "decisions.tsv": {
-        "id": "DEC-BOOT-001",
-        "phase": "baseline",
-        "question": "Initialization receipt",
-        "options": "Replace with explicit user decisions",
-        "selected": "none",
-        "impact": "No material decision has been approved",
-        "owner": "migration-owner",
-        "approved_at": "not-applicable",
-        "feature_or_scope": "migration bootstrap",
-        "affected_ids": "none",
-        "status": "planned",
-        "evidence": "init_migration.py receipt; not a user approval",
-    },
-}
-
-
-def write_bootstrap_rows(destination: Path) -> int:
-    """Seed receipt rows only in newly created or header-only ledgers."""
-    written = 0
-    for filename, bootstrap in BOOTSTRAP_ROWS.items():
-        path = destination / filename
-        if not path.is_file():
-            continue
-        with path.open(newline="", encoding="utf-8") as stream:
-            reader = csv.DictReader(stream, delimiter="\t")
-            fields = reader.fieldnames or []
-            rows = list(reader)
-        if rows:
-            continue
-        if not fields:
-            raise SystemExit(f"ledger has no header: {path}")
-        with path.open("w", newline="", encoding="utf-8") as stream:
-            writer = csv.DictWriter(stream, fieldnames=fields, delimiter="\t", lineterminator="\n")
-            writer.writeheader()
-            writer.writerow({field: bootstrap.get(field, "") for field in fields})
-        written += 1
-    return written
-
-
 OHOS_PROJECT_MARKERS = ("AppScope/app.json5", "hvigorfile.ts", "build-profile.json5")
 QT_PROJECT_PATTERNS = ("*.pro", "CMakeLists.txt", "*.qbs")
 SKIP_DIRS = {".git", "migration", "build", "node_modules", "oh_modules"}
-# The output container is never the project directory: the migration project is
-# its `<app-name>-ohos` subdirectory. Keep in sync with phase_gate.py.
-LAYOUT_ROW_ID = "ENV-011"
-LAYOUT_CATEGORY = "layout"
-LAYOUT_ROW_NAME = "Migration output container and the project inside it"
+# Same Scope field as phase_gate.py.
+SCOPE_SOURCE = "Qt source root"
 
 
 def is_ohos_project(path: Path) -> bool:
     """A HarmonyOS (hvigor) project directory, i.e. the converted output."""
     return any((path / marker).is_file() for marker in OHOS_PROJECT_MARKERS)
-
-
-def is_qt_source_root(path: Path) -> bool:
-    """The directory holds its own qmake/CMake/qbs project file."""
-    if not path.is_dir():
-        return False
-    return any(next(path.glob(pattern), None) is not None for pattern in QT_PROJECT_PATTERNS)
 
 
 def find_qt_project_file(path: Path, depth: int = 3) -> Path | None:
@@ -178,146 +66,90 @@ def has_qt_project(path: Path, depth: int = 3) -> bool:
     return find_qt_project_file(path, depth) is not None
 
 
-def output_app_name(target: Path) -> str:
-    """The application name for `<app-name>-ohos`: the Qt project file's, else the target's.
-
-    `--target` may be a repository root, whose directory name is not the
-    application name, so the Qt project file found under it names the project;
-    the engine derives the same name from the bound Qt project.
-    """
-    project_file = find_qt_project_file(target)
-    if project_file is None:
-        return target.name
-    if project_file.name == "CMakeLists.txt":
-        return project_file.parent.name
-    return project_file.stem
-
-
 def check_target(target: Path) -> None:
     """The ledger belongs to the Qt application, not to the HarmonyOS output project."""
     if not target.is_dir():
         raise SystemExit(
-            f"BLOCKED: --target {target} does not exist. --target is the Qt application root "
+            f"ERROR: --target {target} does not exist. --target is the Qt application root "
             "(the directory holding its .pro/CMakeLists.txt or the repository root), not the "
             "HarmonyOS project directory that the migration will create.")
     if is_ohos_project(target):
         raise SystemExit(
-            f"BLOCKED: --target {target} is a HarmonyOS project (AppScope/hvigor files). "
-            "Pass the Qt application root instead and record this directory as the "
-            "HarmonyOS project in STATE.md (Template/deployment/build/package route).")
+            f"ERROR: --target {target} is a HarmonyOS project (AppScope/hvigor files). "
+            "Pass the Qt application root as --target and the directory that holds this project as "
+            "--output-project (the output container).")
     if not has_qt_project(target):
         print(f"WARNING: no .pro, CMakeLists.txt or .qbs found under --target {target}. "
               "Check that it is the root of the Qt application being migrated.")
 
 
-def record_layout(destination: Path, container_raw: str, app_name: str) -> tuple[Path, Path] | None:
-    """Record the output container and the project inside it, idempotently.
-
-    The bound output directory is a container: the template and every migration
-    artifact go into its `<app-name>-ohos` subdirectory. Recording the pair here
-    is what lets `phase_gate.py` reject a template materialized into the
-    container root, so a container that is itself a HarmonyOS project is
-    refused instead of recorded.
-    """
-    if not container_raw.strip():
-        print("WARNING: --output-project was not given, so the output layout is unrecorded; "
-              "the layout gate blocks the pilot phase until it is (re-run this script with "
-              "--output-project <container>)")
+def _git(target: Path, *args: str) -> str | None:
+    try:
+        result = subprocess.run(["git", *args], cwd=target, capture_output=True, text=True, encoding="utf-8",
+                                errors="replace", timeout=60, check=False)
+    except (OSError, subprocess.SubprocessError):
         return None
-    container = Path(container_raw.strip()).expanduser().resolve()
-    if is_ohos_project(container):
-        raise SystemExit(
-            f"BLOCKED: --output-project {container} already holds a HarmonyOS project "
-            f"({', '.join(OHOS_PROJECT_MARKERS)}). It must be the output container. Move the template tree "
-            f"into {container}/<app-name>-ohos (the container root never holds it) and re-run, or pass the "
-            f"container the user bound instead of the project directory.")
-    if is_qt_source_root(container):
-        raise SystemExit(
-            f"BLOCKED: --output-project {container} is the Qt project root itself "
-            f"({', '.join(QT_PROJECT_PATTERNS)}). Bind the directory that holds the Qt sources instead: the "
-            f"migration project would otherwise be created inside the Qt source tree.")
-    project = container / f"{app_name}-ohos"
-    path = destination / "environment.tsv"
-    if not path.is_file():
-        raise SystemExit(f"ledger is missing: {path}")
-    with path.open(newline="", encoding="utf-8") as stream:
-        reader = csv.DictReader(stream, delimiter="\t")
-        fields = reader.fieldnames or []
-        rows = list(reader)
-    if not fields:
-        raise SystemExit(f"ledger has no header: {path}")
-    exists = container.is_dir()
-    row = {
-        "id": LAYOUT_ROW_ID,
-        "category": LAYOUT_CATEGORY,
-        "name": LAYOUT_ROW_NAME,
-        "value": f"container={container.as_posix()}; project={project.as_posix()}",
-        "version_or_revision": app_name,
-        "source_or_path": container.as_posix(),
-        "status": "verified" if exists else "planned",
-        "last_verified_at": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
-        "evidence": "init_migration.py --output-project: container recorded"
-                    + (" as an existing directory that is not a HarmonyOS project" if exists
-                       else " (the directory does not exist yet)"),
-    }
-    replaced = False
-    for index, existing in enumerate(rows):
-        if existing.get("id") == LAYOUT_ROW_ID:
-            rows[index] = row
-            replaced = True
-            break
-    if not replaced:
-        rows.append(row)
-    with path.open("w", newline="", encoding="utf-8") as stream:
-        writer = csv.DictWriter(stream, fieldnames=fields, delimiter="\t", lineterminator="\n")
-        writer.writeheader()
-        for existing in rows:
-            writer.writerow({field: existing.get(field, "") for field in fields})
-    return container, project
+    return result.stdout if result.returncode == 0 else None
 
 
-def fill_state(destination: Path, project: str, target: Path, layout: tuple[Path, Path] | None = None) -> None:
-    """Seed the project name and the first phase in a fresh STATE.md; never overwrite."""
+def source_revision(target: Path, ledger: Path | None = None) -> tuple[str, str]:
+    """``(value, evidence)`` for the STATE.md Scope row: HEAD and the dirty paths outside the ledger.
+
+    The output container may be the repository itself, so its ``migration/`` is left out.
+    """
+    head = _git(target, "rev-parse", "HEAD")
+    if head is None:
+        return "not a git checkout", "init_migration.py: git rev-parse HEAD failed (no repository or no git)"
+    excluded = "migration"
+    if ledger is not None:
+        try:
+            excluded = ledger.resolve().parent.relative_to(target.resolve()).as_posix()
+        except ValueError:
+            excluded = ""
+    status = _git(target, "status", "--porcelain", "--", ".", *([f":(exclude){excluded}"] if excluded else [])) or ""
+    dirty = [line[3:].strip() for line in status.splitlines() if line.strip()]
+    shown = ", ".join(dirty[:10]) + (f" (+{len(dirty) - 10} more)" if len(dirty) > 10 else "")
+    value = head.strip()[:12] + (f"; dirty: {shown}" if dirty else "; clean")
+    return value.replace("|", "/"), "init_migration.py: git rev-parse HEAD, git status --porcelain before any edit"
+
+
+def fill_state(destination: Path, target: Path) -> None:
+    """Record the Qt source root (on every run), and seed the first phase and the source
+    revision in a fresh STATE.md (never overwritten)."""
     state = destination / "STATE.md"
     if not state.is_file():
         return
-    text = state.read_text(encoding="utf-8")
-    lines = text.splitlines(keepends=True)
-    changed = False
+    lines = state.read_text(encoding="utf-8").splitlines(keepends=True)
+    stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     for index, line in enumerate(lines):
-        if line.startswith("| Project / repository | TODO | TODO |"):
-            lines[index] = line.replace("| TODO | TODO |", f"| {project} | {target.as_posix()} |", 1)
-            changed = True
-        elif layout and line.startswith("| Migration output (container / project inside it) | TODO | TODO |"):
-            container, project_dir = layout
-            lines[index] = line.replace(
-                "| TODO | TODO |",
-                f"| container {container.as_posix()} | project {project_dir.as_posix()} |", 1)
-            changed = True
+        label = line.split("|")[1].strip() if line.startswith("|") and line.count("|") >= 4 else ""
+        ending = line[len(line.rstrip("\r\n")):]
+        if label == SCOPE_SOURCE:
+            lines[index] = f"| {label} | {target.as_posix()} | init_migration.py --target {stamp} |{ending}"
+        elif label.startswith("Source revision") and line.rstrip().endswith("| TODO | TODO |"):
+            value, evidence = source_revision(target, destination)
+            lines[index] = f"| {label} | {value} | {evidence} |{ending}"
         elif line.startswith("- Current phase: `TODO`"):
-            lines[index] = line.replace("`TODO`", "`baseline`", 1)
-            changed = True
-        elif line.startswith("| Environment preparation (`baseline`") and "| planned |" in line:
+            lines[index] = line.replace("`TODO`", "`environment`", 1)
+        elif line.startswith("| Environment (`environment`") and "| planned |" in line:
             lines[index] = line.replace("| planned |", "| in-progress |", 1)
-            changed = True
-    if changed:
-        state.write_text("".join(lines), encoding="utf-8", newline="")
+    state.write_text("".join(lines), encoding="utf-8", newline="")
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--template-root", type=Path, required=True,
                         help="assets/templates/migration/ohos")
     parser.add_argument("--target", type=Path, required=True,
                         help="Qt application root (not the HarmonyOS output project)")
-    parser.add_argument("--output-project",
-                        help="bound output container (never the project directory): the migration "
-                             "project is created in its <app-name>-ohos subdirectory; recorded in "
-                             "environment.tsv as the layout binding")
+    parser.add_argument("--output-project", type=Path, required=True,
+                        help="bound output container: the ledger goes into its migration/ohos, the HarmonyOS "
+                             "project into another subdirectory of it (recorded in the decisions phase)")
     args = parser.parse_args()
     source = args.template_root.resolve()
     app_root = args.target.resolve()
-    destination = app_root / "migration" / "ohos"
+    container = args.output_project.expanduser().resolve()
+    destination = container / "migration" / "ohos"
     if not source.is_dir():
         raise SystemExit(f"template root does not exist: {source}")
     if not (destination / "STATE.md").is_file():
@@ -336,9 +168,7 @@ def main() -> int:
         shutil.copy2(item, target)
         created += 1
 
-    bootstrap_rows = write_bootstrap_rows(destination)
-    layout = record_layout(destination, args.output_project or "", output_app_name(app_root))
-    fill_state(destination, app_root.name, app_root, layout)
+    fill_state(destination, app_root)
     sync = Path(__file__).resolve().parent / "sync_knowledge.py"
     command = [sys.executable, str(sync), "--target", str(destination)]
     result = subprocess.run(command, check=False)
@@ -346,14 +176,12 @@ def main() -> int:
         print("knowledge provenance recording failed; review migration/ohos/knowledge-manifest.tsv")
         return result.returncode
     print(f"migration_root={destination}")
-    if layout:
-        container, project = layout
-        print(f"output_container={container.as_posix()}")
-        print(f"migration_project={project.as_posix()} (create the HarmonyOS project here, never in the container root)")
+    print(f"output_container={container.as_posix()} (the HarmonyOS project goes into a subdirectory of it, "
+          "recorded in the decisions phase)")
     print(f"created={created} skipped_existing={skipped}")
-    print(f"bootstrap_rows={bootstrap_rows}")
-    next_step = Path(__file__).resolve().parent / "next_step.py"
-    print(f"Next: run `python {next_step} {destination}` and follow the phase it names.")
+    scripts = Path(__file__).resolve().parent
+    print(f"Next: run `python {scripts / 'env_probe.py'} --migration-root {destination}`, "
+          f"then `python {scripts / 'next_step.py'} {destination}` and follow the phase it names.")
     return 0
 
 

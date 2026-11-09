@@ -8,22 +8,28 @@ gate) it. What happens inside a feature is the package's business (gray box).
 | kind | Hook point | Purpose | May edit app sources |
 |---|---|---|---|
 | `capability` | phase 6 `features` | HarmonyOS-specific capabilities beyond an equivalent port (tap-to-transfer, continuation, share, …) | yes, inside platform guards |
-| `verification` | phase 8 `handoff` | another team's acceptance flow run against the final HAP | no — defects go back to the main flow |
+| `verification` | phase 7 `validation` | another team's acceptance flow run against the final HAP | no — defects go back to the main flow |
 
-No other phase accepts hooks.
+No other phase accepts hooks: phases 1-5 are the base Qt migration and know
+nothing about external features.
 
 ## Sources and trust boundary
 
 ```text
 features/registry.tsv + features/<id>/{hook.json,feature.md,checks/}  ← skill-native, reviewed
-        │ chosen by the user at phase 3, package hash pinned on activation
+        │ chosen by the user at phase 6, activated by feature_hooks.py
         ▼
-app/migration/ohos/feature-adoption.tsv                               ← per-project state
+app/migration/ohos/features.tsv                               ← per-project state
 app/migration/ohos/features/FEAT-NNN/                                 ← per-feature workdir (logs, evidence)
-        │ capability: expands into CAP-*/VAL-* rows
-        ▼
-work-queue.tsv / inventory.tsv / validation.tsv / device-runs.tsv     ← existing machinery
 ```
+
+A feature's whole record is its `features.tsv` row and its workdir. The
+user's answers about it (selection, retry, deferral) go into the row's
+`notes`, never into `decisions.tsv`, and a feature adds no `inventory.tsv`,
+`tasks.tsv` or `validation.tsv` rows. The only other ledgers that change while
+it runs are written by the main-flow scripts: `diagnostics.tsv` (failed
+rounds) and `device-runs.tsv` (the application HAP's latest result); `hook.json`
+`outputs.ledgers` may name only these two.
 
 - Packages live only in this repository's `features/`, are written by the
   maintaining agent following `features/RULES.md` and `features/REGISTER.md`
@@ -31,82 +37,72 @@ work-queue.tsv / inventory.tsv / validation.tsv / device-runs.tsv     ← existi
   `feature_hooks.py lint`. A migration agent never edits `features/` and never
   runs a feature that is not registered and activated. A missing feature is a
   blocker plus a request for a catalog addition.
-- `draft` registry entries are neither offered nor activatable.
 - Every feature is delivered as a complete skill. The package keeps it
   unchanged in `features/<id>/skill/`; `hook.json` and the adapter
   `feature.md` sit outside it. Such a skill is never installed where it could
   trigger by itself and is read only after its entry gate is READY.
 
-## Selection and activation (phase 3)
+## Selection and activation (phase 6, first step)
+
+The selection is the first step of the `features` phase; nothing about
+features is offered or asked earlier.
 
 1. `feature_hooks.py candidates <root> --request "<user request>"` lists every
-   non-draft registered feature, grouped by hook point. `trigger.keywords`
+   registered feature, grouped by hook point. `trigger.keywords`
    that appear in the request only move a feature up the list.
-2. The user chooses; the default is none. Record one `decisions.tsv` row:
-   `feature_or_scope=external-features`, `selected` = space-separated feature
-   ids or `none`, `owner=user`, `status=approved`, evidence `user: ...`.
-   "Default: none" describes what the user is offered, not what the agent may
-   record: if the question times out or is skipped, ask again; if it stays
-   unanswered, leave the decision pending and stop. Evidence that records a
-   timeout or no reply is rejected by `activate` and by the gates.
-   Mirror the choice in `PORTING_CONTRACT.md` `## External features`.
-3. `feature_hooks.py activate <root> --decision <DEC> --select <id> ...`
-   writes one `FEAT-NNN` row per feature (`planned`, attempts 0, pinned
-   `package_sha256`) and the `## External features` table in `STATE.md`.
+2. The user chooses; the default is none and the agent never selects. Ask
+   with `AskUserQuestion` without `autoDecideAfterSeconds`
+   (`timeout_seconds: 1800`); a timeout or no reply is not an answer. The
+   question is not written into `decisions.tsv` and is not a plan amendment;
+   the FEAT rows and `report.md` carry the selection.
+3. `feature_hooks.py activate <root> --answer "<user's words>" --select <id> ...`
+   writes one `FEAT-NNN` row per feature (`planned`, attempts 0, the answer
+   in `notes`); `ledger.py state` and `feature_hooks.py status` show them.
+   When the user selects nothing, no row is written.
+   It refuses while the `features` phase is not open (an earlier gate has
+   not passed) or after its gate closed it.
 
-The contract gate requires this decision whenever the registry holds a
-non-draft feature, and every selected id must have a row.
+Every selected id must have a row. Earlier gates do not look at external
+features.
 
-## Running a feature (phases 6 and 8)
+## Running a feature (phases 6 and 7)
 
-Features of one host phase run one at a time.
+Features of one host phase run one at a time. Capability features run in
+`features` after the selection; their rebuild, package, and device rounds go
+through `batch_checks.py` like any other build
+([build-diagnostics.md](build-diagnostics.md)).
 
 1. `feature_gate.py enter <root> <FEAT>` checks: the host phase is open, the
    features in `hook.after` are closed, no other feature of the phase is
-   in progress, the package hash still matches, and `entry.requires` holds.
-   READY turns the row `in-progress` and creates the workdir; verification
-   features also record the app source fingerprint.
+   in progress, and `entry.requires` holds. READY turns the row
+   `in-progress` and creates the workdir.
 2. Follow the package's `feature.md`, then read `skill/SKILL.md` (`enter`
    prints its path) and resolve the
    skill's relative paths against that directory. The adapter and this
    workflow win over the skill's own instructions (its phases, state files,
    dependency installs, "fix what you find"); the skill's state and outputs
-   go only to the workdir, its results count only once they are ledger rows,
-   and the skill directory is never edited. Call
-   `feature_hooks.py progress <root> <FEAT> --step "<step>"` at each step.
-   Capability features list their `CAP-*`/`VAL-*` ids in the row's
-   `capability_ids`/`validation_ids`; verification features list `VAL-*`.
+   go only to the workdir (changes made, cases run, the verdict file its exit
+   criteria read), and the skill directory is never edited. Call
+   `feature_hooks.py progress <root> <FEAT> --step "<step>"` at each step;
+   an answer the user gives meanwhile goes in with `--note`.
 3. `feature_gate.py exit <root> <FEAT>` evaluates `exit.criteria` plus the
-   implicit criteria (package unchanged, no open linked diagnostic, listed
-   `VAL-*` all passed; capability: listed `CAP-*` closed and, with
-   `device=true`, a passed `device-runs.tsv` row covering them; verification:
-   app sources unchanged since entry). READY → `passed` with
-   `exit_gate=READY @<ts> digest=<hash>`; otherwise `attempts` grows and the
-   unmet criteria are printed. Past `max_attempts`, continuing needs a
-   user-approved decision passed via `--decision`.
-4. A verification feature that finds a defect records it (failed `VAL-*`,
-   diagnostic with the `FEAT` id in `affected_ids`) and stops. Fix it in the
+   implicit criteria (no `open` problem in `diagnostics.tsv`; with
+   `device=true`, `device-runs.tsv` status `run`: the latest HAP ran on the device).
+   READY → `passed` (`exit_gate` keeps the reason of the last failed attempt,
+   empty when the first one passed); otherwise `attempts` grows, `exit_gate`
+   records the unmet criteria and they are printed. Past `max_attempts`, continuing needs
+   the user's answer: `feature_gate.py exit <root> <FEAT> --answer "<user's words>"`
+   resets the counter and records the answer in `notes`.
+4. A verification feature that finds a defect records it (failed case in its
+   workdir report, problem in `diagnostics.tsv` naming the `FEAT` id) and stops. Fix it in the
    main flow, then `feature_gate.py enter --restart <root> <FEAT>` and rerun.
-5. A feature that cannot finish is closed with
-   `feature_hooks.py close <root> <FEAT> --status deferred-approved|blocked --decision <DEC>`;
-   `deferred-approved` needs a user-approved decision.
+5. After `max_attempts` failed exits the feature is `blocked`, waiting for the user.
+   A feature the user gives up is deferred with
+   `feature_hooks.py close <root> <FEAT> --answer "<user's words>"` (`deferred-approved`);
+   the answer goes into `notes`; `exit_gate` keeps the last failure reason.
 
 Statuses are written only by these scripts. The host phase gate requires
-every row of that phase to be terminal (`passed`, `deferred-approved`,
-`blocked`), re-computes the evidence digest of each `passed` row, and at
-`handoff` requires `report.md` `## External features` to list each `FEAT`
+every row of that phase to be terminal (`passed`, `deferred-approved`), and
+the user's answer to the feature selection (STATE.md `Feature selection`,
+written by `candidates`/`activate`) when features are registered; at `validation` it requires `report.md` `## External features` to list each `FEAT`
 with its status.
-
-## Frozen packages
-
-The pinned `package_sha256` covers the whole package (hook, playbook, check
-scripts). If a package changes while its row is not terminal,
-`feature_gate.py enter`/`exit` refuse and `validate_ledgers.py` warns. Report
-the drift; only after a user decision run
-`feature_hooks.py repin <root> <FEAT> --decision <DEC>`.
-
-## Legacy ledgers
-
-A `feature-adoption.tsv` with the old `playbook_path` header (no `host_phase`)
-keeps the old rules: rows end `verified`, `deferred-approved`, `blocked`, or
-`not-applicable`. `verified` is read as a legacy alias of `passed`.

@@ -14,46 +14,55 @@ Maintainer (outside a migration)::
 
 Registering a delivered skill: ``feature_register.py`` (inspect / scaffold).
 
-Migration agent (``<root>`` is ``<app>/migration/ohos``)::
+Migration agent (``<root>`` is ``<container>/migration/ohos``)::
 
     python scripts/feature_hooks.py candidates <root> --request "<user request>"
-    python scripts/feature_hooks.py activate <root> --decision DEC-005 [--select <feature-id> ...]
+    python scripts/feature_hooks.py activate <root> --answer "<user's words>" [--select <feature-id> ...]
     python scripts/feature_hooks.py progress <root> FEAT-001 --step "<milestone>" [--note TEXT]
-    python scripts/feature_hooks.py close <root> FEAT-001 --status deferred-approved|blocked --decision DEC-009
-    python scripts/feature_hooks.py repin <root> FEAT-001 --decision DEC-010
+    python scripts/feature_hooks.py close <root> FEAT-001 --answer "<user's words>"
     python scripts/feature_hooks.py status <root>
 
-Features are never activated automatically: the user selects them at the
-contract phase (default: none), and ``activate`` only accepts a user-approved
-``decisions.tsv`` row with ``feature_or_scope=external-features``.
+Features are never activated automatically. All HarmonyOS feature work sits
+in the ``features`` phase, which opens only after the base Qt migration has
+passed ``diagnostics``: there the user selects from the registered features
+(default: none) and ``activate --answer "<user's words>"`` writes one FEAT
+row per selected feature while that phase is open, with the answer in its
+``notes``. ``candidates`` records the question as STATE.md ``Feature selection:
+pending`` (the phase is blocked until the user answers) and ``activate``
+records the answer there, also when nothing is selected. ``close`` defers a
+feature the user gives up (``deferred-approved``). The answer is not a decisions.tsv row, and a feature writes no
+inventory, tasks or validation rows: features.tsv and the feature's workdir
+are its whole record. Selected ``capability`` features run in ``features``;
+selected ``verification`` features run later in ``validation``.
 """
 from __future__ import annotations
 
 import argparse
-import os
 import re
 import sys
-import tempfile
 from pathlib import Path
 
 import feature_predicates as fp
-from gate_state import _now
-from phase_gate import read_rows, user_approved
+from gate_state import _now, feature_selection, set_feature_selection
 
 # Host phases a feature may hook into, and the kind each one accepts.
-# Phases 4, 5 and 7 are reserved; phases 1-3 build the contract and are closed.
-HOOK_POINTS = {"features": "capability", "handoff": "verification"}
-REGISTRY_FIELDS = ["feature_id", "title", "kind", "hook_phase", "status", "package_path", "owner", "summary"]
-REGISTRY_STATUSES = {"stable", "beta", "draft"}
+# Phases 1-5 port, build and diagnose the base Qt application and accept no
+# hooks; phase 6 `features` selects and runs features, phase 7 verifies.
+HOOK_POINTS = {"features": "capability", "validation": "verification"}
+# The phase in which the user selects external features (of every kind).
+SELECTION_PHASE = "features"
+REGISTRY_FIELDS = ["feature_id", "title", "kind", "package_path", "owner", "summary"]
 # Every feature is delivered as a skill, kept untouched in the package (hook.json "skill");
 # feature.md is only the adapter between the skill and the migration ledgers.
 REQUIRED_SECTIONS = {
     "capability": ("前置条件", "执行入口", "结果记录", "准出对照", "失败处理"),
     "verification": ("前置条件", "执行入口", "证据产出", "判定规则", "失败处理"),
 }
+# Ledgers other than features.tsv that change while a feature runs; only the
+# main-flow scripts write them (batch_checks.py / record_diagnostic.py, device_run.py).
+# A feature never writes inventory, decisions, tasks or validation rows.
+FEATURE_OUTPUT_LEDGERS = ("diagnostics.tsv", "device-runs.tsv")
 FEATURE_ID_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
-STATE_HEADING = "## External features"
-STATE_INTRO = "Written by `feature_hooks.py` / `feature_gate.py`; do not edit by hand."
 
 
 def ledger_names() -> set[str]:
@@ -92,10 +101,6 @@ def _check_predicate(item, stage: str, where: str, package: Path, errors: list[s
             errors.append(f"{where}: 'where' must map column -> value or list of values")
         if "min" in item and (not isinstance(item["min"], int) or item["min"] < 1):
             errors.append(f"{where}: 'min' must be a positive integer")
-    if check == "validation-passed":
-        ids = item.get("ids")
-        if ids != "row" and not (isinstance(ids, list) and ids and all(str(value).startswith("VAL-") for value in ids)):
-            errors.append(f"{where}: 'ids' must be \"row\" or a non-empty list of VAL-* ids")
     if check == "artifact" and "json" in item and not isinstance(item["json"], dict):
         errors.append(f"{where}: 'json' must map key path -> expected value")
     if check == "command":
@@ -172,7 +177,7 @@ def lint_package(package: Path, registry: dict[str, dict[str, str]], kb_root: Pa
     for other in after:
         if other == feature_id:
             errors.append("hook.after must not name the feature itself")
-        elif other in registry and registry[other].get("hook_phase") != point:
+        elif other in registry and fp.host_phase(registry[other]) != point:
             errors.append(f"hook.after '{other}' hooks into another phase; ordering only applies within one host phase")
         elif other not in registry:
             warnings.append(f"hook.after '{other}' is not registered")
@@ -200,8 +205,9 @@ def lint_package(package: Path, registry: dict[str, dict[str, str]], kb_root: Pa
         errors.append("exit.max_attempts must be a positive integer")
     outputs = hook.get("outputs") or {}
     for name in outputs.get("ledgers", []) or []:
-        if name not in ledger_names():
-            errors.append(f"outputs.ledgers: '{name}' is not a migration ledger")
+        if name not in FEATURE_OUTPUT_LEDGERS:
+            errors.append(f"outputs.ledgers: '{name}' is not allowed; a feature keeps its record in its features.tsv row "
+                          f"and {{workdir}}, and only the main-flow scripts write {', '.join(FEATURE_OUTPUT_LEDGERS)}")
     for path in outputs.get("evidence_files", []) or []:
         if not str(path).startswith("{workdir}/"):
             errors.append(f"outputs.evidence_files: '{path}' must live in '{{workdir}}/'")
@@ -248,12 +254,10 @@ def lint_package(package: Path, registry: dict[str, dict[str, str]], kb_root: Pa
     if row is None:
         warnings.append("not registered in registry.tsv yet (register after review)")
     else:
-        if row.get("kind") != kind or row.get("hook_phase") != point:
-            errors.append(f"registry.tsv kind/hook_phase ({row.get('kind')}/{row.get('hook_phase')}) differ from hook.json ({kind}/{point})")
+        if row.get("kind") != kind:
+            errors.append(f"registry.tsv kind '{row.get('kind')}' differs from hook.json '{kind}'")
         if row.get("package_path", "").strip().rstrip("/") != package.name:
             errors.append(f"registry.tsv package_path '{row.get('package_path')}' must be '{package.name}/'")
-        if row.get("status") not in REGISTRY_STATUSES:
-            errors.append(f"registry.tsv status '{row.get('status')}' must be one of {', '.join(sorted(REGISTRY_STATUSES))}")
     return errors, warnings
 
 
@@ -304,7 +308,7 @@ def cmd_lint(args) -> int:
             print(f"ERROR {name}: {message}")
         failed += bool(errors)
         if not errors:
-            print(f"OK    {name} package_sha256={fp.package_hash(package)}")
+            print(f"OK    {name}")
     if not args.feature_ids:
         for message in _after_cycles(root, registry):
             print(f"ERROR {message}")
@@ -347,16 +351,16 @@ def _entry_summary(package: Path) -> str:
 
 def cmd_candidates(args) -> int:
     root = Path(args.features_root)
-    registry = {key: row for key, row in fp.read_registry(root).items() if row.get("status") != "draft"}
+    registry = fp.read_registry(root)
     if not registry:
-        print("No external features are registered; record nothing (the contract gate does not ask for a selection).")
+        print("No external features are registered; record nothing (the features gate does not ask for a selection).")
         return 0
     request = (args.request or "").lower()
     print("External features available for this migration (none is enabled unless the user selects it):")
     for phase, kind in HOOK_POINTS.items():
         group = []
         for feature_id, row in registry.items():
-            if row.get("hook_phase") != phase:
+            if fp.host_phase(row) != phase:
                 continue
             try:
                 keywords = (fp.load_hook(root / row.get("package_path", "").strip()).get("trigger") or {}).get("keywords") or []
@@ -371,14 +375,15 @@ def cmd_candidates(args) -> int:
             flags = []
             if hits:
                 flags.append("mentioned in request: " + ", ".join(hits))
-            if row.get("status") == "beta":
-                flags.append("beta")
             print(f"- {feature_id} — {row.get('title')}: {row.get('summary')}"
                   + (f" [{'; '.join(flags)}]" if flags else ""))
             print(f"  owner {row.get('owner') or '-'}; entry needs: {_entry_summary(root / row.get('package_path', '').strip())}")
-    print("\nAsk the user which to enable (default: none). Record the answer in decisions.tsv with "
-          "feature_or_scope=external-features, selected=<ids or none>, owner=user, status=approved, "
-          "evidence 'user: ...', then run: feature_hooks.py activate <root> --decision DEC-xxx [--select <id> ...]")
+    state = Path(args.root) / "STATE.md"
+    if state.is_file() and feature_selection(state.read_text(encoding="utf-8", errors="replace")) != "answered":
+        set_feature_selection(Path(args.root), "`pending`")
+    print("\nAsk the user which to enable (default: none; never in decisions.tsv; the phase is blocked until the "
+          "answer). Record the answer, also when nothing is selected: feature_hooks.py activate <root> --answer "
+          "\"<user's words>\" [--select <id> ...]")
     return 0
 
 
@@ -387,30 +392,16 @@ def _next_feat_id(rows: list[dict[str, str]]) -> str:
     return f"FEAT-{max(numbers, default=0) + 1:03d}"
 
 
-def _decision(root: Path, decision_id: str) -> dict[str, str] | None:
-    return next((row for row in read_rows(root / "decisions.tsv") if row.get("id", "").strip() == decision_id), None)
-
-
 def cmd_activate(args) -> int:
     root, features_root = Path(args.root), Path(args.features_root)
     errors = []
-    fields = fp.adoption_fields(root)
-    if fp.is_legacy(fields):
-        print("BLOCKED activate: feature-adoption.tsv uses the old header; external features need the new ledger "
-              "(only the user may decide to rebuild it from assets/templates/migration/ohos/feature-adoption.tsv)")
-        return 1
-    decision = _decision(root, args.decision)
-    if decision is None:
-        errors.append(f"{args.decision} is not in decisions.tsv")
-    else:
-        if decision.get("feature_or_scope", "").strip().lower() != fp.ACTIVATION_SCOPE:
-            errors.append(f"{args.decision} must have feature_or_scope={fp.ACTIVATION_SCOPE}")
-        if not user_approved(decision):
-            errors.append(f"{args.decision} must be status=approved, owner=user, evidence quoting 'user: ...' "
-                          "(a question that timed out or was skipped is not an answer); the agent never selects features")
-        selected = fp.selected_features(decision)
-        if selected != set(args.select):
-            errors.append(f"--select {sorted(args.select) or 'nothing'} differs from {args.decision} selected={sorted(selected) or 'none'}")
+    # Selection belongs to the features phase: the base migration must have
+    # passed diagnostics first, and a closed features phase takes no new ones.
+    reason = fp.host_phase_open(root, SELECTION_PHASE)
+    if reason:
+        errors.append(f"external features are selected in the {SELECTION_PHASE} phase only: {reason}")
+    if not args.answer.strip():
+        errors.append("--answer is empty: pass the user's answer to the feature question")
     registry = fp.read_registry(features_root)
     rows = fp.read_adoption(root)
     active = {row.get("feature_id", "").strip() for row in rows}
@@ -418,12 +409,10 @@ def cmd_activate(args) -> int:
         row = registry.get(feature_id)
         if row is None:
             errors.append(f"{feature_id} is not registered in features/registry.tsv")
-        elif row.get("status") == "draft":
-            errors.append(f"{feature_id} is draft and cannot be activated")
-        elif row.get("hook_phase") not in HOOK_POINTS:
-            errors.append(f"{feature_id} hooks into '{row.get('hook_phase')}', which is not an open hook point")
+        elif not fp.host_phase(row):
+            errors.append(f"{feature_id} has unknown kind '{row.get('kind')}' in registry.tsv")
     if errors:
-        print("BLOCKED activate")
+        print("ERROR activate")
         for error in errors:
             print(f"- {error}")
         return 1
@@ -437,19 +426,18 @@ def cmd_activate(args) -> int:
         row = {name: "" for name in fp.ADOPTION_FIELDS}
         row.update({
             "id": _next_feat_id(rows), "feature_id": feature_id, "kind": hook.get("kind", ""),
-            "host_phase": (hook.get("hook") or {}).get("phase", ""), "package_path": registered["package_path"].strip(),
-            "package_sha256": fp.package_hash(package), "decision_id": args.decision, "status": "planned", "attempts": "0",
-            "notes": f"activated by {args.decision} @{_now()}",
+            "status": "planned", "attempts": "0",
+            "notes": fp.clean(f"activated @{_now()}: user answer: {args.answer}"),
         })
         rows.append(row)
-        added.append(f"{row['id']} {feature_id} ({row['kind']}, hooks into {row['host_phase']})")
+        added.append(f"{row['id']} {feature_id} ({row['kind']}, hooks into {fp.host_phase(row)})")
     if added:
         fp.write_adoption(root, rows)
-    write_state_table(root, rows)
+    set_feature_selection(root, f"`answered` @{_now()}: {fp.clean(args.answer)}")
     if args.select:
         print("activated:" if added else "already active:", "; ".join(added) or ", ".join(sorted(args.select)))
     else:
-        print(f"recorded: the user selected no external feature ({args.decision}); no FEAT rows written")
+        print("the user selected no external feature; no FEAT rows written")
     return 0
 
 
@@ -457,51 +445,25 @@ def cmd_close(args) -> int:
     root = Path(args.root)
     rows = fp.read_adoption(root)
     row = fp.find_row(rows, args.feat)
-    decision = _decision(root, args.decision)
     errors = []
     if row is None:
-        errors.append(f"{args.feat} is not in feature-adoption.tsv")
+        errors.append(f"{args.feat} is not in features.tsv")
     elif fp.status_of(row) in fp.TERMINAL:
         errors.append(f"{args.feat} is already {fp.status_of(row)}")
-    if decision is None:
-        errors.append(f"{args.decision} is not in decisions.tsv")
-    elif args.status == "deferred-approved" and not user_approved(decision):
-        errors.append(f"deferring a feature needs a user decision: {args.decision} must be status=approved, owner=user, evidence 'user: ...'")
+    if not args.answer.strip():
+        errors.append("--answer is empty: closing a feature needs the user's answer")
     if errors:
-        print(f"BLOCKED close {args.feat}")
+        print(f"ERROR close {args.feat}")
         for error in errors:
             print(f"- {error}")
         return 1
-    previous = row.get("decision_id", "")
     row.update({
-        "status": args.status, "decision_id": args.decision, "current_step": "",
-        "exit_gate": f"CLOSED {args.status} by {args.decision} @{_now()}",
-        "notes": fp.clean(f"{row.get('notes', '')}; closed by {args.decision} (activated by {previous})" + (f": {args.note}" if args.note else "")).lstrip("; "),
+        "status": "deferred-approved", "current_step": "",
+        "notes": fp.clean(f"{row.get('notes', '')}; closed deferred-approved: user answer: {args.answer}"
+                          + (f"; {args.note}" if args.note else "")).lstrip("; "),
     })
     fp.write_adoption(root, rows)
-    write_state_table(root, rows)
-    print(f"{args.feat} {args.status} by {args.decision}; list it in report.md External features")
-    return 0
-
-
-def cmd_repin(args) -> int:
-    root, features_root = Path(args.root), Path(args.features_root)
-    rows = fp.read_adoption(root)
-    row = fp.find_row(rows, args.feat)
-    decision = _decision(root, args.decision)
-    if row is None or decision is None or not user_approved(decision):
-        print(f"BLOCKED repin {args.feat}: needs an existing FEAT row and a user-approved decision (owner=user, evidence 'user: ...')")
-        return 1
-    if fp.status_of(row) in fp.TERMINAL:
-        print(f"BLOCKED repin {args.feat}: it is already {fp.status_of(row)}")
-        return 1
-    package = features_root / row.get("package_path", "").strip()
-    old, new = row.get("package_sha256", ""), fp.package_hash(package)
-    row["package_sha256"] = new
-    row["notes"] = fp.clean(f"{row.get('notes', '')}; repinned by {args.decision} {old[:12]}->{new[:12]}").lstrip("; ")
-    fp.write_adoption(root, rows)
-    write_state_table(root, rows)
-    print(f"{args.feat} package_sha256 {old[:12]} -> {new[:12]} by {args.decision}")
+    print(f"{args.feat} deferred-approved; list it in report.md External features")
     return 0
 
 
@@ -510,15 +472,32 @@ def cmd_progress(args) -> int:
     rows = fp.read_adoption(root)
     row = fp.find_row(rows, args.feat)
     if row is None or fp.status_of(row) != "in-progress":
-        print(f"BLOCKED progress {args.feat}: only an in-progress feature (after feature_gate.py enter) reports steps")
+        print(f"ERROR progress {args.feat}: only an in-progress feature (after feature_gate.py enter) reports steps")
         return 1
     row["current_step"] = args.step
     if args.note:
         row["notes"] = fp.clean(f"{row.get('notes', '')}; {args.note}").lstrip("; ")
     fp.write_adoption(root, rows)
-    write_state_table(root, rows)
     print(f"{args.feat} step: {args.step}")
     return 0
+
+
+def _last_gate(row: dict[str, str]) -> str:
+    for column, label in (("exit_gate", "last failed exit"), ("entry_gate", "enter")):
+        value = row.get(column, "").strip()
+        if value:
+            return f"{label} {value}"
+    return "activated"
+
+
+def table_lines(rows: list[dict[str, str]]) -> list[str]:
+    """Printed by ``status``; nothing copies this table into a document."""
+    lines = ["| FEAT | feature_id | Phase | Kind | Status | Step | Last gate |", "|---|---|---|---|---|---|---|"]
+    for row in rows:
+        cells = [row.get("id", ""), row.get("feature_id", ""), fp.host_phase(row) or "features",
+                 row.get("kind", "") or "capability", row.get("status", ""), row.get("current_step", "") or "—", _last_gate(row)]
+        lines.append("| " + " | ".join(cell.replace("|", "/") for cell in cells) + " |")
+    return lines
 
 
 def cmd_status(args) -> int:
@@ -530,49 +509,6 @@ def cmd_status(args) -> int:
     for line in table_lines(rows):
         print(line)
     return 0
-
-
-# --------------------------------------------------------------------------- STATE.md table
-
-def _last_gate(row: dict[str, str]) -> str:
-    for column, label in (("exit_gate", "exit"), ("entry_gate", "enter")):
-        value = row.get(column, "").strip()
-        if value:
-            return value if value.startswith("CLOSED") else f"{label} {value}"
-    return f"activated by {row.get('decision_id', '')}"
-
-
-def table_lines(rows: list[dict[str, str]]) -> list[str]:
-    lines = ["| FEAT | feature_id | Phase | Kind | Status | Step | Last gate |", "|---|---|---|---|---|---|---|"]
-    for row in rows:
-        cells = [row.get("id", ""), row.get("feature_id", ""), row.get("host_phase", "") or "features",
-                 row.get("kind", "") or "capability", row.get("status", ""), row.get("current_step", "") or "—", _last_gate(row)]
-        lines.append("| " + " | ".join(cell.replace("|", "/") for cell in cells) + " |")
-    return lines
-
-
-def write_state_table(root: Path, rows: list[dict[str, str]]) -> str | None:
-    """Rewrite the ``## External features`` section of STATE.md (appended when missing)."""
-    state = root / "STATE.md"
-    if not state.is_file():
-        return "STATE.md missing; External features table not written"
-    text = state.read_text(encoding="utf-8")
-    body = [STATE_HEADING, "", STATE_INTRO, ""]
-    body += table_lines(rows) if rows else ["No external feature activated."]
-    block = "\n".join(body) + "\n"
-    lines = text.splitlines(keepends=True)
-    start = next((i for i, line in enumerate(lines) if line.strip() == STATE_HEADING), None)
-    if start is None:
-        new = text.rstrip("\n") + "\n\n" + block
-    else:
-        end = next((i for i in range(start + 1, len(lines)) if lines[i].startswith("## ")), len(lines))
-        tail = "".join(lines[end:])
-        new = "".join(lines[:start]) + block + ("\n" + tail if tail else "")
-    fd, tmp = tempfile.mkstemp(prefix=".STATE.", suffix=".tmp", dir=str(root))
-    with os.fdopen(fd, "w", encoding="utf-8", newline="") as stream:
-        stream.write(new)
-    os.replace(tmp, state)
-    return None
 
 
 # --------------------------------------------------------------------------- CLI
@@ -588,14 +524,14 @@ def main(argv: list[str] | None = None) -> int:
     lint.set_defaults(func=cmd_lint)
     sub.add_parser("list", help="print registry.tsv").set_defaults(func=cmd_list)
 
-    candidates = sub.add_parser("candidates", help="list registered features for the user to choose from (contract phase)")
+    candidates = sub.add_parser("candidates", help="list registered features for the user to choose from (features phase)")
     candidates.add_argument("root")
     candidates.add_argument("--request", default="", help="the user's original migration request, used only for ranking")
     candidates.set_defaults(func=cmd_candidates)
 
     activate = sub.add_parser("activate", help="write FEAT rows for the features the user selected")
     activate.add_argument("root")
-    activate.add_argument("--decision", required=True)
+    activate.add_argument("--answer", required=True, help="the user's answer to the feature question (recorded in notes)")
     activate.add_argument("--select", action="append", default=[], metavar="FEATURE_ID")
     activate.set_defaults(func=cmd_activate)
 
@@ -606,19 +542,12 @@ def main(argv: list[str] | None = None) -> int:
     progress.add_argument("--note", default="")
     progress.set_defaults(func=cmd_progress)
 
-    close = sub.add_parser("close", help="close a feature without passing it (user decision)")
+    close = sub.add_parser("close", help="defer a feature without passing it (user decision: deferred-approved)")
     close.add_argument("root")
     close.add_argument("feat")
-    close.add_argument("--status", required=True, choices=["deferred-approved", "blocked"])
-    close.add_argument("--decision", required=True)
+    close.add_argument("--answer", required=True, help="the user's answer that closes the feature (recorded in notes)")
     close.add_argument("--note", default="")
     close.set_defaults(func=cmd_close)
-
-    repin = sub.add_parser("repin", help="accept a changed feature package (user decision)")
-    repin.add_argument("root")
-    repin.add_argument("feat")
-    repin.add_argument("--decision", required=True)
-    repin.set_defaults(func=cmd_repin)
 
     status = sub.add_parser("status", help="print the external features of a migration")
     status.add_argument("root")

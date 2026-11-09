@@ -1,12 +1,18 @@
 #!/usr/bin/env python3
-"""Mark skill-baseline pages (upstream-kb/knowledge/...) as consulted in a project knowledge-manifest.tsv."""
+"""Mark knowledge-baseline pages as consulted in the project knowledge-manifest.tsv.
+
+    python <skill>/scripts/mark_knowledge_used.py <root>/knowledge-manifest.tsv semantic/qt-harmonyos-golden-rules.md ...
+
+Paths are relative to ``upstream-kb/knowledge/``. Mark every page whose facts
+a row, decision or fix relies on, right after reading it.
+"""
 from __future__ import annotations
 import argparse
 import csv
 from pathlib import Path
 
 def main() -> int:
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("manifest", type=Path)
     parser.add_argument("paths", nargs="+", help="snapshot-relative source paths")
     args = parser.parse_args()

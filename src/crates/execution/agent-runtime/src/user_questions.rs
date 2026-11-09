@@ -890,6 +890,140 @@ pub fn build_timed_out_user_question_result(
     }
 }
 
+/// Optional model parameter: after this many unattended seconds the runtime
+/// answers each question with its recommended option instead of skipping it.
+/// Read from the raw tool input so the shared input contract stays unchanged.
+pub const AUTO_DECIDE_AFTER_SECONDS_FIELD: &str = "autoDecideAfterSeconds";
+/// Shortest auto-decision wait a caller may request: the user must have a real
+/// chance to answer before the agent decides for them.
+pub const AUTO_DECIDE_MIN_SECONDS: u32 = 60;
+/// Longest auto-decision wait (one day).
+pub const AUTO_DECIDE_MAX_SECONDS: u32 = 86_400;
+/// Suggested auto-decision wait.
+pub const AUTO_DECIDE_DEFAULT_SECONDS: u32 = 600;
+
+/// Label suffixes that mark the recommended option (case-insensitive).
+const RECOMMENDED_LABEL_MARKERS: &[&str] = &["(recommended)", "（推荐）", "(推荐)", "【推荐】", "[推荐]"];
+
+/// Parse and bound `autoDecideAfterSeconds` from the raw tool input.
+pub fn parse_auto_decide_after_seconds(raw_input: &Value) -> Result<Option<u32>, String> {
+    let Some(value) = raw_input.get(AUTO_DECIDE_AFTER_SECONDS_FIELD) else {
+        return Ok(None);
+    };
+    if value.is_null() {
+        return Ok(None);
+    }
+    let seconds = value
+        .as_u64()
+        .ok_or_else(|| format!("{AUTO_DECIDE_AFTER_SECONDS_FIELD} must be a positive integer"))?;
+    if seconds < u64::from(AUTO_DECIDE_MIN_SECONDS) || seconds > u64::from(AUTO_DECIDE_MAX_SECONDS)
+    {
+        return Err(format!(
+            "{AUTO_DECIDE_AFTER_SECONDS_FIELD} must be between {AUTO_DECIDE_MIN_SECONDS} and {AUTO_DECIDE_MAX_SECONDS}"
+        ));
+    }
+    Ok(Some(seconds as u32))
+}
+
+/// Index of the option the caller recommends: the first option whose label
+/// carries a recommendation marker, otherwise the first option (the tool asks
+/// the model to list its recommendation first).
+pub fn recommended_option_index(question: &Question) -> Option<usize> {
+    if question.options.is_empty() {
+        return None;
+    }
+    let marked = question.options.iter().position(|option| {
+        let label = option.label.trim().to_lowercase();
+        RECOMMENDED_LABEL_MARKERS
+            .iter()
+            .any(|marker| label.ends_with(marker) || label.starts_with(marker))
+    });
+    Some(marked.unwrap_or(0))
+}
+
+/// The answers an auto-decision submits, in the same shape the card submits:
+/// keyed by field id (template) or position, the option value (or label), and
+/// an array for multi-select questions.
+pub fn recommended_answers(questions: &[Question]) -> Result<Value, String> {
+    let mut answers = serde_json::Map::new();
+    for (index, question) in questions.iter().enumerate() {
+        let option_index = recommended_option_index(question).ok_or_else(|| {
+            format!(
+                "Question {} has no options, so {AUTO_DECIDE_AFTER_SECONDS_FIELD} cannot pick a recommended answer",
+                index + 1
+            )
+        })?;
+        let option = &question.options[option_index];
+        let value = option
+            .value
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .unwrap_or(option.label.as_str())
+            .to_string();
+        let key = question.field.clone().unwrap_or_else(|| index.to_string());
+        let answer = if question.multi_select {
+            json!([value])
+        } else {
+            json!(value)
+        };
+        answers.insert(key, answer);
+    }
+    Ok(Value::Object(answers))
+}
+
+/// Result of a question the runtime answered with the recommended options
+/// because the user did not respond in time. It is an agent decision made on
+/// the user's behalf, so the model must surface it and record it as such.
+pub fn build_auto_decided_user_question_result(
+    input: &AskUserQuestionInput,
+    answers: Value,
+    waited_seconds: u32,
+) -> UserQuestionToolResult {
+    let questions_summary: Vec<Value> = input
+        .questions
+        .iter()
+        .map(|question| json!({ "question": question.question, "header": question.header }))
+        .collect();
+    let mut lines = vec![format!(
+        "The user did not respond within {waited_seconds} seconds, so the recommended option of every question was selected ON THE USER'S BEHALF. This is your decision, not the user's approval:"
+    )];
+    let answers_map = answers.as_object();
+    for (index, question) in input.questions.iter().enumerate() {
+        let key = question.field.clone().unwrap_or_else(|| index.to_string());
+        let answer_text = answers_map
+            .and_then(|map| map.get(&key))
+            .map(|value| match value {
+                Value::Array(values) => values
+                    .iter()
+                    .filter_map(Value::as_str)
+                    .collect::<Vec<_>>()
+                    .join(", "),
+                Value::String(value) => value.clone(),
+                other => other.to_string(),
+            })
+            .unwrap_or_else(|| "N/A".to_string());
+        lines.push(format!(
+            "- {} ({}): \"{}\"",
+            question.question, question.header, answer_text
+        ));
+    }
+    lines.push(
+        "\nContinue with these answers. In your next reply, tell the user plainly which decisions were made on their behalf and that they can change any of them at any time; wherever your workflow records decisions, record each one as an agent default made after a question timeout, not as the user's choice."
+            .to_string(),
+    );
+    UserQuestionToolResult {
+        data: json!({
+            "questions": questions_summary,
+            "answers": answers,
+            "status": "auto_decided",
+            "autoDecided": true,
+            "autoDecideAfterSeconds": waited_seconds,
+        }),
+        result_for_assistant: lines.join("\n"),
+    }
+}
+
 fn format_result_for_assistant(questions: &[Question], answers: &Value) -> String {
     let answers_obj = answers
         .as_object()
@@ -1436,6 +1570,87 @@ mod tests {
             .await,
             super::UserQuestionWaitOutcome::Cancelled
         ));
+    }
+
+    fn question(labels: &[&str], multi_select: bool) -> super::Question {
+        super::Question {
+            question: "Pick?".to_string(),
+            header: "Pick".to_string(),
+            options: labels
+                .iter()
+                .map(|label| super::QuestionOption {
+                    label: label.to_string(),
+                    description: "d".to_string(),
+                    value: None,
+                })
+                .collect(),
+            multi_select,
+            input_placeholder: None,
+            field: None,
+            required: false,
+        }
+    }
+
+    #[test]
+    fn auto_decide_seconds_are_optional_and_bounded() {
+        assert_eq!(super::parse_auto_decide_after_seconds(&json!({})), Ok(None));
+        assert_eq!(
+            super::parse_auto_decide_after_seconds(&json!({"autoDecideAfterSeconds": null})),
+            Ok(None)
+        );
+        assert_eq!(
+            super::parse_auto_decide_after_seconds(&json!({"autoDecideAfterSeconds": 600})),
+            Ok(Some(600))
+        );
+        assert!(
+            super::parse_auto_decide_after_seconds(&json!({"autoDecideAfterSeconds": 30})).is_err()
+        );
+        assert!(super::parse_auto_decide_after_seconds(
+            &json!({"autoDecideAfterSeconds": 100000})
+        )
+        .is_err());
+        assert!(
+            super::parse_auto_decide_after_seconds(&json!({"autoDecideAfterSeconds": "600"}))
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn recommended_answers_prefer_the_marked_option_then_the_first() {
+        let marked = question(&["Keep", "Install desktop Qt (Recommended)"], false);
+        let first = question(&["Static link", "Ship shared"], false);
+        let multi = question(&["A", "B（推荐）"], true);
+        let mut with_value = question(&["Label (Recommended)", "Other"], false);
+        with_value.options[0].value = Some("machine-value".to_string());
+        let answers =
+            super::recommended_answers(&[marked, first, multi, with_value]).expect("answers");
+        assert_eq!(
+            answers,
+            json!({
+                "0": "Install desktop Qt (Recommended)",
+                "1": "Static link",
+                "2": ["B（推荐）"],
+                "3": "machine-value",
+            })
+        );
+        let text_only = question(&[], false);
+        assert!(super::recommended_answers(&[text_only]).is_err());
+    }
+
+    #[test]
+    fn auto_decided_result_is_marked_as_an_agent_decision() {
+        let input = super::AskUserQuestionInput {
+            questions: vec![question(&["Yes (Recommended)", "No"], false)],
+            template_id: None,
+            timeout_seconds: super::DEFAULT_USER_QUESTION_TIMEOUT_SECONDS,
+        };
+        let answers = super::recommended_answers(&input.questions).unwrap();
+        let result = super::build_auto_decided_user_question_result(&input, answers, 600);
+        assert_eq!(result.data["status"], "auto_decided");
+        assert_eq!(result.data["autoDecided"], true);
+        assert_eq!(result.data["answers"]["0"], "Yes (Recommended)");
+        assert!(result.result_for_assistant.contains("ON THE USER'S BEHALF"));
+        assert!(result.result_for_assistant.contains("\"Yes (Recommended)\""));
     }
 
     #[test]

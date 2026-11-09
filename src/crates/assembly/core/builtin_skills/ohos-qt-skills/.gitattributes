@@ -2,3 +2,7 @@
 # Never let git rewrite line endings in it, or hashes differ per machine.
 upstream-kb/knowledge/** -text
 upstream-kb/manifest.tsv -text
+
+# The BitFun acquisition scripts are run through bash on every host, including
+# Windows checkouts with core.autocrlf=true, so they must stay LF everywhere.
+scripts/bitfun-*.sh text eol=lf

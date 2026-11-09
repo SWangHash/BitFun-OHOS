@@ -1,6 +1,5 @@
 import { phaseIdFromLabel } from '../model/ledgerSchema';
-import type { ParsedStateMd, StateDecisionRow, StateGate } from '../model/types';
-import { parseLastGateLine } from './parseGateOutput';
+import type { MigrationGateResult, MigrationPhaseId, ParsedStateMd, StateGate, StateScope } from '../model/types';
 
 /**
  * Best-effort parser for `migration/ohos/STATE.md`.
@@ -10,16 +9,22 @@ import { parseLastGateLine } from './parseGateOutput';
  * Anything that cannot be located is simply omitted.
  */
 
-type TextGateField = Exclude<keyof StateGate, 'lastGate'>;
+type TextGateField = keyof StateGate;
 
 const GATE_FIELDS: Array<[TextGateField, RegExp]> = [
   // Same shape as phase_gate.ASSESSMENT_RE.
   ['assessment', /^\s*-\s*Assessment:\s*`?([A-Za-z-]+)`?/im],
   ['currentPhase', /^\s*-\s*Current phase:\s*(.+)$/im],
   ['completionTier', /^\s*-\s*Completion tier:\s*(.+)$/im],
-  ['lastUpdated', /^\s*-\s*Last updated:\s*(.+)$/im],
-  ['lastCompletedAction', /^\s*-\s*Last completed action:\s*(.+)$/im],
   ['nextExecutableAction', /^\s*-\s*Next executable action:\s*(.+)$/im],
+];
+
+/** Scope table field (first column, case-insensitive prefix) → StateScope key. */
+const SCOPE_FIELDS: Array<[RegExp, keyof StateScope]> = [
+  [/^application target/i, 'target'],
+  [/^qt source root/i, 'source'],
+  [/^harmonyos output project/i, 'outputProject'],
+  [/^source revision/i, 'revision'],
 ];
 
 function cleanValue(raw: string | undefined): string | undefined {
@@ -33,6 +38,12 @@ function cleanValue(raw: string | undefined): string | undefined {
   value = value.trim();
   if (!value || /^todo$/i.test(value)) return undefined;
   return value;
+}
+
+/** A Scope cell: a value wrapped entirely in backticks loses them; TODO means unset. */
+function scopeValue(raw: string | undefined): string | undefined {
+  const value = (raw ?? '').trim().replace(/^`([^`]*)`$/, '$1').trim();
+  return !value || /^todo$/i.test(value) ? undefined : value;
 }
 
 /** Split the document into `## Heading` → body. */
@@ -90,6 +101,30 @@ export function parseMarkdownTable(body: string | undefined): { header: string[]
   return { header, rows };
 }
 
+const GATE_CELL_RE = /^(READY|NOT-READY)\s*@\s*(\S+)(?:\s*\((\d+)\s+unmet(?::\s*(.*?))?\)\s*)?$/i;
+
+/**
+ * Parse a Progress Gate cell (gate_state.py):
+ *   READY @2026-10-08T16:54:51+08:00
+ *   NOT-READY @2026-10-08T16:54:51+08:00 (3 unmet: …)
+ */
+export function parseGateCell(phase: MigrationPhaseId, cell: string | undefined): MigrationGateResult | undefined {
+  const match = (cell ?? '').trim().match(GATE_CELL_RE);
+  if (!match) return undefined;
+  const ready = match[1].toUpperCase() === 'READY';
+  const parsedAt = Date.parse(match[2]);
+  const first = (match[4] ?? '').trim();
+  const count = match[3] ? Number.parseInt(match[3], 10) : 0;
+  return {
+    phase,
+    verdict: ready ? 'ready' : 'not-ready',
+    at: Number.isFinite(parsedAt) ? parsedAt : undefined,
+    unmet: !ready && first ? [first] : [],
+    unmetCount: ready ? 0 : Math.max(count, first ? 1 : 0),
+    invalid: !ready && /^INVALID:/i.test(first) ? true : undefined,
+  };
+}
+
 export function parseStateMd(text: string | undefined): ParsedStateMd {
   const source = (text ?? '').replace(/^\uFEFF/, '');
   const gate: StateGate = {};
@@ -98,37 +133,29 @@ export function parseStateMd(text: string | undefined): ParsedStateMd {
     const value = cleanValue(match?.[1]);
     if (value) gate[field] = value;
   }
-  const lastGate = parseLastGateLine(source);
-  if (lastGate) gate.lastGate = lastGate;
 
   const sections = splitSections(source);
 
-  const progressTable = parseMarkdownTable(findSection(sections, /progress/));
-  const progress = progressTable.rows
-    .filter((row) => row[0])
-    .map((row) => ({
-      phase: row[0],
-      phaseId: phaseIdFromLabel(row[0]),
-      status: (row[1] ?? '').replace(/`/g, '').trim(),
-      evidence: row[2] ?? '',
-    }));
-
-  const scope: Record<string, string> = {};
-  const scopeTable = parseMarkdownTable(findSection(sections, /scope/));
-  for (const row of scopeTable.rows) {
-    if (row[0]) scope[row[0]] = row[1] ?? '';
+  const scope: StateScope = {};
+  for (const row of parseMarkdownTable(findSection(sections, /^scope/)).rows) {
+    const key = SCOPE_FIELDS.find(([pattern]) => pattern.test(row[0] ?? ''))?.[1];
+    const value = scopeValue(row[1]);
+    if (key && value && !scope[key]) scope[key] = value;
   }
 
-  const decisionsTable = parseMarkdownTable(findSection(sections, /decision|blocker/));
-  const decisions: StateDecisionRow[] = decisionsTable.rows
+  const progressTable = parseMarkdownTable(findSection(sections, /progress/));
+  const gateColumn = progressTable.header.indexOf('gate');
+  const progress = progressTable.rows
     .filter((row) => row[0])
-    .map((row) => ({
-      id: row[0],
-      item: row[1] ?? '',
-      evidence: row[2] ?? '',
-      ownerStatus: row[3] ?? '',
-      nextAction: row[4] ?? '',
-    }));
+    .map((row) => {
+      const phaseId = phaseIdFromLabel(row[0]);
+      return {
+        phase: row[0],
+        phaseId,
+        status: (row[1] ?? '').replace(/`/g, '').trim(),
+        gate: phaseId && gateColumn >= 0 ? parseGateCell(phaseId, row[gateColumn]) : undefined,
+      };
+    });
 
-  return { gate, progress, scope, decisions };
+  return { scope, gate, progress };
 }

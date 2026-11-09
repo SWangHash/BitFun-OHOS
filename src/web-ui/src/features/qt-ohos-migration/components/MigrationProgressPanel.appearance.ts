@@ -10,15 +10,14 @@ export const migrationProgressPanelAppearanceDescriptor: AppearanceSurfaceDescri
   componentAttribute: 'data-bitfun-product-component',
   parts: [
     { id: 'root' }, { id: 'header' }, { id: 'title' }, { id: 'livePill' }, { id: 'refresh' },
-    { id: 'overview' }, { id: 'percent' }, { id: 'phaseStrip' }, { id: 'phaseSegment' },
+    { id: 'overview' }, { id: 'scope' }, { id: 'percent' }, { id: 'phaseStrip' }, { id: 'phaseSegment' },
     { id: 'now' }, { id: 'heartbeat' }, { id: 'currentAction' }, { id: 'notice' },
-    { id: 'body' }, { id: 'section' }, { id: 'decision' }, { id: 'phaseList' }, { id: 'phase' },
+    { id: 'body' }, { id: 'section' }, { id: 'agentDecision' }, { id: 'phaseList' }, { id: 'phase' },
     { id: 'phaseHeader' }, { id: 'gatePill' }, { id: 'todo' }, { id: 'gateUnmet' }, { id: 'item' },
+    { id: 'phaseNotes' }, { id: 'phaseNote' },
     { id: 'diagnostic' }, { id: 'reference' },
     { id: 'externalFeature' }, { id: 'featureMilestones' }, { id: 'featureMilestone' },
-    { id: 'featureGate' }, { id: 'featureFile' },
-    { id: 'featureSelection' },
-    { id: 'footer' },
+    { id: 'featureAnswers' }, { id: 'featureGate' }, { id: 'featureFile' },
   ],
   facets: [
     {
@@ -29,7 +28,7 @@ export const migrationProgressPanelAppearanceDescriptor: AppearanceSurfaceDescri
     {
       id: 'live',
       attribute: 'data-bitfun-live',
-      values: ['active', 'blocked', 'completed', 'idle'],
+      values: ['active', 'blocked', 'completed', 'ended', 'idle'],
     },
     {
       id: 'milestone',
@@ -39,7 +38,7 @@ export const migrationProgressPanelAppearanceDescriptor: AppearanceSurfaceDescri
     {
       id: 'featureGate',
       attribute: 'data-bitfun-gate',
-      values: ['ready', 'blocked', 'closed'],
+      values: ['ready', 'not-ready'],
     },
   ],
   states: [

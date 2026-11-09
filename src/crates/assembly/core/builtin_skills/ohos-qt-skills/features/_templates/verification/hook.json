@@ -6,22 +6,20 @@
   "version": "0.1.0",
   "owner": "TODO",
   "skill": "skill",
-  "hook": { "phase": "handoff", "after": [] },
+  "hook": { "phase": "validation", "after": [] },
   "trigger": { "keywords": ["示例验收", "example acceptance"] },
   "entry": {
     "requires": [
-      { "check": "ledger-row", "ledger": "package-manifest.tsv",
-        "where": { "artifact_type": "application-hap" }, "status_in": ["passed", "verified"], "min": 1 }
+      { "check": "ledger-row", "ledger": "device-runs.tsv", "status_in": ["run", "no-device"] }
     ]
   },
   "exit": {
     "criteria": [
-      { "check": "validation-passed", "ids": "row" },
       { "check": "artifact", "path": "{workdir}/report.json", "json": { "result": "pass" } }
     ],
     "max_attempts": 3
   },
-  "outputs": { "ledgers": ["validation.tsv", "diagnostics.tsv"], "evidence_files": ["{workdir}/report.json"] },
+  "outputs": { "ledgers": ["diagnostics.tsv"], "evidence_files": ["{workdir}/report.json"] },
   "permissions": { "modify_sources": false, "device": false },
   "milestones": ["阅读 skill", "按 skill 执行验收", "汇总报告"],
   "playbook": "feature.md",

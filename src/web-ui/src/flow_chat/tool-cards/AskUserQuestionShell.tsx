@@ -127,6 +127,20 @@ function normalizeToolAnswer(input: unknown): ToolAnswer | undefined {
   return undefined;
 }
 
+/**
+ * Seconds after which the runtime answers this request with its recommended
+ * options (`autoDecideAfterSeconds`), read from the waiting envelope or the
+ * raw model params. `undefined` for a question that never auto-decides.
+ */
+function readAutoDecideSeconds(toolItem: FlowToolItem): number | undefined {
+  for (const source of [toolItem.questionRequest, toolItem.toolCall?.input]) {
+    if (!source || typeof source !== 'object') continue;
+    const value = (source as Record<string, unknown>).autoDecideAfterSeconds;
+    if (typeof value === 'number' && Number.isFinite(value) && value > 0) return value;
+  }
+  return undefined;
+}
+
 /** Same source as FileOperationToolCard: partial JSON while streaming, then final toolCall.input. */
 function isAwaitingQuestionPayload(
   isParamsStreaming: boolean | undefined,
@@ -161,6 +175,10 @@ export const AskUserQuestionShell: React.FC<AskUserQuestionShellProps> = ({
     [toolResult?.result],
   );
   const timedOut = normalizedResult?.status === 'timeout';
+  // The runtime answered with the recommended options after nobody responded:
+  // the card keeps showing those answers but says the agent chose them.
+  const autoDecided = normalizedResult?.status === 'auto_decided';
+  const autoDecideSeconds = readAutoDecideSeconds(toolItem);
   const cancelled = status === 'cancelled' || normalizedResult?.status === 'cancelled';
   const rejected = status === 'rejected';
   const failed = status === 'error' || toolResult?.success === false;
@@ -759,7 +777,9 @@ export const AskUserQuestionShell: React.FC<AskUserQuestionShellProps> = ({
   // (see QtToolchainProvisionItem): the card collapses as soon as its answer is
   // accepted and never reports install progress itself.
   const statusText = status === 'completed'
-    ? t('toolCards.askUser.completed')
+    ? autoDecided
+      ? t('toolCards.askUser.autoDecided')
+      : t('toolCards.askUser.completed')
     : responseUnsupported
       ? t('toolCards.askUser.unsupportedOnPeer')
       : isSubmitted
@@ -770,7 +790,13 @@ export const AskUserQuestionShell: React.FC<AskUserQuestionShellProps> = ({
             ? t('toolCards.askUser.interactionFailed')
             : submissionFailed
               ? submissionErrorMessage ?? t('toolCards.askUser.submitFailed')
-              : t('toolCards.askUser.waitingAnswer');
+              : autoDecideSeconds !== undefined
+                && !interactionAcknowledged
+                && !toolItem.userQuestionWait?.interactionStarted
+                ? t('toolCards.askUser.waitingAnswerAutoDecide', {
+                  minutes: i18nService.formatNumber(Math.max(1, Math.round(autoDecideSeconds / 60)), { useGrouping: false }),
+                })
+                : t('toolCards.askUser.waitingAnswer');
 
   if (endedWithoutAnswer) {
     const terminalLabel = timedOut
@@ -842,7 +868,12 @@ export const AskUserQuestionShell: React.FC<AskUserQuestionShellProps> = ({
         : t('toolCards.askUser.questionsCount', { count: questions.length })}
       onClickCapture={handleInteraction}
       headerTrailing={showTimer && !isSubmitted ? (
-        <Tooltip content={t('toolCards.askUser.timeoutSettingsHint')} placement="top">
+        <Tooltip
+          content={autoDecideSeconds !== undefined
+            ? t('toolCards.askUser.autoDecideHint')
+            : t('toolCards.askUser.timeoutSettingsHint')}
+          placement="top"
+        >
           <Button
             variant="text"
             size="xs"
@@ -884,7 +915,9 @@ export const AskUserQuestionShell: React.FC<AskUserQuestionShellProps> = ({
         : undefined}
       summaryDetail={showCompletedSummary ? answersSummary : undefined}
       summaryLabel={showCompletedSummary
-        ? t('toolCards.askUser.questionsAnswered', { count: questions.length })
+        ? autoDecided
+          ? t('toolCards.askUser.autoDecidedSummary', { count: questions.length })
+          : t('toolCards.askUser.questionsAnswered', { count: questions.length })
         : undefined}
     />
   );

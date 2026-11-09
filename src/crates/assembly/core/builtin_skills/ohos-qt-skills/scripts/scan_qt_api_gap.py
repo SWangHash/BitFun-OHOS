@@ -5,13 +5,13 @@ Applications often declare (or silently rely on) a newer Qt than the OHOS SDK
 provides, e.g. ksnip needs Qt 5.15 while the SDK is Qt 5.12. Each such API
 fails in a different translation unit, and a build that stops at the first
 error reveals them one by one. Run this scan during the inventory phase,
-record one ``CAP-*`` row for the gap, and fix the hits in one slice before the
+record one ``INV-*`` row for the gap, and fix the hits in one slice before the
 first full application build.
 
 The pattern table is a heuristic, not a compiler: inspect every hit in context
 (a hit inside an ``#if`` that tests ``QT_VERSION`` is reported as
-``guarded?``) and record the scan command, scope and counts as
-``inventory.tsv`` scan evidence.
+``guarded?``); the row's ``found_by`` is ``qt-api-gap: <hit count>`` and its
+``location`` lists the hit files.
 """
 from __future__ import annotations
 
@@ -132,7 +132,7 @@ def main() -> int:
             print(f"  ... {len(locations) - args.max_locations} more")
     print(f"\ntotal hits: {total}")
     if total or newer:
-        print("next: record one CAP row (category qt-api-gap) listing these files, add OHOS/Qt-version "
+        print("next: record one INV row (category qt-api-gap) listing these files, add OHOS/Qt-version "
               "shims in one slice, and verify with a keep-going build (-k 0)")
     else:
         print("no known newer-API hits; this table is a heuristic, so keep compiler receipts as the final proof")

@@ -1,9 +1,9 @@
 id: R012
 name: system_tray_usage
 category: window
-severity: high
+severity: medium
 platform:
-  harmonyos: unsupported
+  harmonyos: restricted
 match:
   source:
     - "\bQSystemTrayIcon\b"
@@ -12,7 +12,15 @@ kb:
   - semantic/qt-harmonyos-system-tray.md
   - semantic/qt-harmonyos-window-model.md
 solution: >
-  HarmonyOS has no system tray. QSystemTrayIcon will not function; main
-  window hide() degrades to minimize (golden rule W5). Rework tray-based
-  UX (background run, notifications) into the OHOS equivalents and remove
-  tray-dependent flows.
+  HarmonyOS PC does provide a real system tray: QSystemTrayIcon is served by the
+  QPA factory createPlatformSystemTrayIcon (qohossystemtrayicon.cpp) and lands in
+  the system status bar through @kit.StatusBarExtensionKit.statusBarManager
+  (addToStatusBar / removeFromStatusBar / updateStatusBarIcon / updateStatusBarMenu
+  / updateStatusBarHoverTips); showMessage goes through
+  @ohos.notificationManager.publish. Keep tray UX - do not delete it.
+  Design around the platform stubs instead: geometry() returns a fixed rect,
+  isSystemTrayAvailable()/supportsMessages() are hard-coded true, messageClicked()
+  never fires, activated() reports Trigger only (right click arrives as a menu item,
+  not Context), the status-bar menu supports text + top-level separators + one
+  sub-menu level, icons are converted to a monochrome mask, and tooltips need
+  SDK API >= 22. Main-window hide() still degrades to minimize (golden rule W5).

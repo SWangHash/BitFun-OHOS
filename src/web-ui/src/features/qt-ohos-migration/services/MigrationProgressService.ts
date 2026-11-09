@@ -13,7 +13,7 @@
  * A failed refresh keeps the previous snapshot and records the error.
  */
 
-import { systemAPI, workspaceAPI } from '@/infrastructure/api';
+import { sessionAPI, systemAPI, workspaceAPI } from '@/infrastructure/api';
 import { tauriExplorerFileSystemProvider } from '@/tools/file-explorer/provider/TauriExplorerFileSystemProvider';
 import { createLogger } from '@/shared/utils/logger';
 import {
@@ -27,22 +27,18 @@ import {
 import type { LedgerDocument, MigrationLedgerInput, ParsedTsv } from '../model/types';
 import { parseTsv } from '../parsers/parseTsv';
 import { parseStateMd } from '../parsers/parseStateMd';
-import { ACTIVE_WRITE_WINDOW_MS, deriveSnapshot, getAppRoot } from './deriveSnapshot';
+import { ACTIVE_WRITE_WINDOW_MS, deriveSnapshot } from './deriveSnapshot';
 import { featureRows } from './deriveExternalFeatures';
 import { FeaturePackageReader, createFeatureFileSystem } from './featurePackages';
-import { gatesForRoot, useMigrationProgressStore } from '../store/useMigrationProgressStore';
+import { useMigrationProgressStore } from '../store/useMigrationProgressStore';
 
 const log = createLogger('MigrationProgressService');
 
 export const POLL_INTERVAL_MS = 2_000;
 export const WATCH_SAFETY_POLL_MS = 5_000;
 export const REFRESH_DEBOUNCE_MS = 300;
-const SEARCH_MAX_DEPTH = 2;
-const SEARCH_MAX_DIRS = 120;
-
-/** Directories ignored by the backend file watcher and by the ledger search. */
+/** Directories ignored by the backend file watcher. */
 const WATCH_EXCLUDED_DIRS = new Set(['build', 'out', 'bin', 'dist', 'target', 'env', 'vendor', 'node_modules', '.git']);
-const SEARCH_SKIPPED_DIRS = new Set([...WATCH_EXCLUDED_DIRS, '.bitfun', '.idea', '.vscode', '.venv', 'venv', '__pycache__']);
 
 // ---------------------------------------------------------------- path utils
 
@@ -64,27 +60,6 @@ export function normalizeRootKey(path: string): string {
   return path.replace(/[\\/]+$/, '');
 }
 
-export function isLedgerRootPath(path: string): boolean {
-  return /(^|[\\/])migration[\\/]ohos$/i.test(normalizeRootKey(path));
-}
-
-/**
- * Turn a command path hint (ledger root or app root, maybe relative) into a
- * ledger root. Relative hints resolve against `basePath` (the command's working
- * directory, else the workspace). Paths inside the skill are rejected.
- */
-export function ledgerRootFromHint(hint: string, basePath?: string): string | null {
-  let candidate = hint.trim();
-  if (!candidate) return null;
-  if (!isAbsolute(candidate)) {
-    if (!basePath) return null;
-    candidate = candidate === '.' ? basePath : joinSegments(basePath, candidate.replace(/^\.[\\/]/, ''));
-  }
-  candidate = normalizeRootKey(candidate);
-  const root = isLedgerRootPath(candidate) ? candidate : joinSegments(candidate, ...LEDGER_DIR_SEGMENTS);
-  return isSkillAssetPath(root) ? null : root;
-}
-
 /** Absolute feature-package root from a command hint; relative hints resolve against `basePath`. */
 export function featuresRootFromHint(hint: string, basePath?: string): string | null {
   const candidate = hint.trim();
@@ -96,30 +71,6 @@ export function featuresRootFromHint(hint: string, basePath?: string): string | 
 
 function comparableKey(path: string): string {
   return normalizeRootKey(path).replace(/\\/g, '/').toLowerCase();
-}
-
-/**
- * Preference of a ledger root for a workspace: 0 = `<workspace>/migration/ohos`,
- * 1 = elsewhere inside the workspace, 2 = outside, 3 = skill-internal (never used).
- */
-export function rankLedgerRoot(root: string, workspacePath?: string): number {
-  if (isSkillAssetPath(root)) return 3;
-  if (!workspacePath) return 2;
-  const key = comparableKey(root);
-  const workspaceKey = comparableKey(workspacePath);
-  if (key === comparableKey(joinSegments(workspacePath, ...LEDGER_DIR_SEGMENTS))) return 0;
-  return key.startsWith(`${workspaceKey}/`) ? 1 : 2;
-}
-
-/** Display form of a ledger root: relative to the workspace when inside it. */
-export function displayLedgerRoot(root: string, workspacePath?: string): string {
-  if (!workspacePath) return root;
-  const normalizedRoot = normalizeRootKey(root);
-  const workspace = normalizeRootKey(workspacePath);
-  if (comparableKey(normalizedRoot).startsWith(`${comparableKey(workspace)}/`)) {
-    return normalizedRoot.slice(workspace.length + 1).replace(/\\/g, '/');
-  }
-  return normalizedRoot;
 }
 
 function underWatchExcludedDir(path: string): boolean {
@@ -151,57 +102,53 @@ export async function ledgerRootHasState(root: string): Promise<boolean> {
   return pathExists(joinSegments(root, 'STATE.md'));
 }
 
-/**
- * Find `<app>/migration/ohos/STATE.md` inside the workspace: first at the
- * workspace root, then the hinted roots inside the workspace (roots of other
- * workspaces and skill-internal templates never count), then breadth-first up
- * to depth 2 (skipping build/vendor directories, capped). Returns the ledger
- * root or `null`.
- */
-export async function resolveLedgerRoot(
-  workspacePath: string,
-  remoteConnectionId?: string,
-  hintedRoots: string[] = [],
-  options: { deep?: boolean } = {},
-): Promise<string | null> {
-  const direct = joinSegments(workspacePath, ...LEDGER_DIR_SEGMENTS);
-  if (await ledgerRootHasState(direct)) return direct;
+/** Session-metadata key under which the engine persists the Qt migration question-card bindings. */
+const INTAKE_METADATA_KEY = 'qtMigrationIntakeState';
 
-  const ranked = hintedRoots
-    .filter((hint) => !isSkillAssetPath(hint))
-    .map((hint, order) => ({ hint, order, rank: rankLedgerRoot(hint, workspacePath) }))
-    .filter((entry) => entry.rank <= 1)
-    .sort((a, b) => a.rank - b.rank || a.order - b.order)
-    .map((entry) => entry.hint);
-  for (const hint of ranked) {
-    if (await ledgerRootHasState(hint)) {
-      return hint;
+interface IntakeField {
+  state?: string;
+  value?: string;
+}
+
+/** The output container the session's Qt migration question card bound, if any. */
+export function boundOutputContainer(metadata: { customMetadata?: Record<string, unknown> }): string | undefined {
+  const intake = metadata.customMetadata?.[INTAKE_METADATA_KEY] as { fields?: Record<string, IntakeField> } | undefined;
+  const field = intake?.fields?.output_project;
+  const value = field?.state === 'resolved' ? field.value?.trim() : undefined;
+  return value || undefined;
+}
+
+/** Bound output containers per workspace id, most recently active session first. */
+const boundContainers = new Map<string, string[]>();
+
+async function boundOutputContainers(workspaceId: string, refresh: boolean): Promise<string[]> {
+  const cached = boundContainers.get(workspaceId);
+  if (cached?.length && !refresh) return cached;
+  const sessions = await sessionAPI.listSessions(workspaceId);
+  const containers: string[] = [];
+  for (const metadata of [...sessions].sort((a, b) => b.lastActiveAt - a.lastActiveAt)) {
+    const container = boundOutputContainer(metadata);
+    if (container && !containers.some((known) => comparableKey(known) === comparableKey(container))) {
+      containers.push(container);
     }
   }
-  if (options.deep === false) return null;
+  boundContainers.set(workspaceId, containers);
+  return containers;
+}
 
-  const queue: Array<{ path: string; depth: number }> = [{ path: workspacePath, depth: 0 }];
-  let visited = 0;
-  while (queue.length > 0 && visited < SEARCH_MAX_DIRS) {
-    const { path, depth } = queue.shift()!;
-    visited += 1;
-    let children;
-    try {
-      children = await workspaceAPI.getDirectoryChildren(path, remoteConnectionId ?? '');
-    } catch {
-      continue;
-    }
-    for (const child of children) {
-      if (!child.isDirectory) continue;
-      const name = child.name.toLowerCase();
-      if (depth > 0 && name === 'migration') {
-        const candidate = joinSegments(child.path, 'ohos');
-        if (await ledgerRootHasState(candidate)) return candidate;
-      }
-      if (depth < SEARCH_MAX_DEPTH && !SEARCH_SKIPPED_DIRS.has(name) && !name.startsWith('.')) {
-        queue.push({ path: child.path, depth: depth + 1 });
-      }
-    }
+/**
+ * Find the workspace's ledger: `<container>/migration/ohos/STATE.md` of the output
+ * container a Qt migration question card bound in one of the workspace's sessions,
+ * most recently active session first. Returns the ledger root or `null`.
+ * `refresh: false` reuses the session list read last time (a cheap re-probe).
+ */
+export async function resolveLedgerRoot(
+  workspaceId: string,
+  options: { refresh?: boolean } = {},
+): Promise<string | null> {
+  for (const container of await boundOutputContainers(workspaceId, options.refresh ?? true)) {
+    const root = joinSegments(container, ...LEDGER_DIR_SEGMENTS);
+    if (await ledgerRootHasState(root)) return root;
   }
   return null;
 }
@@ -219,13 +166,8 @@ function toMillis(value: number): number {
   return value > 0 && value < 1e11 ? value * 1000 : value;
 }
 
-/** Files that mark a HarmonyOS (hvigor) project directory. */
-const OHOS_PROJECT_MARKERS = [['AppScope', 'app.json5'], ['hvigorfile.ts']];
-
 export class LedgerReader {
   private cache = new Map<string, CachedFile>();
-  /** Sticky once true: the template may be copied into the app root later. */
-  private appRootIsOhosProject = false;
   private readonly features: FeaturePackageReader;
 
   constructor(private readonly root: string, private readonly remoteConnectionId?: string) {
@@ -272,17 +214,6 @@ export class LedgerReader {
     const state = texts.get('STATE.md');
     if (!state?.exists) return null;
 
-    if (!this.appRootIsOhosProject) {
-      const appRoot = getAppRoot(this.root);
-      for (const marker of OHOS_PROJECT_MARKERS) {
-        if (await pathExists(joinSegments(appRoot, ...marker))) {
-          this.appRootIsOhosProject = true;
-          changed = true;
-          break;
-        }
-      }
-    }
-
     const tsv: Partial<Record<string, ParsedTsv>> = {};
     for (const file of LEDGER_TSV_FILES) {
       const doc = texts.get(file);
@@ -315,7 +246,6 @@ export class LedgerReader {
         tsv,
         documents,
         lastWriteAt: lastWriteAt || undefined,
-        appRootIsOhosProject: this.appRootIsOhosProject,
         featurePackages: features?.packages,
         featureWorkdirs: features?.workdirs,
       },
@@ -368,8 +298,6 @@ class LedgerController {
         this.unwatch = null;
       }
     }
-    const mode = this.unwatch ? 'watch' : 'poll';
-    useMigrationProgressStore.getState().patchRoot(this.root, { mode });
     this.pollTimer = setInterval(
       () => void this.refresh(),
       this.unwatch ? WATCH_SAFETY_POLL_MS : POLL_INTERVAL_MS,
@@ -407,7 +335,6 @@ class LedgerController {
       activeAction: store.activeAction?.script,
       skillInvoked: store.skillInvoked,
       sessionRunning: store.sessionRunning,
-      gates: gatesForRoot(store.gatesByRoot, this.root),
       now: Date.now(),
     });
     store.patchRoot(this.root, { snapshot, exists: true, error: undefined, loading: false, lastRefreshAt: Date.now() });

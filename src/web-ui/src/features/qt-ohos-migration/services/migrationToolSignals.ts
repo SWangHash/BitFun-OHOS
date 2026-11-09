@@ -38,7 +38,7 @@ export interface MigrationToolSignal {
   script?: string;
   /**
    * Ledger roots (`…/migration/ohos`) or app roots mentioned by the call,
-   * explicit `--target` values first. Skill-internal paths are never included.
+   * explicit `--app-root` values first. Skill-internal paths are never included.
    */
   pathHints: string[];
   /**
@@ -123,12 +123,21 @@ const SCRIPT_RE = new RegExp(
 /** Options whose value is a skill-internal path, never an application path. */
 const SKILL_PATH_OPTIONS = new Set(['--template-root', '--skill-root', '--kb-root', '--knowledge-root', '--features-root']);
 const FEATURES_ROOT_OPTION = '--features-root';
-const TARGET_OPTIONS = new Set(['--target', '--app-root', '--migration-root']);
+// Not `--target`: the skill's `--target` is the Qt source root, while the ledger lives in the
+// output container (`init_migration.py --output-project <container>` -> `<container>/migration/ohos`).
+const TARGET_OPTIONS = new Set(['--app-root', '--migration-root']);
 const LEDGER_PATH_RE = /^(.*?[\\/]?migration[\\/]ohos)(?:[\\/]|$)/i;
 /** Skill scripts that only read the ledgers. */
-const READ_ONLY_SCRIPTS = new Set(['ledger_query.py', 'queue_status.py', 'scan_qt_api_gap.py', 'next_step.py']);
+const READ_ONLY_SCRIPTS = new Set([
+  'scan_qt_api_gap.py', 'next_step.py',
+  // Build/inspection tools that never write the ledgers.
+  'known_issues.py', 'hap_check.py', 'hvigor_build.py', 'template_patch.py', 'deploy_qt_libs.py',
+]);
 /** `feature_hooks.py` subcommands that do not write the ledgers. */
 const READ_ONLY_FEATURE_COMMANDS = new Set(['lint', 'list', 'candidates', 'status']);
+/** `ledger.py` subcommands that only read (`state` reads unless it sets a field). */
+const READ_ONLY_LEDGER_COMMANDS = new Set(['get', 'list', 'columns']);
+const LEDGER_STATE_WRITE_RE = /\s--(?:set|scope|evidence|progress)\b/;
 const SCRIPT_PATH_RE = new RegExp(
   `^(.*)[\\\\/]scripts[\\\\/](?:${MIGRATION_SCRIPT_NAMES.map((name) => name.replace('.', '\\.')).join('|')})$`,
 );
@@ -161,8 +170,8 @@ function tokenize(command: string): string[] {
 }
 
 /**
- * Extract application path hints from a command line: explicit `--target` /
- * `--app-root` values first, then any `…/migration/ohos` path. Values of
+ * Extract application path hints from a command line: explicit `--app-root` /
+ * `--migration-root` values first, then any `…/migration/ohos` path. Values of
  * `--template-root` / `--skill-root` and paths inside the skill are skipped —
  * the skill ships a `migration/ohos` template that is not an application ledger.
  */
@@ -334,8 +343,11 @@ export function classifyMigrationToolEvent(toolName: string, input: unknown): Cl
     const match = command.match(SCRIPT_RE);
     if (!match) return described;
     const script = match[1];
+    const subcommand = subcommandAfter(command, script) ?? '';
     const readOnly = READ_ONLY_SCRIPTS.has(script)
-      || (script === 'feature_hooks.py' && READ_ONLY_FEATURE_COMMANDS.has(subcommandAfter(command, script) ?? ''));
+      || (script === 'feature_hooks.py' && READ_ONLY_FEATURE_COMMANDS.has(subcommand))
+      || (script === 'ledger.py' && (READ_ONLY_LEDGER_COMMANDS.has(subcommand)
+        || (subcommand === 'state' && !LEDGER_STATE_WRITE_RE.test(command))));
     const featuresRootHints = extractFeaturesRootHints(command);
     return {
       ...described,

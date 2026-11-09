@@ -1,14 +1,13 @@
 /**
  * Qt -> HarmonyOS migration progress panel (session aux pane tab).
  *
- * Single page, read-only view of `<app>/migration/ohos/` ledgers produced by the
- * built-in `qt-harmonyos-migration` skill. Built on the `@bitfun/ui` design
+ * Single page, read-only view of `<container>/migration/ohos/` ledgers produced by the
+ * built-in `ohos-qt-skills` skill. Built on the `@bitfun/ui` design
  * system components; appearance hooks use `data-bitfun-product-*`:
  *   header (project name, live pill, overall percent, 8-segment phase strip,
  *   "now" card with heartbeat / current action, notices) ->
  *   disclosures (pending decisions, phase timeline, external features,
- *   problems & diagnostics, references incl. migration documents) ->
- *   footer (watch mode, ledger root).
+ *   problems & diagnostics, references incl. migration documents).
  * Empty sections are hidden.
  */
 
@@ -25,6 +24,7 @@ import {
   HelpCircle,
   Sheet,
   ListChecks,
+  Package,
   PlayCircle,
   ShieldAlert,
   ShieldCheck,
@@ -48,22 +48,18 @@ import { openFileInBestTarget } from '@/shared/utils/tabUtils';
 import type {
   DiagnosticView,
   ExternalFeatureView,
+  FeatureAnswerView,
   FeatureGateView,
-  FeatureSelectionView,
   MigrationLiveStatus,
   MigrationSnapshot,
   MigrationStatus,
-  PhaseItemView,
+  PhaseNoteView,
   PhaseView,
 } from '../model/types';
 import {
   acquireLedgerRoot,
-  displayLedgerRoot,
-  joinSegments,
   ledgerRootHasState,
-  rankLedgerRoot,
   refreshLedgerRoot,
-  resolveLedgerRoot,
 } from '../services/MigrationProgressService';
 import { closeMigrationProgressPanels } from '../services/openMigrationProgress';
 import {
@@ -79,7 +75,6 @@ export interface MigrationProgressPanelProps {
   remoteConnectionId?: string;
 }
 
-const UNRESOLVED_PROBE_MS = 3_000;
 /** Clock tick for elapsed / "n seconds ago" labels. */
 const LIVE_TICK_MS = 1_000;
 const IDLE_TICK_MS = 30_000;
@@ -97,17 +92,11 @@ const SHARED_LIVE_KEYS: Partial<Record<string, string>> = {
   completed: 'shared:statuses.done',
 };
 
-const MIGRATION_STATE_TONES: Record<NonNullable<PhaseItemView['migration']>, StatusPillTone> = {
-  pending: 'neutral',
-  doing: 'accent',
-  done: 'success',
-  blocked: 'warning',
-};
-
 const LIVE_TONES: Record<MigrationLiveStatus, StatusPillTone> = {
   active: 'accent',
   blocked: 'warning',
   completed: 'success',
+  ended: 'warning',
   idle: 'neutral',
 };
 
@@ -328,15 +317,13 @@ function Header({
               {phaseIndex >= 0 && ` · ${t('header.phaseIndex', { index: phaseIndex + 1, total: snapshot.phases.length })}`}
             </span>
           )}
-          {(header.assessment || header.completionTier) && (
-            <span>
-              {header.assessment && (
-                <>
-                  {t('header.assessment')} <code className="bitfun-migration-panel__code">{header.assessment}</code>
-                </>
-              )}
-              {header.assessment && header.completionTier && ' · '}
-              {header.completionTier && `${t('header.completionTier')} ${header.completionTier}`}
+          {header.scope.outputProject && (
+            <span
+              data-bitfun-product-component="migration-progress-panel"
+              data-bitfun-product-part="scope"
+              title={header.scope.revision || undefined}
+            >
+              {`${t('header.outputProject')} ${header.scope.outputProject}`}
             </span>
           )}
         </div>
@@ -430,26 +417,27 @@ function Notices({
 }) {
   const { header } = snapshot;
   const completed = header.liveStatus === 'completed';
-  const gateBlocked = header.completedGateBlocked;
+  const ended = header.liveStatus === 'ended';
+  const gateNotReady = header.completedGateNotReady;
   const problem = error
     ? t('errors.loadFailed', { error })
     : snapshot.schemaWarnings.length > 0
-      ? t('warnings.schema', { detail: snapshot.schemaWarnings.join('; ') })
+      ? t('warnings.legacyLayout', { detail: snapshot.schemaWarnings.join('; ') })
       : undefined;
-  if (!completed && !problem) return null;
+  if (!completed && !ended && !problem) return null;
   return (
     <div
       className="bitfun-migration-panel__notices"
       data-bitfun-product-component="migration-progress-panel"
       data-bitfun-product-part="notice"
     >
-      {completed && (
+      {(completed || ended) && (
         <Alert
-          tone={gateBlocked ? 'warning' : 'success'}
+          tone={gateNotReady || ended ? 'warning' : 'success'}
           showIcon
-          message={t('header.completed')}
-          description={gateBlocked
-            ? `${t('header.completedGateBlocked', { n: gateBlocked.unmetCount })}${gateBlocked.unmet[0] ? `: ${gateBlocked.unmet[0]}` : ''}`
+          message={t(ended ? 'header.ended' : 'header.completed')}
+          description={gateNotReady
+            ? `${t('header.completedGateNotReady', { n: gateNotReady.unmetCount })}${gateNotReady.unmet[0] ? `: ${gateNotReady.unmet[0]}` : ''}`
             : undefined}
           data-testid="migration-progress-completed"
         />
@@ -470,13 +458,13 @@ function GatePill({ phase, t, formatDate }: { phase: PhaseView; t: TFn; formatDa
     <StatusPill
       tone={ready ? 'success' : 'warning'}
       leading={<Icon glyph={ready ? ShieldCheck : ShieldAlert} size="2xs" />}
-      title={[gate.tool, when].filter(Boolean).join(' · ') || undefined}
+      title={when}
       data-bitfun-product-component="migration-progress-panel"
       data-bitfun-product-part="gatePill"
       data-bitfun-status={ready ? 'done' : 'blocked'}
       data-testid={`migration-progress-gate-${phase.id}`}
     >
-      {ready ? t('gate.ready') : t('gate.blocked', { n: gate.unmetCount })}
+      {ready ? t('gate.ready') : t('gate.notReady', { n: gate.unmetCount })}
     </StatusPill>
   );
 }
@@ -494,6 +482,28 @@ function PhaseNode({ status, paused, running }: { status: MigrationStatus; pause
       {status === 'blocked' && <Icon glyph={AlertTriangle} size="2xs" />}
       {status === 'error' && <Icon glyph={XCircle} size="2xs" />}
     </span>
+  );
+}
+
+const NOTE_STATUS: Record<PhaseNoteView['tone'], MigrationStatus> = {
+  neutral: 'pending',
+  success: 'done',
+  warning: 'blocked',
+  error: 'error',
+};
+
+/** A fact of the phase that is not a ledger row (problem counts, device run). */
+function PhaseNoteRow({ note, t }: { note: PhaseNoteView; t: TFn }) {
+  return (
+    <li
+      className="bitfun-migration-panel__row"
+      data-bitfun-product-component="migration-progress-panel"
+      data-bitfun-product-part="phaseNote"
+      data-bitfun-status={NOTE_STATUS[note.tone]}
+    >
+      <StatusGlyph status={NOTE_STATUS[note.tone]} paused />
+      <OverflowText className="bitfun-migration-panel__grow">{t(`phase.notes.${note.kind}`, note.values)}</OverflowText>
+    </li>
   );
 }
 
@@ -515,13 +525,15 @@ function PhaseRow({
   t: TFn;
   formatDate: FormatDateFn;
 }) {
-  const blockedGate = phase.gate?.verdict === 'blocked' ? phase.gate : undefined;
+  const notReadyGate = phase.gate?.verdict === 'not-ready' ? phase.gate : undefined;
   const [expanded, setExpanded] = useState(current || phase.status === 'blocked' || phase.status === 'error');
   useEffect(() => {
     if (current) setExpanded(true);
   }, [current]);
   const hasItems = phase.items.length > 0;
-  const expandable = hasItems || !!phase.evidence || !!blockedGate || !!todos || current;
+  // Environment rows: only the version shows a tooltip (the item's path).
+  const isEnvironment = phase.id === 'environment';
+  const expandable = hasItems || !!phase.notes?.length || !!notReadyGate || !!todos || current;
   const running = phase.status === 'doing' && !phase.paused && sessionRunning;
   // Always the translated status; the raw ledger word is only a tooltip.
   const subLabel = statusLabel(phase.status, t);
@@ -547,12 +559,7 @@ function PhaseRow({
         onClick={() => setExpanded((value) => !value)}
       >
         <OverflowText className="bitfun-migration-panel__phase-name">{t(`phases.${phase.id}.name`)}</OverflowText>
-        <span
-          className="bitfun-migration-panel__phase-sub"
-          title={phase.statusSource === 'ledger' && phase.rawStatus
-            ? t('phase.ledgerOverride', { raw: phase.rawStatus })
-            : phase.rawStatus || undefined}
-        >
+        <span className="bitfun-migration-panel__phase-sub" title={phase.rawStatus || undefined}>
           {phase.paused ? t('status.paused') : subLabel}
         </span>
         <span className="bitfun-migration-panel__phase-trail">
@@ -590,7 +597,6 @@ function PhaseRow({
               <code className="bitfun-migration-panel__code">{phase.ledger}</code>
             )}
           </p>
-          {phase.evidence && <p className="bitfun-migration-panel__muted">{phase.evidence}</p>}
           {itemPercent !== undefined && (
             <span className="bitfun-migration-panel__mini" aria-hidden>
               <span className="bitfun-migration-panel__mini-fill" style={{ width: `${itemPercent}%` }} />
@@ -608,49 +614,78 @@ function PhaseRow({
               {todos.current && <OverflowText className="bitfun-migration-panel__grow">{todos.current}</OverflowText>}
             </div>
           )}
-          {blockedGate && blockedGate.unmet.length > 0 && (
+          {notReadyGate && notReadyGate.unmet.length > 0 && (
             <div
               className="bitfun-migration-panel__unmet"
               data-bitfun-product-component="migration-progress-panel"
               data-bitfun-product-part="gateUnmet"
             >
               <p className="bitfun-migration-panel__unmet-title">
-                {blockedGate.invalid ? t('gate.invalid') : t('gate.unmetTitle')}
+                {notReadyGate.invalid ? t('gate.invalid') : t('gate.unmetTitle')}
               </p>
               <ul>
-                {blockedGate.unmet.map((entry, index) => <li key={`${index}:${entry}`}>{entry}</li>)}
-                {blockedGate.unmetCount > blockedGate.unmet.length && (
+                {notReadyGate.unmet.map((entry, index) => <li key={`${index}:${entry}`}>{entry}</li>)}
+                {notReadyGate.unmetCount > notReadyGate.unmet.length && (
                   <li className="bitfun-migration-panel__muted">
-                    {t('gate.more', { n: blockedGate.unmetCount - blockedGate.unmet.length })}
+                    {t('gate.more', { n: notReadyGate.unmetCount - notReadyGate.unmet.length })}
                   </li>
                 )}
               </ul>
             </div>
+          )}
+          {phase.notes && phase.notes.length > 0 && (
+            <ul
+              className="bitfun-migration-panel__items"
+              data-bitfun-product-component="migration-progress-panel"
+              data-bitfun-product-part="phaseNotes"
+            >
+              {phase.notes.map((note) => <PhaseNoteRow key={note.kind} note={note} t={t} />)}
+            </ul>
           )}
           {hasItems ? (
             <ul className="bitfun-migration-panel__items">
               {phase.items.map((entry) => (
                 <li
                   key={entry.id}
-                  className="bitfun-migration-panel__row"
+                  className="bitfun-migration-panel__row bitfun-migration-panel__item-row"
                   data-bitfun-product-component="migration-progress-panel"
                   data-bitfun-product-part="item"
                   data-bitfun-status={entry.status}
-                  title={entry.rawStatus}
+                  title={isEnvironment ? undefined : entry.rawStatus}
                 >
                   <StatusGlyph status={entry.status} paused={entry.status === 'doing' && !sessionRunning} />
                   <span className="bitfun-migration-panel__id">{entry.id}</span>
                   <OverflowText className="bitfun-migration-panel__grow">{entry.label}</OverflowText>
-                  {entry.detail && <span className="bitfun-migration-panel__muted">{entry.detail}</span>}
-                  {entry.migration && (
-                    <StatusPill tone={MIGRATION_STATE_TONES[entry.migration]}>
-                      {t(`phase.migrationState.${entry.migration}`)}
-                    </StatusPill>
+                  <span className="bitfun-migration-panel__item-trail">
+                    {entry.detail && (
+                      <span
+                        className="bitfun-migration-panel__item-detail"
+                        title={isEnvironment ? entry.hint : entry.detail}
+                      >
+                        {entry.detail}
+                      </span>
+                    )}
+                    {entry.tags?.map((tag) => <code key={tag} className="bitfun-migration-panel__code">{tag}</code>)}
+                    {entry.notice && entry.notice.tone !== 'error' && (
+                      <StatusPill tone={entry.notice.tone === 'warning' ? 'warning' : 'neutral'}>
+                        {t(`phase.notice.${entry.notice.tone}`)}
+                      </StatusPill>
+                    )}
+                    {entry.decidedByAgent && (
+                      <StatusPill tone="warning">{t('phase.decidedByAgent')}</StatusPill>
+                    )}
+                  </span>
+                  {entry.notice && (
+                    <p
+                      className={`bitfun-migration-panel__item-note bitfun-migration-panel__item-note--${entry.notice.tone}`}
+                    >
+                      {entry.notice.text}
+                    </p>
                   )}
                 </li>
               ))}
             </ul>
-          ) : (
+          ) : !phase.notes?.length && (
             <p className="bitfun-migration-panel__muted">{t('phase.noItems')}</p>
           )}
         </div>
@@ -670,66 +705,47 @@ function DiagnosticLogButton({ diagnostic, workspacePath, t }: { diagnostic: Dia
   );
 }
 
-/** A problem met during the migration: what failed, why, and what fixed it (or what is next). */
+const PROBLEM_TONES: Partial<Record<MigrationStatus, StatusPillTone>> = {
+  error: 'danger',
+  blocked: 'warning',
+  done: 'success',
+};
+
+/** One problem of diagnostics.tsv: where it showed, what was seen, why, and what fixes it. */
 function ProblemCard({ diagnostic, workspacePath, t }: { diagnostic: DiagnosticView; workspacePath?: string; t: TFn }) {
-  const glyphStatus: MigrationStatus = diagnostic.open
-    ? (diagnostic.status === 'blocked' ? 'blocked' : 'error')
-    : 'done';
+  const label = diagnostic.open
+    ? t('diagnostics.open')
+    : diagnostic.status === 'blocked' ? t('status.blocked')
+      : diagnostic.rawStatus === 'accepted-limitation' ? t('diagnostics.accepted') : t('diagnostics.fixed');
   return (
     <li
       className="bitfun-migration-panel__card"
       data-bitfun-product-component="migration-progress-panel"
       data-bitfun-product-part="diagnostic"
-      data-bitfun-status={glyphStatus}
+      data-bitfun-status={diagnostic.status}
     >
       <div className="bitfun-migration-panel__card-head">
-        <StatusGlyph status={glyphStatus} paused />
+        <StatusGlyph status={diagnostic.status} paused />
         <span className="bitfun-migration-panel__id">{diagnostic.id}</span>
-        {diagnostic.phase && <code className="bitfun-migration-panel__code">{diagnostic.phase}</code>}
-        {diagnostic.category && !diagnostic.unclassified && (
-          <code className="bitfun-migration-panel__code">{diagnostic.category}</code>
-        )}
-        {diagnostic.unclassified && <StatusPill tone="warning">{t('diagnostics.unclassified')}</StatusPill>}
-        <StatusPill tone={diagnostic.open ? (glyphStatus === 'blocked' ? 'warning' : 'danger') : 'success'}>
-          {diagnostic.open
-            ? (glyphStatus === 'blocked' ? t('status.blocked') : t('diagnostics.open'))
-            : t('diagnostics.resolved')}
-        </StatusPill>
-        {diagnostic.attempts > 1 && (
-          <span className="bitfun-migration-panel__time">{t('diagnostics.attempts', { n: diagnostic.attempts })}</span>
+        {diagnostic.stage && <code className="bitfun-migration-panel__code">{diagnostic.stage}</code>}
+        <StatusPill tone={PROBLEM_TONES[diagnostic.status] ?? 'neutral'} title={diagnostic.rawStatus}>{label}</StatusPill>
+        {diagnostic.where && (
+          <OverflowText className="bitfun-migration-panel__grow bitfun-migration-panel__muted">{diagnostic.where}</OverflowText>
         )}
       </div>
-      {diagnostic.signature && <code className="bitfun-migration-panel__signature">{diagnostic.signature}</code>}
-      {diagnostic.rootCause && !diagnostic.unclassified && (
-        <p>{t('diagnostics.rootCause')}: {diagnostic.rootCause}</p>
-      )}
-      {diagnostic.nextAction && (
+      {diagnostic.symptom && <code className="bitfun-migration-panel__signature">{diagnostic.symptom}</code>}
+      {diagnostic.cause
+        ? <p>{t('diagnostics.cause')}: {diagnostic.cause}</p>
+        : diagnostic.needsCause && <p className="bitfun-migration-panel__unmet">{t('diagnostics.needsCause')}</p>}
+      {diagnostic.fix && (
         <p className={diagnostic.open ? 'bitfun-migration-panel__muted' : undefined}>
-          {diagnostic.open ? t('diagnostics.nextAction') : t('diagnostics.fix')}: {diagnostic.nextAction}
+          {diagnostic.open ? t('diagnostics.plannedFix') : t('diagnostics.fix')}: {diagnostic.fix}
         </p>
       )}
-      {diagnostic.recurrence && <p className="bitfun-migration-panel__muted">{t('diagnostics.recurrence')}: {diagnostic.recurrence}</p>}
-      <DiagnosticLogButton diagnostic={diagnostic} workspacePath={workspacePath} t={t} />
-    </li>
-  );
-}
-
-/** A passing build/pilot/device receipt: one compact line. */
-function ReceiptRow({ diagnostic, workspacePath, t }: { diagnostic: DiagnosticView; workspacePath?: string; t: TFn }) {
-  return (
-    <li
-      className="bitfun-migration-panel__row"
-      data-bitfun-product-component="migration-progress-panel"
-      data-bitfun-product-part="diagnostic"
-      data-bitfun-status={diagnostic.status}
-      title={[diagnostic.signature, diagnostic.rawStatus].filter(Boolean).join(' · ')}
-    >
-      <StatusGlyph status={diagnostic.status} paused />
-      <span className="bitfun-migration-panel__id">{diagnostic.id}</span>
-      {diagnostic.phase && <code className="bitfun-migration-panel__code">{diagnostic.phase}</code>}
-      <OverflowText className="bitfun-migration-panel__grow">{diagnostic.signature || diagnostic.category}</OverflowText>
-      {diagnostic.unrecordedFailures > 0 && (
-        <StatusPill tone="warning">{t('diagnostics.unrecorded', { n: diagnostic.unrecordedFailures })}</StatusPill>
+      {diagnostic.reproduce && (
+        <p className="bitfun-migration-panel__muted" title={diagnostic.reproduce}>
+          <OverflowText>{`${t('diagnostics.reproduce')}: ${diagnostic.reproduce}`}</OverflowText>
+        </p>
       )}
       <DiagnosticLogButton diagnostic={diagnostic} workspacePath={workspacePath} t={t} />
     </li>
@@ -740,11 +756,10 @@ function ReceiptRow({ diagnostic, workspacePath, t }: { diagnostic: DiagnosticVi
 
 const FEATURE_GATE_TONES: Record<FeatureGateView['verdict'], StatusPillTone> = {
   ready: 'success',
-  blocked: 'warning',
-  closed: 'neutral',
+  'not-ready': 'warning',
 };
 
-/** Lifecycle words of feature-adoption.tsv with a dedicated label; anything else uses the generic status. */
+/** Lifecycle words of features.tsv with a dedicated label; anything else uses the generic status. */
 const FEATURE_RAW_STATUSES = new Set(['planned', 'in-progress', 'passed', 'deferred-approved', 'blocked', 'verified']);
 
 function featureStatusLabel(feature: ExternalFeatureView, t: TFn): string {
@@ -753,11 +768,9 @@ function featureStatusLabel(feature: ExternalFeatureView, t: TFn): string {
 }
 
 function FeatureGateRow({ kind, gate, t }: { kind: 'entry' | 'exit'; gate: FeatureGateView; t: TFn }) {
-  const verdict = gate.verdict === 'blocked'
-    ? t('features.gate.blocked', { n: gate.unmetCount ?? 0 })
-    : gate.verdict === 'closed'
-      ? t('features.gate.closed', { status: gate.closedStatus ?? '' })
-      : gate.restart ? t('features.gate.readyRestart') : t('features.gate.ready');
+  const verdict = gate.verdict === 'not-ready'
+    ? t('features.gate.notReady', { n: gate.unmetCount ?? 0 })
+    : gate.restart ? t('features.gate.readyRestart') : t('features.gate.ready');
   return (
     <div
       className="bitfun-migration-panel__feature-gate"
@@ -769,7 +782,7 @@ function FeatureGateRow({ kind, gate, t }: { kind: 'entry' | 'exit'; gate: Featu
       <span className="bitfun-migration-panel__label">{t(`features.gate.${kind}`)}</span>
       <StatusPill
         tone={FEATURE_GATE_TONES[gate.verdict]}
-        leading={<Icon glyph={gate.verdict === 'blocked' ? ShieldAlert : ShieldCheck} size="2xs" />}
+        leading={<Icon glyph={gate.verdict === 'not-ready' ? ShieldAlert : ShieldCheck} size="2xs" />}
       >
         {verdict}
       </StatusPill>
@@ -849,6 +862,19 @@ function ExternalFeatureCard({
 
       <FeatureMilestones feature={feature} t={t} />
 
+      {feature.answers.length > 0 && (
+        <div
+          className="bitfun-migration-panel__feature-answers"
+          data-bitfun-product-component="migration-progress-panel"
+          data-bitfun-product-part="featureAnswers"
+          data-testid={`migration-progress-feature-answers-${feature.id}`}
+        >
+          {feature.answers.map((answer, index) => (
+            <FeatureAnswerRow key={`${answer.context}-${index}`} answer={answer} t={t} />
+          ))}
+        </div>
+      )}
+
       {(feature.entryGate || feature.exitGate) && (
         <div className="bitfun-migration-panel__feature-gates">
           {feature.entryGate && <FeatureGateRow kind="entry" gate={feature.entryGate} t={t} />}
@@ -905,57 +931,14 @@ function ExternalFeatureCard({
   );
 }
 
-/**
- * The user's external-feature selection (decisions.tsv). Shown even when no
- * FEAT row exists, so "the user chose none" and "the question was never
- * answered" are visible instead of an empty panel.
- */
-function FeatureSelectionRow({
-  selection,
-  activeIds,
-  t,
-}: {
-  selection: FeatureSelectionView;
-  activeIds: string[];
-  t: TFn;
-}) {
-  const chosenNone = selection.selected.length === 0;
-  const verdict = selection.unanswered
-    ? t('features.selection.unanswered')
-    : !selection.confirmed
-      ? t('features.selection.unconfirmed')
-      : chosenNone ? t('features.selection.none') : t('features.selection.selected', { n: selection.selected.length });
-  const tone: StatusPillTone = !selection.confirmed ? 'warning' : chosenNone ? 'neutral' : 'accent';
-  const active = new Set(activeIds.map((id) => id.toLowerCase()));
-  const inactive = selection.selected.filter((id) => !active.has(id.toLowerCase()));
+/** One answer the user gave about a feature (recorded in its notes by the feature scripts). */
+function FeatureAnswerRow({ answer, t }: { answer: FeatureAnswerView; t: TFn }) {
   return (
-    <div
-      className="bitfun-migration-panel__feature-selection"
-      data-bitfun-product-component="migration-progress-panel"
-      data-bitfun-product-part="featureSelection"
-      data-bitfun-status={selection.confirmed ? 'done' : 'blocked'}
-      data-testid="migration-progress-feature-selection"
-    >
-      <div className="bitfun-migration-panel__row">
-        <span className="bitfun-migration-panel__label">{t('features.selection.label')}</span>
-        <StatusPill tone={tone} title={selection.evidence}>{verdict}</StatusPill>
-        <span className="bitfun-migration-panel__id">{selection.decisionId}</span>
-        {!chosenNone && (
-          <OverflowText className="bitfun-migration-panel__grow bitfun-migration-panel__muted">
-            {selection.selected.join(', ')}
-          </OverflowText>
-        )}
-      </div>
-      {!selection.confirmed && (
-        <p className="bitfun-migration-panel__unmet">
-          {selection.unanswered ? t('features.selection.unansweredHint') : t('features.selection.unconfirmedHint')}
-        </p>
-      )}
-      {selection.confirmed && inactive.length > 0 && (
-        <p className="bitfun-migration-panel__muted">
-          {t('features.selection.notActivated', { ids: inactive.join(', ') })}
-        </p>
-      )}
+    <div className="bitfun-migration-panel__row" title={answer.text}>
+      <span className="bitfun-migration-panel__label">
+        {t(`features.answer.${answer.context}`, { status: answer.status ? t(`features.status.${answer.status}`) : '' })}
+      </span>
+      <OverflowText className="bitfun-migration-panel__grow">{answer.text}</OverflowText>
     </div>
   );
 }
@@ -968,9 +951,12 @@ export const MigrationProgressPanel: React.FC<MigrationProgressPanelProps> = ({
   remoteConnectionId,
 }) => {
   const { t, formatDate } = useI18n(['panels/migration', 'shared']);
+  /** The workspace's ledger root, resolved by useMigrationAutoOpen from the bound output container. */
+  const storedRoot = useMigrationProgressStore((state) => (
+    workspacePath ? state.ledgerRootByWorkspace[workspacePath] : undefined
+  ));
   /** `undefined` = resolving, `null` = not found. */
-  const [root, setRoot] = useState<string | null | undefined>(explicitRoot);
-  const hintedRoots = useMigrationProgressStore((state) => state.hintedRoots);
+  const [root, setRoot] = useState<string | null | undefined>(explicitRoot ?? storedRoot);
   const migrationSessionId = useMigrationProgressStore((state) => state.migrationSessionId);
   const sessionRunning = useMigrationProgressStore((state) => state.sessionRunning);
   const lastActivityAt = useMigrationProgressStore((state) => state.lastActivityAt);
@@ -979,9 +965,8 @@ export const MigrationProgressPanel: React.FC<MigrationProgressPanelProps> = ({
   const now = useTick(sessionRunning ? LIVE_TICK_MS : IDLE_TICK_MS);
   const rootState = useMigrationProgressStore((state) => (root ? state.byRoot[root] : undefined));
 
-  // Full lookup on mount / workspace change.
+  // Follow the ledger root of the workspace (or the explicit one).
   useEffect(() => {
-    let cancelled = false;
     if (explicitRoot) {
       setRoot(explicitRoot);
       return;
@@ -990,18 +975,8 @@ export const MigrationProgressPanel: React.FC<MigrationProgressPanelProps> = ({
       setRoot(null);
       return;
     }
-    setRoot(undefined);
-    void resolveLedgerRoot(workspacePath, remoteConnectionId, useMigrationProgressStore.getState().hintedRoots)
-      .then((found) => {
-        if (!cancelled) setRoot(found);
-      })
-      .catch(() => {
-        if (!cancelled) setRoot(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [explicitRoot, workspacePath, remoteConnectionId]);
+    setRoot(storedRoot);
+  }, [explicitRoot, workspacePath, storedRoot]);
 
   // The panel exists only while the workspace holds `STATE.md`: once the
   // lookup (or a removal below) confirms there is none, close the tab.
@@ -1010,27 +985,6 @@ export const MigrationProgressPanel: React.FC<MigrationProgressPanelProps> = ({
     if (workspacePath) useMigrationProgressStore.getState().unmarkLedgerWorkspace(workspacePath);
     closeMigrationProgressPanels();
   }, [root, workspacePath]);
-
-  // A ledger outside `<workspace>/migration/ohos` may be a stale or unrelated
-  // one (another app, an earlier hint): keep probing and switch as soon as a
-  // better-ranked root exists, e.g. right after `init_migration.py` finishes.
-  useEffect(() => {
-    if (!root || explicitRoot || !workspacePath) return;
-    const currentRank = rankLedgerRoot(root, workspacePath);
-    if (currentRank === 0) return;
-    let cancelled = false;
-    const probe = async () => {
-      const found = await resolveLedgerRoot(workspacePath, remoteConnectionId, hintedRoots, { deep: false })
-        .catch(() => null);
-      if (!cancelled && found && rankLedgerRoot(found, workspacePath) < currentRank) setRoot(found);
-    };
-    void probe();
-    const timer = setInterval(() => void probe(), UNRESOLVED_PROBE_MS);
-    return () => {
-      cancelled = true;
-      clearInterval(timer);
-    };
-  }, [root, explicitRoot, workspacePath, remoteConnectionId, hintedRoots]);
 
   // Watch the resolved root.
   useEffect(() => {
@@ -1055,30 +1009,18 @@ export const MigrationProgressPanel: React.FC<MigrationProgressPanelProps> = ({
   }, [root]);
 
   const snapshot = rootState?.snapshot;
-  const currentPhase = snapshot?.header.currentPhase
-    ?? snapshot?.phases.find((phase) => phase.status === 'doing')?.id;
+  const currentPhase = snapshot?.header.currentPhase;
   const references = useMemo(
-    () => (snapshot ? snapshot.documents.length + snapshot.knowledge.length : 0),
+    () => (snapshot ? snapshot.documents.length : 0),
     [snapshot],
   );
-  const problems = useMemo(
-    () => (snapshot ? snapshot.diagnostics.filter((entry) => entry.kind === 'problem') : []),
-    [snapshot],
-  );
-  const receipts = useMemo(
-    () => (snapshot ? snapshot.diagnostics.filter((entry) => entry.kind === 'receipt') : []),
-    [snapshot],
-  );
+  const problems = snapshot?.diagnostics ?? [];
   const openProblems = problems.some((entry) => entry.open);
-  const unrecordedFailures = receipts.reduce((sum, entry) => sum + entry.unrecordedFailures, 0);
 
   // Resolving / loading, or about to close because there is no ledger.
   if (!snapshot) return null;
 
   const currentAction = activity.find((entry) => entry.status === 'running') ?? activity[0];
-  const rootLabel = displayLedgerRoot(snapshot.ledgerRoot, workspacePath);
-  const rootOutside = rankLedgerRoot(snapshot.ledgerRoot, workspacePath) > 1;
-  const mode = rootState?.mode ?? 'poll';
 
   return (
     <div
@@ -1121,24 +1063,22 @@ export const MigrationProgressPanel: React.FC<MigrationProgressPanelProps> = ({
         data-bitfun-product-component="migration-progress-panel"
         data-bitfun-product-part="body"
       >
-        {snapshot.decisionsPending.length > 0 && (
-          <Section id="decisions" title={t('sections.decisions')} count={snapshot.decisionsPending.length} warn>
+        {snapshot.decisionsByAgent.length > 0 && (
+          <Section id="agentDecisions" title={t('sections.agentDecisions')} count={snapshot.decisionsByAgent.length} warn>
+            <p className="bitfun-migration-panel__muted">{t('agentDecisions.hint')}</p>
             <ul className="bitfun-migration-panel__list">
-              {snapshot.decisionsPending.map((decision) => (
+              {snapshot.decisionsByAgent.map((decision) => (
                 <li
-                  key={`${decision.source}:${decision.id}`}
+                  key={decision.id}
                   className="bitfun-migration-panel__card bitfun-migration-panel__card--decision"
                   data-bitfun-product-component="migration-progress-panel"
-                  data-bitfun-product-part="decision"
-                  data-bitfun-status={decision.status}
+                  data-bitfun-product-part="agentDecision"
                 >
                   <div className="bitfun-migration-panel__card-head">
                     <span className="bitfun-migration-panel__id">{decision.id}</span>
                     <span className="bitfun-migration-panel__card-title">{decision.question}</span>
                   </div>
-                  {decision.options && <p>{t('decisions.options')}: {decision.options}</p>}
-                  {decision.impact && <p className="bitfun-migration-panel__muted">{t('decisions.impact')}: {decision.impact}</p>}
-                  <p className="bitfun-migration-panel__muted">{t('decisions.source', { source: decision.source })}</p>
+                  {decision.answer && <p>{t('agentDecisions.selected')}: {decision.answer}</p>}
                 </li>
               ))}
             </ul>
@@ -1166,69 +1106,39 @@ export const MigrationProgressPanel: React.FC<MigrationProgressPanelProps> = ({
           </ol>
         </Section>
 
-        {(snapshot.externalFeatures.length > 0 || snapshot.featureSelection) && (
+        {snapshot.externalFeatures.length > 0 && (
           <Section
             id="externalFeatures"
             title={t('sections.externalFeatures')}
-            count={snapshot.externalFeatures.length > 0 ? snapshot.externalFeatures.length : undefined}
-            warn={
-              snapshot.externalFeatures.some((feature) => feature.status === 'blocked' || feature.status === 'error')
-              || (!!snapshot.featureSelection && !snapshot.featureSelection.confirmed)
-            }
+            count={snapshot.externalFeatures.length}
+            warn={snapshot.externalFeatures.some((feature) => feature.status === 'blocked' || feature.status === 'error')}
           >
-            {snapshot.featureSelection && (
-              <FeatureSelectionRow
-                selection={snapshot.featureSelection}
-                activeIds={snapshot.externalFeatures.map((feature) => feature.featureId).filter(Boolean) as string[]}
-                t={t}
-              />
-            )}
-            {snapshot.externalFeatures.length > 0 && (
-              <ul className="bitfun-migration-panel__list">
-                {snapshot.externalFeatures.map((feature) => (
-                  <ExternalFeatureCard
-                    key={feature.id}
-                    feature={feature}
-                    workspacePath={workspacePath}
-                    t={t}
-                  />
-                ))}
-              </ul>
-            )}
+            <ul className="bitfun-migration-panel__list">
+              {snapshot.externalFeatures.map((feature) => (
+                <ExternalFeatureCard
+                  key={feature.id}
+                  feature={feature}
+                  workspacePath={workspacePath}
+                  t={t}
+                />
+              ))}
+            </ul>
           </Section>
         )}
 
-        {snapshot.diagnostics.length > 0 && (
+        {problems.length > 0 && (
           <Section
             id="diagnostics"
             title={t('sections.diagnostics')}
-            count={problems.length > 0 ? problems.length : undefined}
+            count={problems.length}
             warn={openProblems}
             defaultOpen={openProblems}
           >
-            {problems.length > 0 ? (
-              <ul className="bitfun-migration-panel__list">
-                {problems.map((diagnostic) => (
-                  <ProblemCard key={diagnostic.id} diagnostic={diagnostic} workspacePath={workspacePath} t={t} />
-                ))}
-              </ul>
-            ) : (
-              <p className="bitfun-migration-panel__muted">
-                {unrecordedFailures > 0
-                  ? t('diagnostics.noneRecordedButRetried', { n: unrecordedFailures })
-                  : t('diagnostics.noneRecorded')}
-              </p>
-            )}
-            {receipts.length > 0 && (
-              <>
-                <p className="bitfun-migration-panel__subhead">{t('diagnostics.receipts', { n: receipts.length })}</p>
-                <ul className="bitfun-migration-panel__list">
-                  {receipts.map((diagnostic) => (
-                    <ReceiptRow key={diagnostic.id} diagnostic={diagnostic} workspacePath={workspacePath} t={t} />
-                  ))}
-                </ul>
-              </>
-            )}
+            <ul className="bitfun-migration-panel__list">
+              {problems.map((diagnostic) => (
+                <ProblemCard key={diagnostic.id} diagnostic={diagnostic} workspacePath={workspacePath} t={t} />
+              ))}
+            </ul>
           </Section>
         )}
 
@@ -1243,72 +1153,36 @@ export const MigrationProgressPanel: React.FC<MigrationProgressPanelProps> = ({
                   data-bitfun-product-part="reference"
                   data-bitfun-status="done"
                 >
-                  <Icon glyph={doc.kind === 'ledger' ? Sheet : FileText} size="xs" tone="muted" />
+                  <Icon glyph={doc.kind === 'ledger' ? Sheet : doc.kind === 'artifact' ? Package : FileText} size="xs" tone="muted" />
                   <StatusPill tone="neutral">{t(`references.${doc.kind}`)}</StatusPill>
-                  <button
-                    type="button"
-                    className="bitfun-migration-panel__link bitfun-migration-panel__grow"
-                    data-overflow-trigger
-                    onClick={() => openPath(doc.path, workspacePath)}
-                    title={doc.path}
-                  >
-                    <OverflowText>{doc.label}</OverflowText>
-                  </button>
-                  {doc.rows !== undefined && (
-                    <span className="bitfun-migration-panel__muted">{t('references.rows', { n: doc.rows })}</span>
-                  )}
-                </li>
-              ))}
-              {snapshot.knowledge.map((ref) => (
-                <li
-                  key={`kb:${ref.id}`}
-                  className="bitfun-migration-panel__row"
-                  data-bitfun-product-component="migration-progress-panel"
-                  data-bitfun-product-part="reference"
-                  data-bitfun-status="done"
-                >
-                  <Icon glyph={BookOpen} size="xs" tone="muted" />
-                  <StatusPill tone="neutral">{t('references.knowledge')}</StatusPill>
-                  {ref.snapshotPath ? (
+                  {doc.kind === 'artifact' ? (
+                    // The deliverable is a binary (the .hap): show where it is, nothing to open.
+                    <OverflowText className="bitfun-migration-panel__grow" title={doc.target}>
+                      {doc.label}
+                    </OverflowText>
+                  ) : (
                     <button
                       type="button"
                       className="bitfun-migration-panel__link bitfun-migration-panel__grow"
                       data-overflow-trigger
-                      onClick={() => openPath(joinSegments(snapshot.appRoot, ref.snapshotPath!), workspacePath)}
-                      title={ref.snapshotPath}
+                      onClick={() => openPath(doc.path, workspacePath)}
+                      title={doc.path}
                     >
-                      <OverflowText>{ref.sourcePath}</OverflowText>
+                      <OverflowText>{doc.label}</OverflowText>
                     </button>
-                  ) : (
-                    <OverflowText className="bitfun-migration-panel__grow">{ref.sourcePath}</OverflowText>
                   )}
-                  {ref.modified === 'yes' && <span className="bitfun-migration-panel__muted">{t('references.modified')}</span>}
+                  {doc.rows !== undefined && (
+                    <span className="bitfun-migration-panel__muted">{t('references.rows', { n: doc.rows })}</span>
+                  )}
+                  {doc.target && (
+                    <OverflowText className="bitfun-migration-panel__muted" title={doc.target}>{doc.target}</OverflowText>
+                  )}
                 </li>
               ))}
             </ul>
           </Section>
         )}
       </div>
-
-      <footer
-        className="bitfun-migration-panel__footer"
-        data-bitfun-product-component="migration-progress-panel"
-        data-bitfun-product-part="footer"
-        data-testid="migration-progress-root-path"
-        title={snapshot.ledgerRoot}
-      >
-        <span>{mode === 'watch' ? t('header.modeWatch') : t('header.modePoll')}</span>
-        <span aria-hidden>·</span>
-        <OverflowText className="bitfun-migration-panel__path">{rootLabel}</OverflowText>
-        {rootOutside && <StatusPill tone="warning">{t('header.rootOutside')}</StatusPill>}
-        <Button
-          variant="text"
-          size="xs"
-          onClick={() => openPath(joinSegments(snapshot.ledgerRoot, 'STATE.md'), workspacePath)}
-        >
-          {t('header.openState')}
-        </Button>
-      </footer>
     </div>
   );
 };

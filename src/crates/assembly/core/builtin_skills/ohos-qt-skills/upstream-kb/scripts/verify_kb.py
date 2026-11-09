@@ -29,9 +29,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from kb_common import (  # noqa: E402
-    ACTIVE_ACTIONS, EXCLUSION_FIELDS, EXCLUSIONS, INACTIVE_ACTIONS, KB_DIR, KNOWLEDGE_DIR,
-    MANIFEST, MANIFEST_FIELDS, SKILL_ROOT, SNAPSHOT_PREFIX, UPSTREAM_LOCK, WORK_DIR,
-    excluded_by, is_ignored_local, read_lock, read_required, required_missing,
+    ACTIVE_ACTIONS, ADDED_LOCAL, EXCLUSION_FIELDS, EXCLUSIONS, INACTIVE_ACTIONS, KB_DIR,
+    KNOWLEDGE_DIR, MANIFEST, MANIFEST_FIELDS, SKILL_ROOT, SNAPSHOT_PREFIX, UPSTREAM_LOCK,
+    WORK_DIR, excluded_by, is_ignored_local, read_lock, read_required, required_missing,
     sha256_file, snapshot_path,
 )
 
@@ -102,7 +102,9 @@ def verify(smoke: bool = False) -> int:
         seen.add(rel)
         if action in ACTIVE_ACTIONS:
             active.add(rel)
-            revisions.add(row.get("source_revision", ""))
+            local_only = action == ADDED_LOCAL
+            if not local_only:
+                revisions.add(row.get("source_revision", ""))
             expected_path = snapshot_path(rel)
             if row.get("snapshot_path") != expected_path:
                 errors.append(f"manifest: {rel} snapshot_path should be {expected_path}")
@@ -114,11 +116,17 @@ def verify(smoke: bool = False) -> int:
             actual = sha256_file(page)
             if actual != row.get("snapshot_sha256"):
                 errors.append(f"baseline page edited (hash mismatch): {expected_path}")
-            diverged = row.get("snapshot_sha256") != row.get("source_sha256")
-            if row.get("modified") != ("yes" if diverged else "no"):
-                errors.append(f"manifest: {rel} modified flag inconsistent with hashes")
-            if diverged and action != "kept-local":
-                warnings.append(f"{rel} diverges from upstream but action is {action}")
+            if local_only:
+                if row.get("source_revision") or row.get("source_sha256"):
+                    errors.append(f"manifest: {rel} is {ADDED_LOCAL} but carries upstream source fields")
+                if row.get("modified") != "yes":
+                    errors.append(f"manifest: {rel} is {ADDED_LOCAL}; modified must be yes")
+            else:
+                diverged = row.get("snapshot_sha256") != row.get("source_sha256")
+                if row.get("modified") != ("yes" if diverged else "no"):
+                    errors.append(f"manifest: {rel} modified flag inconsistent with hashes")
+                if diverged and action != "kept-local":
+                    warnings.append(f"{rel} diverges from upstream but action is {action}")
             rule = excluded_by(rel, exclusions)
             if rule:
                 errors.append(f"active page {rel} is matched by exclusion {rule}; re-run sync plan/apply")

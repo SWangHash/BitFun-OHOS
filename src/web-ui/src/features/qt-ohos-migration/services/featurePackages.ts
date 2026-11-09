@@ -29,7 +29,7 @@ import { packageKey } from './deriveExternalFeatures';
 
 const log = createLogger('MigrationFeaturePackages');
 
-export const FEATURE_REGISTRY_HEADER = ['feature_id', 'title', 'kind', 'hook_phase', 'status', 'package_path', 'owner', 'summary'];
+export const FEATURE_REGISTRY_HEADER = ['feature_id', 'title', 'kind', 'package_path', 'owner', 'summary'];
 const SKILL_LOOKUP_RETRY_MS = 30_000;
 const MAX_WORKDIR_FILES = 40;
 
@@ -194,7 +194,7 @@ export class FeaturePackageReader {
     const wanted = new Map<string, { relative: string; featureId?: string }>();
     for (const row of rows) {
       const featureId = (row.feature_id ?? '').trim();
-      const relative = (row.package_path ?? '').trim() || (registry.get(featureId)?.package_path ?? '').trim();
+      const relative = (registry.get(featureId)?.package_path ?? '').trim();
       if (relative) wanted.set(packageKey(relative), { relative, featureId: featureId || undefined });
     }
     const packages: Record<string, FeaturePackageInfo> = {};
@@ -211,7 +211,7 @@ export class FeaturePackageReader {
         summary: stringOf(registered?.summary),
         kind: hook.kind ?? stringOf(registered?.kind),
         version: hook.version,
-        hookPhase: hook.hookPhase ?? stringOf(registered?.hook_phase),
+        hookPhase: hook.hookPhase,
         milestones: hook.milestones ?? [],
         maxAttempts: hook.maxAttempts,
         playbookPath: hook.playbookPath,

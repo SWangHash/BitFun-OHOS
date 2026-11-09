@@ -5,11 +5,14 @@
 use async_trait::async_trait;
 use bitfun_agent_runtime::user_questions::{
     ask_user_question_available_in_context, build_answered_user_question_result,
-    build_cancelled_user_question_result, build_timed_out_user_question_result,
+    build_auto_decided_user_question_result, build_cancelled_user_question_result,
+    build_timed_out_user_question_result, parse_auto_decide_after_seconds, recommended_answers,
     validate_ask_user_question_input, wait_for_user_question_response, AskUserQuestionInput,
     PendingQuestionRequestMeta, PendingUserQuestion, QuestionPresentation, ResolvedQuestionRequest,
-    UserQuestionController, UserQuestionWaitOutcome, USER_INPUT_AVAILABLE_CONTEXT_KEY,
-    USER_INPUT_MODEL_ROUND_CONTEXT_KEY, USER_INPUT_PARENT_CONTEXT_KEY,
+    UserQuestionController, UserQuestionWaitOutcome, AUTO_DECIDE_AFTER_SECONDS_FIELD,
+    AUTO_DECIDE_DEFAULT_SECONDS, AUTO_DECIDE_MAX_SECONDS, AUTO_DECIDE_MIN_SECONDS,
+    USER_INPUT_AVAILABLE_CONTEXT_KEY, USER_INPUT_MODEL_ROUND_CONTEXT_KEY,
+    USER_INPUT_PARENT_CONTEXT_KEY,
 };
 use log::{debug, warn};
 use serde_json::{json, Value};
@@ -28,17 +31,21 @@ use crate::util::errors::BitFunResult;
 /// answers or the turn is cancelled" — the Qt migration intake needs its four
 /// paths before any work starts, so a skipped question would be a silent
 /// failure rather than a convenient default.
+///
+/// A plain question that asks the runtime to auto-decide (`auto_decide_seconds`)
+/// waits exactly that long: the caller has named a recommended answer, so an
+/// absent user costs a bounded delay, and the decision is reported as made on
+/// the user's behalf.
 fn unattended_question_timeout(
     presentation: Option<&QuestionPresentation>,
     configured: Option<std::time::Duration>,
+    auto_decide_seconds: Option<u32>,
 ) -> Option<std::time::Duration> {
-    let allow_timeout = presentation
-        .map(|presentation| presentation.allow_timeout)
-        .unwrap_or(true);
-    if !allow_timeout {
-        return None;
+    match (presentation, auto_decide_seconds) {
+        (Some(presentation), _) => presentation.allow_timeout.then_some(configured).flatten(),
+        (None, Some(seconds)) => Some(std::time::Duration::from_secs(u64::from(seconds))),
+        (None, None) => configured,
     }
-    configured
 }
 
 /// AskUserQuestion tool
@@ -192,6 +199,7 @@ Usage notes:
 - This tool waits up to the host-configured timeout (default 180 seconds) for the first user interaction. Once the user clicks an option or input, the timeout is disabled and the tool waits for submission or cancellation. If the user does not interact, it skips the questions and returns so you can continue execution.
 - The timeout is host-owned: the model cannot shorten or lengthen it. Prefer the default; a timeout is not user approval or a selected answer.
 - A backend template may own the wait instead: the `qt-migration-paths` intake never times out, because a migration cannot start before its paths are confirmed. Such a call blocks until the user answers or the turn is cancelled.
+- Set `autoDecideAfterSeconds` (60-86400, suggested 600) when every question has a sensible recommended option and the work should not stall on an absent user. If nobody interacts within that time, the runtime selects the recommended option of each question (the option whose label ends with "(Recommended)", otherwise the first option) and returns status `auto_decided`. The card shows the user that the agent decided for them. Such an answer is YOUR decision on the user's behalf, not user approval: say so in your next reply, record it as an agent default wherever your workflow records decisions, and let the user override it later. Every question must have options to use this.
 - Put all questions you need into a single AskUserQuestion call instead of calling it repeatedly in one response
 - Users will always be able to select "Other" to provide custom text input
 - Use multiSelect: true to allow multiple answers to be selected for a question
@@ -206,6 +214,12 @@ Usage notes:
         json!({
             "type": "object",
             "properties": {
+                AUTO_DECIDE_AFTER_SECONDS_FIELD: {
+                    "type": "integer",
+                    "minimum": AUTO_DECIDE_MIN_SECONDS,
+                    "maximum": AUTO_DECIDE_MAX_SECONDS,
+                    "description": format!("Optional. Plain questions only; overrides the host-configured wait. If the user does not interact within this many seconds, the runtime answers every question with its recommended option (label ending in \"(Recommended)\", else the first option) and returns status auto_decided, which is a decision made on the user's behalf. Suggested {AUTO_DECIDE_DEFAULT_SECONDS}. Every question must have options.")
+                },
                 "questions": {
                     "type": "array",
                     "items": {
@@ -517,6 +531,24 @@ impl AskUserQuestionTool {
             return Err(crate::util::errors::BitFunError::Validation(error));
         }
 
+        // 2b. Auto-decision applies to model-written questions only: a template
+        // owns its own wait policy. The recommended answers are computed before
+        // waiting so an unusable request fails now instead of after the wait.
+        let auto_decision = if resolved_request.is_none() {
+            match parse_auto_decide_after_seconds(input) {
+                Ok(Some(seconds)) => match recommended_answers(&tool_input.questions) {
+                    Ok(answers) => Some((seconds, answers)),
+                    Err(error) => {
+                        return Err(crate::util::errors::BitFunError::Validation(error));
+                    }
+                },
+                Ok(None) => None,
+                Err(error) => return Err(crate::util::errors::BitFunError::Validation(error)),
+            }
+        } else {
+            None
+        };
+
         let question_count = tool_input.questions.len();
         debug!(
             "AskUserQuestion tool called with {} question(s)",
@@ -566,7 +598,22 @@ impl AskUserQuestionTool {
         let payload = if let Some(resolved) = &resolved_request {
             serde_json::to_value(resolved).unwrap_or_else(|_| json!({}))
         } else {
-            serde_json::to_value(&tool_input).unwrap_or_else(|_| json!({}))
+            let mut payload = serde_json::to_value(&tool_input).unwrap_or_else(|_| json!({}));
+            // An auto-deciding question tells every surface when the runtime will
+            // pick the recommended answers, so the card can count down and say so.
+            if let (Some((seconds, _)), Some(object)) =
+                (auto_decision.as_ref(), payload.as_object_mut())
+            {
+                let deadline_ms = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_millis()
+                    .saturating_add(u128::from(*seconds) * 1000)
+                    .min(u64::MAX as u128) as u64;
+                object.insert(AUTO_DECIDE_AFTER_SECONDS_FIELD.to_string(), json!(seconds));
+                object.insert("responseDeadlineMs".to_string(), json!(deadline_ms));
+            }
+            payload
         };
         let registration = manager.register_question_with_controllers(
             PendingUserQuestion::new_with_meta(
@@ -618,6 +665,7 @@ impl AskUserQuestionTool {
                     .as_ref()
                     .and_then(|resolved| resolved.presentation.as_ref()),
                 timeout,
+                auto_decision.as_ref().map(|(seconds, _)| *seconds),
             ),
         )
         .await
@@ -651,7 +699,17 @@ impl AskUserQuestionTool {
             }
             UserQuestionWaitOutcome::TimedOut => {
                 debug!("AskUserQuestion timed out, tool_id: {}", tool_id);
-                let result = build_timed_out_user_question_result(&tool_input);
+                let result = match auto_decision {
+                    Some((seconds, answers)) => {
+                        log::info!(
+                            "AskUserQuestion auto-decided recommended answers after {}s: tool_id={}",
+                            seconds,
+                            tool_id
+                        );
+                        build_auto_decided_user_question_result(&tool_input, answers, seconds)
+                    }
+                    None => build_timed_out_user_question_result(&tool_input),
+                };
                 Ok(vec![ToolResult::Result {
                     data: result.data,
                     result_for_assistant: Some(result.result_for_assistant),
@@ -1006,14 +1064,33 @@ mod tests {
 
         // No resolved template: the host-configured bound applies as before.
         assert_eq!(
-            super::unattended_question_timeout(None, Some(std::time::Duration::from_secs(30))),
+            super::unattended_question_timeout(
+                None,
+                Some(std::time::Duration::from_secs(30)),
+                None
+            ),
             Some(std::time::Duration::from_secs(30))
+        );
+        // An auto-deciding plain question waits its own bound instead.
+        assert_eq!(
+            super::unattended_question_timeout(
+                None,
+                Some(std::time::Duration::from_secs(30)),
+                Some(600)
+            ),
+            Some(std::time::Duration::from_secs(600))
+        );
+        // ...even when the host config waits indefinitely.
+        assert_eq!(
+            super::unattended_question_timeout(None, None, Some(600)),
+            Some(std::time::Duration::from_secs(600))
         );
         // A template that tolerates a skip keeps the configured bound.
         assert_eq!(
             super::unattended_question_timeout(
                 Some(&presentation(true)),
-                Some(std::time::Duration::from_secs(7))
+                Some(std::time::Duration::from_secs(7)),
+                None
             ),
             Some(std::time::Duration::from_secs(7))
         );
@@ -1021,16 +1098,121 @@ mod tests {
         assert_eq!(
             super::unattended_question_timeout(
                 Some(&presentation(false)),
-                Some(std::time::Duration::from_secs(30))
+                Some(std::time::Duration::from_secs(30)),
+                Some(600)
             ),
             None
         );
         // Host config null/0: wait forever even when the template allows a timeout.
-        assert_eq!(super::unattended_question_timeout(None, None), None);
+        assert_eq!(super::unattended_question_timeout(None, None, None), None);
         assert_eq!(
-            super::unattended_question_timeout(Some(&presentation(true)), None),
+            super::unattended_question_timeout(Some(&presentation(true)), None, None),
             None
         );
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn unattended_auto_deciding_question_selects_the_recommended_options() {
+        let unique = uuid::Uuid::new_v4().to_string();
+        let mut context = context_with_custom_data(HashMap::new());
+        context.session_id = Some(unique.clone());
+        context.tool_call_id = Some(unique.clone());
+        let input = serde_json::json!({
+            "autoDecideAfterSeconds": 600,
+            "questions": [
+                {
+                    "question": "Host regression?", "header": "Host",
+                    "options": [
+                        { "label": "Skip", "description": "No desktop Qt" },
+                        { "label": "Install desktop Qt (Recommended)", "description": "Regression" }
+                    ]
+                },
+                {
+                    "question": "Open folder?", "header": "Folder",
+                    "options": [
+                        { "label": "Hide on OHOS", "description": "Guard" },
+                        { "label": "Keep", "description": "Unchanged" }
+                    ]
+                }
+            ]
+        });
+        let tool = AskUserQuestionTool::new();
+        let call =
+            tool.call_with_timeout(&input, &context, Some(std::time::Duration::from_secs(180)));
+        tokio::pin!(call);
+        // The card learns the auto-decision deadline from the waiting payload.
+        let registered = async {
+            loop {
+                let snapshot = get_user_input_manager().pending_question_snapshot(&unique);
+                if let Some(question) = snapshot.questions.first() {
+                    assert_eq!(question.questions["autoDecideAfterSeconds"], 600);
+                    assert!(question.questions["responseDeadlineMs"].is_u64());
+                    break;
+                }
+                tokio::task::yield_now().await;
+            }
+        };
+        tokio::select! {
+            _ = &mut call => panic!("auto-deciding question completed before registering"),
+            _ = registered => {}
+        }
+        let result = call.await.expect("auto-decided question must succeed");
+        match &result[0] {
+            crate::agentic::tools::framework::ToolResult::Result {
+                data,
+                result_for_assistant,
+                ..
+            } => {
+                assert_eq!(data["status"], "auto_decided");
+                assert_eq!(data["answers"]["0"], "Install desktop Qt (Recommended)");
+                assert_eq!(data["answers"]["1"], "Hide on OHOS");
+                assert!(result_for_assistant
+                    .as_deref()
+                    .is_some_and(|text| text.contains("ON THE USER'S BEHALF")));
+            }
+            _ => panic!("auto-decision must return a normal tool result"),
+        }
+        assert!(!get_user_input_manager().has_pending(&unique));
+    }
+
+    #[tokio::test]
+    async fn auto_decision_rejects_out_of_range_waits_and_text_only_questions() {
+        let tool = AskUserQuestionTool::new();
+        let context = context_with_custom_data(HashMap::new());
+        let too_short = serde_json::json!({
+            "autoDecideAfterSeconds": 5,
+            "questions": [{
+                "question": "Continue?", "header": "Continue",
+                "options": [
+                    { "label": "Yes", "description": "Continue" },
+                    { "label": "No", "description": "Stop" }
+                ]
+            }]
+        });
+        assert!(tool
+            .call_with_timeout(
+                &too_short,
+                &context,
+                Some(std::time::Duration::from_secs(180))
+            )
+            .await
+            .is_err());
+        let text_only = serde_json::json!({
+            "autoDecideAfterSeconds": 600,
+            "questions": [{
+                "question": "Name?", "header": "Name", "options": [],
+                "inputPlaceholder": "name"
+            }]
+        });
+        let error = tool
+            .call_with_timeout(
+                &text_only,
+                &context,
+                Some(std::time::Duration::from_secs(180)),
+            )
+            .await
+            .expect_err("a text-only question has no recommended answer");
+        assert!(error.to_string().contains("no options"));
     }
 
     async fn assert_question_times_out(timeout_seconds: Option<u32>) {

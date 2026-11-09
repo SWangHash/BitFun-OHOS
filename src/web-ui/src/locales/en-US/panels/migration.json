@@ -2,27 +2,24 @@
   "title": "Migration Progress",
   "live": {
     "blocked": "Blocked",
+    "ended": "Ended (not verified on a device)",
     "idle": "Idle"
   },
   "header": {
     "refresh": "Refresh",
     "overall": "Overall",
     "currentPhase": "Current phase",
-    "assessment": "Assessment",
-    "completionTier": "Completion tier",
     "lastWrite": "Last ledger write",
-    "openState": "Open STATE.md",
-    "modeWatch": "Live (file watcher)",
-    "modePoll": "Polling",
-    "root": "Watching",
-    "rootOutside": "outside workspace",
     "currentAction": "Running now",
     "lastAction": "Last action",
     "elapsed": "for {{time}}",
     "completed": "Migration completed",
-    "completedGateBlocked": "handoff gate still blocked ({{n}})",
+    "ended": "Ended: the application HAP has not run on a device; install and launch stay unverified",
+    "completedGateNotReady": "validation gate still blocked ({{n}})",
     "phaseIndex": "phase {{index}}/{{total}}",
-    "phaseStrip": "Migration phase progress"
+    "phaseStrip": "Migration phase progress",
+    "library": "App library",
+    "outputProject": "Output project"
   },
   "time": {
     "secondsAgo": "{{n}}s ago",
@@ -31,7 +28,7 @@
     "minutesSeconds": "{{m}}m {{s}}s"
   },
   "sections": {
-    "decisions": "Needs your decision",
+    "agentDecisions": "Decided by the agent for you",
     "phases": "Phases",
     "diagnostics": "Problems & diagnostics",
     "references": "References",
@@ -46,59 +43,60 @@
     "paused": "paused"
   },
   "phases": {
-    "baseline": {
-      "name": "Environment setup",
-      "description": "Confirm the Qt for HarmonyOS distribution, HarmonyOS SDK and native toolchain, build/package tools and project template are in place and usable.",
+    "environment": {
+      "name": "Environment",
+      "description": "Confirm the Qt for HarmonyOS distribution, HarmonyOS SDK and native toolchain, build/package tools and project template are in place, and prove them by building, deploying, packaging, signing and running a template app on a device; later phases reuse the verified environment as is.",
       "short": "Env"
     },
     "inventory": {
-      "name": "Migration inventory",
+      "name": "Inventory",
       "description": "Scan sources and build files for the Qt modules, platform-specific code, system APIs and third-party libraries to migrate, each with an acceptance scenario.",
-      "short": "Scan"
+      "short": "Inventory"
     },
-    "contract": {
-      "name": "Migration plan sign-off",
-      "description": "State the feasibility verdict and freeze the migration plan; removing, degrading or replacing a feature needs your approval.",
-      "short": "Plan"
+    "decisions": {
+      "name": "Decisions",
+      "description": "Ask the open questions, state the feasibility verdict, fill in the scope (app sources, app library, output project) and freeze the plan; removing, degrading or replacing a feature needs your answer.",
+      "short": "Decisions"
     },
-    "pilot": {
-      "name": "Pilot verification",
-      "description": "Before broad code changes, prove with a minimal project that the app shell, entry point, Qt linkage, packaging and one high-risk point all work.",
-      "short": "Pilot"
-    },
-    "implementation": {
-      "name": "Feature migration",
-      "description": "Migrate features in dependency order: build third-party libraries and the app first, then make small source changes driven by the build results, each with a validation record.",
-      "short": "Port"
-    },
-    "features": {
-      "name": "HarmonyOS features",
-      "description": "Once the app installs and launches, add the HarmonyOS features chosen in the plan (tap-to-transfer, continuation, share); marked not applicable when none were chosen.",
-      "short": "Feat"
+    "tasks": {
+      "name": "Tasks",
+      "description": "Audit the app's HarmonyOS build configuration and complete the first real build, then migrate features in dependency order: build third-party libraries and the app first, then make small source changes driven by the build results, each with a validation record.",
+      "short": "Tasks"
     },
     "diagnostics": {
-      "name": "Build & fix",
-      "description": "Build, package, install and run the app on a device; each failure is recorded by its first root cause and fixed before retrying.",
-      "short": "Build"
+      "name": "Diagnostics",
+      "description": "Build, package, install and run the app on a device; each problem is one record (where, symptom, cause, fix) and is fixed before the phase closes.",
+      "short": "Diagnostics"
     },
-    "handoff": {
-      "name": "Acceptance & handoff",
+    "features": {
+      "name": "Features",
+      "description": "After the base Qt migration is done (the app builds, installs and launches), ask which registered HarmonyOS features to add (tap-to-transfer, continuation, share), then implement them one by one; passes right away when none are chosen.",
+      "short": "Features"
+    },
+    "validation": {
+      "name": "Validation",
       "description": "Verify every acceptance scenario, check the final package contents and device runs, and write the migration report.",
-      "short": "Ship"
+      "short": "Validation"
     }
   },
   "phase": {
     "noItems": "No ledger rows yet.",
     "ledger": "Ledger:",
-    "ledgerOverride": "All ledger rows are closed; STATE.md still says \"{{raw}}\"",
-    "migrationState": {
-      "pending": "Not migrated",
-      "doing": "Migrating",
-      "done": "Migrated",
-      "blocked": "Blocked"
-    },
+    "decidedByAgent": "Chosen by agent",
     "rowsFrac": "{{done}}/{{total}} rows",
-    "rowsFracHint": "Closed ledger rows. Whether the phase is done is decided by its gate, not by this count."
+    "rowsFracHint": "Closed ledger rows. Whether the phase is done is decided by its gate, not by this count.",
+    "notice": {
+      "warning": "Note",
+      "fixed": "Fixed"
+    },
+    "notes": {
+      "problems": "Problems: {{open}} open · {{blocked}} blocked · {{fixed}} fixed",
+      "deviceRun": "The app HAP has run on a device (see device-runs.tsv)",
+      "noDevice": "No device connected: the HAP passed hap_check, no device run is required",
+      "hapChecked": "The app HAP passed hap_check but has not run on a device yet",
+      "hapFailed": "The app HAP failed hap_check (see the problems)",
+      "noHap": "No app HAP has passed hap_check yet"
+    }
   },
   "features": {
     "status": {
@@ -118,62 +116,47 @@
     "currentStep": "Current step",
     "gate": {
       "entry": "Entry gate",
-      "exit": "Exit gate",
+      "exit": "Last failed exit",
       "ready": "Passed",
       "readyRestart": "Passed (re-entered)",
-      "blocked": "Not met ({{n}})",
-      "closed": "Closed: {{status}}"
+      "notReady": "Not met ({{n}})"
     },
-    "links": "Linked ledger items ({{n}})",
-    "linkMissing": "Not recorded yet",
     "files": "Work directory & docs",
     "playbook": "Feature playbook",
-    "decision": "Activation decision: {{id}}",
     "notes": "Notes",
     "evidence": "Evidence",
-    "selection": {
-      "label": "User selection",
-      "none": "None enabled",
-      "selected": "{{n}} selected",
-      "unanswered": "Not answered",
-      "unconfirmed": "Not confirmed by the user",
-      "unansweredHint": "The question timed out or was skipped, so this is not the user's decision. The gate rejects it; ask the user again and record their answer.",
-      "unconfirmedHint": "This decision lacks owner=user, status=approved, or evidence quoting the user (\"user: ...\"); the gate does not accept it.",
-      "notActivated": "Selected but not activated: {{ids}}"
+    "answer": {
+      "activate": "Selected with",
+      "retry": "Retry approved with",
+      "close": "Closed ({{status}}) with"
     }
   },
-  "decisions": {
-    "options": "Options",
-    "impact": "Impact",
-    "source": "Source: {{source}}"
+  "agentDecisions": {
+    "hint": "Nobody answered these questions within the wait, so the agent chose the recommended options for you (the question card says so too). Tell the agent in the chat to change any of them; it updates the decision and re-plans the affected work.",
+    "selected": "Chosen"
   },
   "diagnostics": {
-    "unclassified": "Unclassified",
-    "attempts": "{{n}} attempt(s)",
-    "rootCause": "Root cause",
-    "nextAction": "Next action",
-    "recurrence": "Recurrence",
     "openLog": "Open log",
     "open": "Open",
-    "resolved": "Fixed",
+    "fixed": "Fixed",
+    "accepted": "Accepted",
+    "cause": "Cause",
+    "needsCause": "Cause not written yet: the next build batch is refused until it is.",
+    "plannedFix": "Fix to try",
     "fix": "Fix",
-    "noneRecorded": "No problems were recorded during the migration.",
-    "noneRecordedButRetried": "No problems recorded, but {{n}} failed attempts were never written to the ledger.",
-    "receipts": "Passing receipts ({{n}})",
-    "unrecorded": "{{n}} failures not recorded"
+    "reproduce": "Reproduce"
   },
   "references": {
     "document": "Document",
     "ledger": "Ledger",
     "rows": "{{n}} rows",
-    "knowledge": "Knowledge",
-    "modified": "locally modified"
+    "artifact": "Deliverable"
   },
   "errors": {
     "loadFailed": "Failed to read ledgers: {{error}}. Showing the last snapshot."
   },
   "warnings": {
-    "schema": "Ledger columns differ from the expected schema: {{detail}}"
+    "legacyLayout": "This migration was created by an older skill version; these ledgers use different columns and are not shown: {{detail}}"
   },
   "heartbeat": {
     "running": "Agent is working",
@@ -182,7 +165,7 @@
   },
   "gate": {
     "ready": "Gate passed",
-    "blocked": "Gate blocked ({{n}})",
+    "notReady": "Gate blocked ({{n}})",
     "unmetTitle": "Unmet gate conditions",
     "invalid": "Ledgers are invalid",
     "more": "… {{n}} more"

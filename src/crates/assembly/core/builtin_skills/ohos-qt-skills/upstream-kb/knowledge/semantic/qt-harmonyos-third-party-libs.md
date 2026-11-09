@@ -4,7 +4,7 @@ type: semantic
 domain: tech
 tags: [qt, harmonyos, third-party, cross-compile, cmake, vcpkg, dependency]
 created: 2026-06-03
-updated: 2026-08-15
+updated: 2026-10-16
 status: active
 audience: public
 refs: [semantic-qt-harmonyos-build, semantic-qt-harmonyos-project-structure, semantic-qt-harmonyos-platform-limits, semantic-qt-ohos-project-analyzer-workflow]
@@ -153,6 +153,27 @@ target_link_libraries(QtHarmonyApp PRIVATE
 - [ ] **系统库**：是否可以直接使用系统版本，无需自带？
 - [ ] **静态链接**：是否可以用静态链接避免 .so 部署问题？
 - [ ] **验证**：编译通过 + 运行时 .so 加载成功 + 功能正常？
+
+---
+
+## 7. Qt imageformat 插件与宿主库版本错位（OHOS musl）
+
+> 2026-10 真机实证。`QImageReader` 的可用格式由 `plugins/imageformats/*.so` 提供，这些插件**动态链接**宿主三方库（`libqjpeg.so` → `libjpeg`），并不编进 Qt 本体；插件加载失败时 `QImageReader` 静默降级，不抛异常。
+
+**症状**：应用内某类图片（典型是全部 JPEG）显示"文件损坏"/预览失败，其他格式（PNG/SVG/GIF）正常，且 `QImageReader::supportedImageFormats()` 不含该格式名。排查顺序：先确认插件是否随 HAP 部署到 `imageformats/` 子目录（见 [[qt-harmonyos-project-structure]] §6.2 的分类插件部署），再判断加载是否失败。
+
+**两类根因（按 Qt 版本区分）**：
+
+| 场景 | 根因 | 处理 |
+|------|------|------|
+| Qt5 / 源码构建 | 插件动态链接的宿主 libjpeg 与 Qt 构建时链接的版本**不同源**，OHOS musl 下重定位失败（`symbol not found`），静默不崩、无弹窗 | 换同源库 > 指向系统常驻的同功能库 > 改用静态链接的插件变体 |
+| Qt6 预构建 kit | 带外部依赖的 imageformats 插件（`libqjpeg`/`libqwebp`）在应用命名空间内**静默 dlopen 失败**；无外部依赖的插件（gif/ico/svg）正常。即使部署 `libjpeg.so`、对齐 SONAME、随主 .so 预加载，插件仍不加载 | 应用侧无法根治，按下方"降级策略"处理 |
+
+**Qt6 型的判别证据**：`/proc/<pid>/maps` 中无 `libqjpeg` 而 `gif/ico/svg` 在场；root 侧 `dlopen` 探针（`RTLD_NOW` + `LD_LIBRARY_PATH`）证实插件文件本身可加载。二者同时成立即排除"文件缺失/部署问题"。
+
+**dlopen 失败三层判别**（用 `QLibrary::load()` + `errorString()` 取真实错误，不要凭 `lastError` 猜测）：① 文件缺失（HAP 中无该 .so，静态可判）② 符号表缺失（`llvm-nm -D` 无导出，静态可判）③ 加载器解析失败（依赖树/重定位问题，只能运行时取）。
+
+**降级策略**（Qt6 预构建 kit 型无法根治时）：不要让依赖该格式解码的功能整特性失效——把**内容/能力范围降级**为"应用内可正常显示/解码的格式"，并在集成报告/台账中标注为已知限制。消费方也不要为坏格式做"解码→重编码"往返，否则功能会被绑死在插件可用性上。
 
 ---
 

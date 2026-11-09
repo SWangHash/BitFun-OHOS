@@ -42,7 +42,10 @@ MANIFEST_FIELDS = [
 EXCLUSION_FIELDS = ["path", "reason", "decided_at"]
 
 # Rows whose page is part of the released baseline.
-ACTIVE_ACTIONS = {"copied", "updated", "unchanged", "kept-local"}
+ACTIVE_ACTIONS = {"copied", "updated", "unchanged", "kept-local", "added-local"}
+# A page that exists only in this baseline: upstream has no such path. Recorded by
+# the maintainer (see upstream-kb/AGENTS.md §5), not by sync_upstream.py apply.
+ADDED_LOCAL = "added-local"
 # Rows kept for audit only; no file exists under knowledge/.
 INACTIVE_ACTIONS = {"excluded-by-policy", "source-removed"}
 

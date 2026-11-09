@@ -1,7 +1,8 @@
 /**
  * Keep the migration progress tab bound to the current workspace's ledger.
  *
- * The panel exists only for a workspace that holds `migration/ohos/STATE.md`:
+ * The panel exists only for a workspace whose Qt migration question card bound an
+ * output container holding `migration/ohos/STATE.md` (session metadata):
  *
  *  - Entering (switching to) such a workspace opens the tab.
  *  - When the `qt-harmonyos-migration` skill, run in a session of the current
@@ -13,7 +14,7 @@
  * a tab in the current one.
  *
  * Also routes tool signals to the ledger controllers (active action + refresh)
- * and to the store (activity feed, todo progress, gate verdicts), and mirrors
+ * and to the store (activity feed, todo progress), and mirrors
  * the running state of the migration session for the panel's heartbeat.
  */
 
@@ -22,11 +23,9 @@ import { useCurrentWorkspace } from '@/infrastructure/contexts/WorkspaceContext'
 import { createLogger } from '@/shared/utils/logger';
 import { SessionExecutionState, stateMachineManager } from '@/flow_chat/state-machine';
 import { flowChatStore } from '@/flow_chat/store/FlowChatStore';
-import { parseGateOutput } from '../parsers/parseGateOutput';
 import { subscribeMigrationToolSignals, type MigrationToolSignal } from '../services/migrationToolSignals';
 import {
   featuresRootFromHint,
-  ledgerRootFromHint,
   rederiveAll,
   resolveLedgerRoot,
   scheduleRefreshAll,
@@ -42,15 +41,14 @@ const PENDING_LEDGER_PROBE_MS = 3_000;
 /** ...for at most this long after the last skill signal. */
 const PENDING_LEDGER_WINDOW_MS = 30 * 60_000;
 
-const GATE_SCRIPTS = new Set(['validate_ledgers.py', 'phase_gate.py']);
 let anonymousActivitySeq = 0;
 
 function isRunningState(state: SessionExecutionState): boolean {
   return state === SessionExecutionState.PROCESSING || state === SessionExecutionState.FINISHING;
 }
 
-/** Mirror one tool signal into the activity feed / todo progress / gate verdicts. */
-function recordSignal(signal: MigrationToolSignal, ledgerRoots: string[]): void {
+/** Mirror one tool signal into the activity feed / todo progress. */
+function recordSignal(signal: MigrationToolSignal): void {
   const store = useMigrationProgressStore.getState();
   const now = Date.now();
   store.trackSession(signal.sessionId, now);
@@ -80,11 +78,6 @@ function recordSignal(signal: MigrationToolSignal, ledgerRoots: string[]): void 
   const exitCode = signal.result?.exitCode;
   const failed = signal.phase === 'failed' || (exitCode !== undefined && exitCode !== 0 && signal.kind !== 'script');
   store.finishActivity(base.id, { status: failed ? 'failed' : 'done', endedAt: now, exitCode }, base);
-
-  if (signal.kind === 'script' && signal.script && GATE_SCRIPTS.has(signal.script)) {
-    const gates = parseGateOutput(signal.result?.output, now, signal.script);
-    if (gates.length > 0) store.recordGates(ledgerRoots[0], gates);
-  }
 }
 
 /** Workspace id of a session, when known. */
@@ -106,16 +99,18 @@ export function useMigrationAutoOpen(): void {
   const pendingSkillAtRef = useRef<number | undefined>(undefined);
 
   /**
-   * Look for the current workspace's ledger and apply the panel rules:
-   * found -> header entry (+ open on entering the workspace or on the skill
-   * creating the file); missing -> no header entry and no tab.
+   * Look for the current workspace's ledger (in the output container bound by the
+   * workspace's Qt migration sessions) and apply the panel rules: found -> header
+   * entry (+ open on entering the workspace or on the skill creating the file);
+   * missing -> no header entry and no tab. `refresh: false` reuses the session
+   * list read last time (the periodic probe while the skill runs).
    */
-  const checkLedgerRef = useRef(async (reason: LedgerCheckReason, deep = true) => {
-    const { workspacePath: path, remoteConnectionId: remote } = contextRef.current;
-    if (!path) return;
+  const checkLedgerRef = useRef(async (reason: LedgerCheckReason, refresh = true) => {
+    const { workspaceId: id, workspacePath: path, remoteConnectionId: remote } = contextRef.current;
+    if (!path || !id) return;
     let root: string | null = null;
     try {
-      root = await resolveLedgerRoot(path, remote, useMigrationProgressStore.getState().hintedRoots, { deep });
+      root = await resolveLedgerRoot(id, { refresh });
     } catch (error) {
       log.debug('Migration ledger probe failed', { workspacePath: path, error });
       return;
@@ -125,15 +120,13 @@ export function useMigrationAutoOpen(): void {
     const store = useMigrationProgressStore.getState();
     const known = store.ledgerWorkspaces.includes(path);
     if (root) {
-      store.markLedgerWorkspace(path);
+      store.markLedgerWorkspace(path, root);
       pendingSkillAtRef.current = undefined;
       if (reason === 'enter' || (reason === 'skill' && !known)) {
         openMigrationProgressPanel({ workspacePath: path, remoteConnectionId: remote });
       }
       return;
     }
-    // A shallow probe cannot prove absence of a nested ledger found before.
-    if (!deep && known) return;
     store.unmarkLedgerWorkspace(path);
     closeMigrationProgressPanels();
   });
@@ -146,7 +139,7 @@ export function useMigrationAutoOpen(): void {
       return;
     }
     void checkLedgerRef.current('enter');
-  }, [workspacePath, remoteConnectionId]);
+  }, [workspaceId, workspacePath, remoteConnectionId]);
 
   // The ledger may appear or vanish outside the app (reset scripts, git): recheck on focus.
   useEffect(() => {
@@ -176,19 +169,13 @@ export function useMigrationAutoOpen(): void {
       const context = contextRef.current;
       const signalWorkspaceId = sessionWorkspaceId(signal.sessionId);
       const inCurrentWorkspace = !signalWorkspaceId || !context.workspaceId || signalWorkspaceId === context.workspaceId;
-      const roots = signal.pathHints
-        .map((hint) => ledgerRootFromHint(hint, signal.workdir ?? context.workspacePath))
-        .filter((root): root is string => !!root);
-      store.addHintedRoots(roots);
       const featuresRoots = (signal.featuresRootHints ?? [])
         .map((hint) => featuresRootFromHint(hint, signal.workdir ?? context.workspacePath))
         .filter((root): root is string => !!root);
       store.addFeaturesRoots(featuresRoots);
       const wasRunning = store.sessionRunning;
-      const gatesBefore = store.gatesByRoot;
-      recordSignal(signal, roots);
-      const after = useMigrationProgressStore.getState();
-      const derivedInputsChanged = after.sessionRunning !== wasRunning || after.gatesByRoot !== gatesBefore;
+      recordSignal(signal);
+      const derivedInputsChanged = useMigrationProgressStore.getState().sessionRunning !== wasRunning;
 
       // The skill (or its scripts / a ledger write) in a session of this
       // workspace may have just created STATE.md: look for it.
@@ -196,7 +183,7 @@ export function useMigrationAutoOpen(): void {
         if (!inCurrentWorkspace || !context.workspacePath) return;
         if (useMigrationProgressStore.getState().ledgerWorkspaces.includes(context.workspacePath)) return;
         pendingSkillAtRef.current = Date.now();
-        if (signal.phase !== 'started') void checkLedgerRef.current('skill', false);
+        if (signal.phase !== 'started') void checkLedgerRef.current('skill');
       };
 
       if (signal.kind === 'activity') {

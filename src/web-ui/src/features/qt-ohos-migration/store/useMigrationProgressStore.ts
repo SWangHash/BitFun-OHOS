@@ -1,7 +1,5 @@
 import { create } from 'zustand';
-import type { MigrationGateResult, MigrationPhaseId, MigrationSnapshot } from '../model/types';
-
-export type MigrationRefreshMode = 'watch' | 'poll';
+import type { MigrationSnapshot } from '../model/types';
 
 export interface MigrationRootState {
   snapshot?: MigrationSnapshot;
@@ -10,7 +8,6 @@ export interface MigrationRootState {
   error?: string;
   /** `false` once a load confirmed `STATE.md` does not exist. */
   exists?: boolean;
-  mode: MigrationRefreshMode;
   lastRefreshAt?: number;
 }
 
@@ -44,16 +41,7 @@ export interface MigrationTodoProgress {
   updatedAt: number;
 }
 
-export type MigrationGateMap = Partial<Record<MigrationPhaseId, MigrationGateResult>>;
-
-/** Key for gate verdicts whose ledger root could not be determined from the command. */
-export const UNSCOPED_GATES_KEY = '*';
 export const MAX_ACTIVITY_ENTRIES = 10;
-const MAX_HINTED_ROOTS = 8;
-
-export function gateRootKey(root: string | undefined): string {
-  return root ? root.replace(/[\\/]+$/, '').replace(/\\/g, '/').toLowerCase() : UNSCOPED_GATES_KEY;
-}
 
 interface MigrationProgressState {
   byRoot: Record<string, MigrationRootState>;
@@ -62,12 +50,12 @@ interface MigrationProgressState {
   /** Skill invoked during this app run. */
   skillInvoked: boolean;
   /**
-   * Workspaces known to hold `migration/ohos/STATE.md`. The panel and its
-   * header entry exist only for these workspaces.
+   * Workspaces whose bound output container holds `migration/ohos/STATE.md`.
+   * The panel and its header entry exist only for these workspaces.
    */
   ledgerWorkspaces: string[];
-  /** Ledger roots discovered from tool-command path hints, newest first. */
-  hintedRoots: string[];
+  /** The ledger root found for each of those workspaces. */
+  ledgerRootByWorkspace: Record<string, string>;
   /** Feature-package roots (`<skill>/features`) seen in skill commands, newest first. */
   featuresRoots: string[];
 
@@ -81,15 +69,12 @@ interface MigrationProgressState {
   activity: MigrationActivity[];
   /** Latest `TodoWrite` list of the migration session. */
   todos?: MigrationTodoProgress;
-  /** Gate verdicts parsed from tool output, by ledger root key then phase. */
-  gatesByRoot: Record<string, MigrationGateMap>;
 
   patchRoot: (root: string, patch: Partial<MigrationRootState>) => void;
   setActiveAction: (action: MigrationActiveAction | undefined) => void;
   markSkillInvoked: () => void;
-  markLedgerWorkspace: (workspacePath: string) => void;
+  markLedgerWorkspace: (workspacePath: string, ledgerRoot: string) => void;
   unmarkLedgerWorkspace: (workspacePath: string) => void;
-  addHintedRoots: (roots: string[]) => void;
   addFeaturesRoots: (roots: string[]) => void;
   /** Switch to `sessionId`; activity and todos of a previous session are dropped. */
   trackSession: (sessionId: string, now: number) => void;
@@ -103,10 +88,9 @@ interface MigrationProgressState {
   /** Close entries still marked running (turn cancelled / session stopped). */
   settleActivities: (now: number) => void;
   setTodos: (todos: MigrationTodoProgress | undefined) => void;
-  recordGates: (root: string | undefined, gates: MigrationGateResult[]) => void;
 }
 
-const DEFAULT_ROOT_STATE: MigrationRootState = { loading: false, mode: 'poll' };
+const DEFAULT_ROOT_STATE: MigrationRootState = { loading: false };
 
 /** Persisted so a restored session finds the feature packages without a new skill command. */
 const FEATURES_ROOTS_KEY = 'bitfun:qt-ohos-migration:features-roots:v1';
@@ -142,14 +126,13 @@ export const useMigrationProgressStore = create<MigrationProgressState>((set) =>
   activeAction: undefined,
   skillInvoked: false,
   ledgerWorkspaces: [],
-  hintedRoots: [],
+  ledgerRootByWorkspace: {},
   featuresRoots: loadFeaturesRoots(),
   migrationSessionId: undefined,
   sessionRunning: false,
   lastActivityAt: undefined,
   activity: [],
   todos: undefined,
-  gatesByRoot: {},
 
   patchRoot: (root, patch) => set((state) => ({
     byRoot: {
@@ -159,23 +142,21 @@ export const useMigrationProgressStore = create<MigrationProgressState>((set) =>
   })),
   setActiveAction: (activeAction) => set({ activeAction }),
   markSkillInvoked: () => set({ skillInvoked: true }),
-  markLedgerWorkspace: (workspacePath) => set((state) => (
-    state.ledgerWorkspaces.includes(workspacePath)
+  markLedgerWorkspace: (workspacePath, ledgerRoot) => set((state) => (
+    state.ledgerWorkspaces.includes(workspacePath) && state.ledgerRootByWorkspace[workspacePath] === ledgerRoot
       ? state
-      : { ledgerWorkspaces: [...state.ledgerWorkspaces, workspacePath] }
+      : {
+        ledgerWorkspaces: state.ledgerWorkspaces.includes(workspacePath)
+          ? state.ledgerWorkspaces
+          : [...state.ledgerWorkspaces, workspacePath],
+        ledgerRootByWorkspace: { ...state.ledgerRootByWorkspace, [workspacePath]: ledgerRoot },
+      }
   )),
-  unmarkLedgerWorkspace: (workspacePath) => set((state) => (
-    state.ledgerWorkspaces.includes(workspacePath)
-      ? { ledgerWorkspaces: state.ledgerWorkspaces.filter((entry) => entry !== workspacePath) }
-      : state
-  )),
-  addHintedRoots: (roots) => set((state) => {
-    if (roots.length === 0) return state;
-    const next = [...roots, ...state.hintedRoots.filter((root) => !roots.includes(root))].slice(0, MAX_HINTED_ROOTS);
-    if (next.length === state.hintedRoots.length && next.every((root, index) => root === state.hintedRoots[index])) {
-      return state;
-    }
-    return { hintedRoots: next };
+  unmarkLedgerWorkspace: (workspacePath) => set((state) => {
+    if (!state.ledgerWorkspaces.includes(workspacePath)) return state;
+    const ledgerRootByWorkspace = { ...state.ledgerRootByWorkspace };
+    delete ledgerRootByWorkspace[workspacePath];
+    return { ledgerWorkspaces: state.ledgerWorkspaces.filter((entry) => entry !== workspacePath), ledgerRootByWorkspace };
   }),
   addFeaturesRoots: (roots) => set((state) => {
     const next = mergeNewestFirst(roots, state.featuresRoots, MAX_FEATURES_ROOTS);
@@ -211,21 +192,4 @@ export const useMigrationProgressStore = create<MigrationProgressState>((set) =>
       : state
   )),
   setTodos: (todos) => set({ todos }),
-  recordGates: (root, gates) => set((state) => {
-    if (gates.length === 0) return state;
-    const key = gateRootKey(root);
-    const next: MigrationGateMap = { ...state.gatesByRoot[key] };
-    for (const gate of gates) next[gate.phase] = gate;
-    return { gatesByRoot: { ...state.gatesByRoot, [key]: next } };
-  }),
 }));
-
-/** Gate verdicts that apply to `root`: its own plus the ones with an unknown root. */
-export function gatesForRoot(gatesByRoot: Record<string, MigrationGateMap>, root: string): MigrationGateMap {
-  const merged: MigrationGateMap = { ...gatesByRoot[UNSCOPED_GATES_KEY] };
-  for (const [phase, gate] of Object.entries(gatesByRoot[gateRootKey(root)] ?? {}) as Array<[MigrationPhaseId, MigrationGateResult]>) {
-    const other = merged[phase];
-    if (!other || (gate.at ?? 0) >= (other.at ?? 0)) merged[phase] = gate;
-  }
-  return merged;
-}

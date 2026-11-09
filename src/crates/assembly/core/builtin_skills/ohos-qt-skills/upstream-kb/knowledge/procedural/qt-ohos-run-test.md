@@ -348,7 +348,7 @@ Start-Sleep -Seconds 5
 | 黑屏类型 | 日志特征 | 根因 | 修复 |
 |---------|---------|------|------|
 | Qt3D RGBA8 mipmap 静默纯黑 | **无 GL 错误**（完全静默）；Phong 光照/JPG 贴图正常，仅 alpha-PNG 实体贴图纯黑 | ZINK `glGenerateMipmap` 对 RGBA8 alpha 纹理失败→mipmap 不完整→采样返回 0 | alpha-PNG 实体关 mipmap（`generateMipMaps:false`+`minificationFilter:Texture.Linear`），守卫用 `Qt.platform.pluginName!=="ohos"`（注意 `Qt.platform.os` 在 OHOS 返回 "linux" 会致守卫永不触发）——见 problem-render-black-rgba8-zink-mipmap |
-| EGL_BAD_CONFIG 黑屏 | `Cannot find EGLConfig` + `Failed to create surface with error: 12293 - EGL_BAD_CONFIG` | `QSurfaceFormat::setSamples(4)` 4x MSAA，OHOS EGL 无匹配 config | 加 `#ifndef Q_OS_OHOS` 守卫去掉 samples（保留 depth24+stencil8）——见 _lookup 速查表 |
+| EGL_BAD_CONFIG 黑屏 | `Cannot find EGLConfig` + `Failed to create surface with error: 12293 - EGL_BAD_CONFIG` | `QSurfaceFormat::setSamples(4)` 4x MSAA，OHOS EGL 无匹配 config | 加 `#ifndef Q_OS_OHOS` 守卫去掉 samples（保留 depth24+stencil8）——见 problem-render-fail-egl-bad-config-samples |
 | QML 模块未部署黑屏 | `module "Qt3D"/"QtQuick"/"QtQuick.Scene3D" is not installed`；进程不崩溃但 QML 树加载失败→空白 | HAP 无 `qml/` 目录，QML 类型插件未部署 | 复制 SDK `qml/` 到 `entry/src/main/resources/resfile/qml/`——见 §2.5 / _lookup 速查表 |
 
 **渲染黑屏定位循环**：
@@ -544,7 +544,7 @@ deveco-mcp_get_hilog_or_faultlog_recent(
 | 部署安装 | DT_NEEDED 绝对路径 | `needed by C:/<绝对路径>/lib*.so` | 见 _lookup 速查表 |
 | 部署安装 | main 未导出 | `dlsym() failed to find 'main' symbol` | 见 _lookup 速查表 |
 | 渲染 | RGBA8 mipmap 黑 | Qt3D 实体贴图纯黑，无 GL 错 | problem-render-black-rgba8-zink-mipmap |
-| 渲染 | EGL_BAD_CONFIG | `EGL_BAD_CONFIG 12293` / `Cannot find EGLConfig` | 见 _lookup 速查表 |
+| 渲染 | EGL_BAD_CONFIG | `EGL_BAD_CONFIG 12293` / `Cannot find EGLConfig` | problem-render-fail-egl-bad-config-samples |
 | 生命周期 | theMainThread 不匹配 | `Q_ASSERT sendThroughApplicationEventFilters` | problem-ohos-mainthread-mismatch |
 | 生命周期 | 退出死锁 | `qApp->quit()` 后 ~2min 不退出 | episodic-quit-deadlock-tsfn |
 | 平台限制 | dlopen 可写路径 | `dlopen errno=22 EINVAL` | problem-runtime-dlopen-writable-path |

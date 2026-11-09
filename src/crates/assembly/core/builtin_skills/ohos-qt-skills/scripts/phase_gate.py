@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Enforce migration phase exit gates from the durable ledgers.
+"""Exit conditions of every phase, evaluated from the ledgers (no conversation evidence).
 
-The agent may choose how to perform a scan or build, but it cannot advance
-past a phase with only conversational evidence.  Bootstrap rows created by
-the initializer are receipts, not application evidence.
+    python <skill>/scripts/phase_gate.py <container>/migration/ohos <phase> [--no-record]
+
+validate_ledgers.py --phase runs the same rules together with the structural
+checks; next_step.py prints the unmet conditions of the open phase.
 """
 from __future__ import annotations
 
@@ -12,63 +13,23 @@ import csv
 import re
 from pathlib import Path
 
+from gate_state import feature_selection
+from ohos_env import ENV_PROFILE, ENV_SMOKE, load_profile
+from vocab import (ASSESSMENTS, DEVICE_RUN_DONE, ENV_BLOCKING_STATUSES, ENV_REQUIRED_ITEMS, PHASES,
+                   PLACEHOLDERS, QUEUE_CLOSE_STATUSES, QUEUE_DONE, QUEUE_OPEN, VALIDATION_DONE)
 
-BOOTSTRAP_IDS = {"CAP-BOOT-001", "VAL-BOOT-001", "DIAG-BOOT-001", "PILOT-BOOT-001"}
-PASS_STATUSES = {"passed", "verified", "accepted", "accepted-limitation", "not-applicable"}
-# Keep in sync with DIAGNOSTIC_STATUSES in record_diagnostic.py and validate_ledgers.py.
-PILOT_PASS_STATUSES = {"passed", "resolved"}
-# One phase per SKILL.md step; each phase has one primary ledger:
-# environment, inventory, decisions, pilot, work-queue, feature-adoption (external
-# features hooked into `features`; `handoff` also hosts verification features),
-# diagnostics, validation.
-PHASES = ("baseline", "inventory", "contract", "pilot", "implementation", "features", "diagnostics", "handoff")
-# Closed rows of a feature-adoption ledger created before external features
-# (old header with playbook_path); the current lifecycle is in feature_predicates.py.
-LEGACY_FEATURE_CLOSED = {"verified", "deferred-approved", "blocked", "not-applicable"}
 ASSESSMENT_RE = re.compile(r"^\s*-\s*Assessment:\s*`?([A-Za-z-]+)`?", re.MULTILINE)
-# A selected option that removes or fakes behavior is a user decision, never an agent default.
-DEGRADING_RE = re.compile(r"degrad|\bstub|\bdrop|\bremov|\bdisabl|\bdefer|no-op|\bnull\w*|placeholder|not[- ]ported", re.IGNORECASE)
-USER_EVIDENCE_RE = re.compile(r"\buser:\s*\S", re.IGNORECASE)
-# A question the user never answered (prompt timed out, skipped, no reply) is
-# not a user decision, even when the evidence is written as "user: ...".
-# The non-answer word must describe the question itself ("question timed out",
-# "提问超时"), not a topic the user talked about ("question about build timeout").
-_ASKED = r"(?:askuserquestion|question|prompt|ask)(?:\s+for\s+(?:the\s+)?[\w.`'-]+)?"
-_NON_ANSWER_EN = (
-    r"(?:\s+(?:was|has|had|got|is|have))?(?:\s+been)?\s*[:(-]?\s*"
-    r"(?:timed?[ -]?out|timeout|expired|skipped|dismissed|went unanswered|unanswered|got no (?:response|answer|reply))"
-)
-_ASKED_ZH = r"(?:提问|询问|问题|弹窗)(?:已|后)?\s*"
-_NON_ANSWER_ZH = r"(?:超时|已过期|被跳过|被关闭|无人回答|无人回复|未获回复|未获回答|无响应|未响应|无回复)"
-NON_ANSWER_RE = re.compile(
-    r"\b" + _ASKED + _NON_ANSWER_EN
-    + r"|" + _ASKED_ZH + _NON_ANSWER_ZH
-    + r"|(?:user|用户)\s*(?:did ?n[o']t|never|has ?n[o']t|未|没有|没)\s*(?:respond|answer|reply|select|choose|回复|回答|作答|选择|响应)"
-    + r"|no (?:response|answer|reply|input) from (?:the )?user|without (?:a |any )?(?:user )?(?:response|answer|reply|input)"
-    # The agent applying a default in its own voice is not the user's answer either.
-    + r"|skip[- ]and[- ]continue|(?:skill|tool|agent)['’]?s? default (?:is|=|applies|applied|used)"
-    + r"|defaulted to|fell back to (?:the )?default|falling back to (?:the )?default|applied (?:the )?default"
-    + r"|自动(?:按|采用|使用|套用)默认|按默认值处理|默认值生效",
-    re.IGNORECASE,
-)
-QUEUE_DONE = {"passed", "accepted-limitation", "not-applicable"}
-# An inventory row's status is its capability's migration state: `planned`
-# while only recorded, closed once the linked queue work is done.
-INVENTORY_CLOSED = PASS_STATUSES | {"blocked"}
-# The output container is never the project directory: the migration project is
-# its `<app-name>-ohos` subdirectory. An `environment.tsv` row with this category
-# records the pair. Keep the markers in sync with OHOS_PROJECT_MARKERS in
-# init_migration.py.
-LAYOUT_CATEGORY = "layout"
+# The ledger lives in the output container (`<container>/migration/ohos`, init_migration.py
+# --output-project); the HarmonyOS project is another subdirectory of that container,
+# recorded in the decisions phase. The Qt sources are recorded, not derived.
+SCOPE_SOURCE = "Qt source root"
+SCOPE_PROJECT = "HarmonyOS output project"
 OHOS_PROJECT_MARKERS = (
     "AppScope/app.json5",
     "hvigorfile.ts",
     "build-profile.json5",
     "oh-package.json5",
 )
-# The migrated project directory inside its container: `<app-name>-ohos`, with a
-# numeric suffix only for a repeated migration of the same application.
-LAYOUT_PROJECT_NAME_RE = re.compile(r"^(.+)-ohos(?:-\d+)?$")
 
 
 def read_rows(path: Path) -> list[dict[str, str]]:
@@ -81,71 +42,21 @@ def read_rows(path: Path) -> list[dict[str, str]]:
     return [{key: value or "" for key, value in row.items() if key is not None} for row in rows]
 
 
-def meaningful(rows: list[dict[str, str]]) -> list[dict[str, str]]:
-    return [row for row in rows if row.get("id", "").strip() not in BOOTSTRAP_IDS]
-
-
 def non_placeholder(value: str) -> bool:
-    text = value.strip().lower()
-    # "unclassified" is what batch_checks.py writes before the agent classifies a failure.
-    return bool(text) and text not in {"todo", "tbd", "n/a", "none", "unknown", "unclassified"}
+    return value.strip().lower() not in PLACEHOLDERS
 
 
-def has_receipt(row: dict[str, str], *fields: str) -> bool:
-    return all(non_placeholder(row.get(field, "")) for field in fields)
+def no_device(root: Path) -> bool:
+    """environment.tsv reports no connected device (env_probe.py writes the ``device`` item)."""
+    profile = load_profile(root)
+    return bool(profile) and profile["items"].get("device", {}).get("status", "") != "ok"
 
 
-def unanswered(row: dict[str, str]) -> bool:
-    """The evidence says the user was asked but never answered (timeout, skip, tool default)."""
-    return bool(NON_ANSWER_RE.search(row.get("evidence", "")))
-
-
-def user_approved(row: dict[str, str]) -> bool:
-    """A degradation needs owner=user and evidence quoting the user (``user: ...``).
-
-    A prompt that timed out or was skipped is not an answer: such a row never
-    counts as user-approved, whatever its owner/status say.
-    """
-    return (
-        row.get("status", "").strip().lower() == "approved"
-        and row.get("owner", "").strip().lower() == "user"
-        and bool(USER_EVIDENCE_RE.search(row.get("evidence", "")))
-        and not unanswered(row)
-    )
-
-
-def is_batch_receipt(row: dict[str, str]) -> bool:
-    # batch_checks.py --diagnostics writes evidence as "batch <output-dir>: ...".
-    return row.get("evidence", "").strip().lower().startswith("batch ")
-
-
-def has_layout_row(environment: list[dict[str, str]]) -> bool:
-    return any(row.get("category", "").strip().lower() == LAYOUT_CATEGORY for row in environment)
-
-
-def layout_binding(environment: list[dict[str, str]]) -> tuple[str, str]:
-    """The recorded output layout as ``(container, project)``.
-
-    The `layout` environment row carries both paths in one cell:
-    ``container=<path>; project=<container>/<app-name>-ohos``. An empty
-    container means the binding was never recorded, which the gate reports from
-    the phase that creates the project onward.
-    """
-    for row in environment:
-        if row.get("category", "").strip().lower() != LAYOUT_CATEGORY:
-            continue
-        container = project = ""
-        for part in row.get("value", "").split(";"):
-            key, _, raw = part.partition("=")
-            value = raw.strip().strip("`")
-            if not non_placeholder(value):
-                continue
-            if key.strip().lower() == "container":
-                container = value
-            elif key.strip().lower() == "project":
-                project = value
-        return container, project
-    return "", ""
+def scope_value(state: str, field: str) -> str:
+    """The recorded value of a STATE.md Scope field; empty when the row is missing, empty or TODO."""
+    values = {name.strip().lower(): value.strip().strip("`") for name, value, _ in scope_rows(state)}
+    value = values.get(field.lower(), "")
+    return value if non_placeholder(value) and "TODO" not in value else ""
 
 
 def has_ohos_project_markers(path: Path) -> bool:
@@ -153,54 +64,30 @@ def has_ohos_project_markers(path: Path) -> bool:
     return any((path / marker).is_file() for marker in OHOS_PROJECT_MARKERS)
 
 
-def layout_errors(environment: list[dict[str, str]], phase: str) -> list[str]:
-    """The output layout: the container holds the project, never the template or the artifacts.
+def layout_errors(root: Path, state: str, phase: str) -> list[str]:
+    """The output layout: the HarmonyOS project is a subdirectory of the output container.
 
-    The container is the bound output directory and the migration project is its
-    `<app-name>-ohos` subdirectory (`-2`/`-3` only for a repeated migration of the
-    same application). Both paths come from the recorded `layout` row: that row is
-    the single authority for the pair, so the gate checks the recorded shape
-    instead of re-deriving an application name from the ledger path (`--target` may
-    be a repository root, whose directory name is not the application name).
+    The container is the directory holding the ledger (`<container>/migration/ohos`).
+    From decisions on the project must be recorded, from tasks on (template_patch.py
+    creates it) it must exist as a DevEco project root.
     """
-    errors: list[str] = []
-    container_raw, project_raw = layout_binding(environment)
-    if not container_raw or not project_raw:
-        if PHASES.index(phase) >= PHASES.index("pilot"):
-            if has_layout_row(environment):
-                errors.append(
-                    "environment.tsv has an incomplete layout row: its value must read 'container=<output "
-                    "container>; project=<container>/<app-name>-ohos'; re-run init_migration.py "
-                    "--output-project <container> or fix that cell by hand")
-            else:
-                errors.append(
-                    "environment.tsv has no layout row: record the bound output container and the migration "
-                    "project inside it (category=layout, value 'container=<path>; project=<path>'), for example "
-                    "by re-running init_migration.py --output-project <container>; the container is never the "
-                    "project directory")
-        return errors
-    container = Path(container_raw)
+    if PHASES.index(phase) < PHASES.index("decisions"):
+        return []
+    container = Path(root).resolve().parent.parent
+    project_raw = scope_value(state, SCOPE_PROJECT)
+    if not project_raw:
+        return [f"STATE.md Scope does not record the {SCOPE_PROJECT}: ledger.py state <root> --scope "
+                f'"{SCOPE_PROJECT}=<subdirectory of the output container {container}>"']
     project = Path(project_raw)
-    if project.parent != container or not LAYOUT_PROJECT_NAME_RE.match(project.name):
-        errors.append(
-            f"output layout: the migration project must be the container's <app-name>-ohos directory; the "
-            f"layout row records the container {container} with the project {project}")
-    if container.is_dir():
-        for marker in OHOS_PROJECT_MARKERS:
-            if (container / marker).is_file():
-                errors.append(
-                    f"output layout: {container / marker} exists; the template and the migration artifacts "
-                    f"belong in {project}, never in the output container root")
-        stray = sorted(entry.name for entry in container.glob("*.hap"))
-        if stray:
-            errors.append(
-                f"output layout: the output container root holds packaged artifacts ({', '.join(stray)}); "
-                f"they belong in {project}")
-    if PHASES.index(phase) >= PHASES.index("pilot"):
+    errors: list[str] = []
+    if project.resolve().parent != container:
+        errors.append(f"output layout: the {SCOPE_PROJECT} {project} must be a subdirectory of the output "
+                      f"container {container} (the directory that holds migration/)")
+    if PHASES.index(phase) >= PHASES.index("tasks"):
         if not project.is_dir():
             errors.append(
-                f"output layout: {project} does not exist; create the HarmonyOS project there, inside the "
-                f"output container {container}")
+                f"output layout: {project} does not exist; create the HarmonyOS project there "
+                f"(template_patch.py --project {project})")
         elif not has_ohos_project_markers(project):
             errors.append(
                 f"output layout: {project} is not a DevEco project root (missing all of "
@@ -210,7 +97,7 @@ def layout_errors(environment: list[dict[str, str]], phase: str) -> list[str]:
 
 def report(phase: str, errors: list[str]) -> int:
     if errors:
-        print(f"BLOCKED phase={phase}")
+        print(f"NOT-READY phase={phase}")
         for error in errors:
             print(f"- {error}")
         return 1
@@ -218,124 +105,59 @@ def report(phase: str, errors: list[str]) -> int:
     return 0
 
 
-def legacy_feature_errors(features: list[dict[str, str]], validation: list[dict[str, str]], root: Path) -> list[str]:
-    """Feature rule of ledgers created before external features (``playbook_path`` header).
-
-    Every row is closed; ``verified`` needs a pinned playbook and passed VAL
-    rows. A ledger with no rows means no feature was selected.
-    """
-    errors: list[str] = []
-    decision_ids = {row.get("id", "") for row in read_rows(root / "decisions.tsv")}
-    validation_status = {row.get("id", ""): row.get("status", "") for row in validation}
-    for row in features:
-        row_id = row.get("id", "")
-        status = row.get("status", "").strip().lower()
-        if status not in LEGACY_FEATURE_CLOSED:
-            errors.append(f"{row_id} is '{status or 'missing'}'; feature rows must end verified, deferred-approved, blocked or not-applicable")
-            continue
-        if status == "not-applicable":
-            if not non_placeholder(row.get("evidence", "")):
-                errors.append(f"{row_id} is not-applicable without evidence (cite the contract or decision)")
-            continue
-        if not non_placeholder(row.get("feature_id", "")):
-            errors.append(f"{row_id} has no feature_id from features/registry.tsv")
-        if status in {"deferred-approved", "blocked"} and row.get("decision_id", "").strip() not in decision_ids:
-            errors.append(f"{row_id} is {status} without a decision_id in decisions.tsv")
-        if status == "verified":
-            if not non_placeholder(row.get("playbook_sha256", "")):
-                errors.append(f"{row_id} is verified without a pinned playbook_sha256")
-            ids = [value.strip() for value in row.get("validation_ids", "").split(",") if value.strip()]
-            if not ids:
-                errors.append(f"{row_id} is verified without validation_ids")
-            for value in ids:
-                if validation_status.get(value, "") not in PASS_STATUSES:
-                    errors.append(f"{row_id} is verified but {value} is not a passed validation row")
-    return errors
-
-
 def hook_errors(root: Path, phase: str, validation: list[dict[str, str]], features_root: Path | None = None) -> list[str]:
     """External features (hooks) that ``phase`` depends on.
 
-    From the contract phase on: when features are registered, the user's
-    selection is recorded (a user-approved ``external-features`` decision,
-    even ``selected=none``) and the FEAT rows match it. For every feature whose
-    host phase is not later than ``phase``: it is closed, ``passed`` carries a
-    script-written exit record, and, for the host phase itself, the evidence
-    digest is unchanged since the exit gate. Handoff also needs every FEAT id
-    in report.md's External features section.
+    From the features phase on: when features are registered, the user answered
+    the selection (STATE.md ``Feature selection``, written by ``feature_hooks.py``);
+    for every feature whose host phase is not later than ``phase``: it is closed
+    (passed or deferred-approved; a blocked feature waits for the user). The
+    user's selection is what ``feature_hooks.py activate`` wrote (one FEAT row per
+    selected feature, the answer in its notes). Validation also needs every FEAT
+    id in report.md's External features section.
     """
     import feature_predicates as fp  # lazy: feature_predicates imports this module
 
     features_root = features_root or fp.default_features_root()
     rows = read_rows(root / fp.ADOPTION)
-    if fp.is_legacy(fp.adoption_fields(root)):
-        return legacy_feature_errors(rows, validation, root) if phase in {"features", "diagnostics", "handoff"} else []
     errors: list[str] = []
     gated = PHASES.index(phase)
-    if gated < PHASES.index("contract"):
+    # Activation and every hook belong to the features phase or later; earlier
+    # gates never ask about external features.
+    if gated < PHASES.index("features"):
         return errors
     registry = fp.read_registry(features_root)
-    offered = {key for key, row in registry.items() if row.get("status", "").strip() != "draft"}
-    decisions = read_rows(root / "decisions.tsv")
-    activations = [row for row in decisions
-                   if row.get("feature_or_scope", "").strip().lower() == fp.ACTIVATION_SCOPE and user_approved(row)]
-    active = {row.get("feature_id", "").strip() for row in rows}
-    if offered and not activations:
-        errors.append(
-            "external features are registered but the user's selection is not recorded; run feature_hooks.py candidates, "
-            "ask the user (default: none) and wait for the answer (a timed-out or skipped question is not one), record a decisions.tsv row feature_or_scope=external-features owner=user "
-            "status=approved evidence 'user: ...', then feature_hooks.py activate"
-        )
-    if activations:
-        newest = fp.selected_features(activations[-1])
-        missing = sorted(newest - active)
-        if missing:
-            errors.append(f"{activations[-1].get('id')} selects {', '.join(missing)} but feature-adoption.tsv has no row; run feature_hooks.py activate")
-    allowed = {item for row in activations for item in fp.selected_features(row)}
-    decision_by_id = {row.get("id", "").strip(): row for row in decisions}
+    state = root / "STATE.md"
+    selection = feature_selection(state.read_text(encoding="utf-8", errors="replace")) if state.is_file() else ""
+    if selection != "answered" and registry:
+        errors.append("the user has not answered which external features to enable"
+                      + (" (asked, waiting for the answer)" if selection == "pending" else "")
+                      + ": feature_hooks.py candidates, ask the user, then feature_hooks.py activate --answer "
+                        "\"<user's words>\" [--select <id> ...]")
     for row in rows:
         row_id, feature_id = row.get("id", "").strip(), row.get("feature_id", "").strip()
         status = fp.status_of(row)
-        if feature_id not in allowed:
-            errors.append(f"{row_id} ({feature_id}) was not selected by a user-approved external-features decision")
         if feature_id not in registry:
             errors.append(f"{row_id} ({feature_id}) is not registered in features/registry.tsv")
-        if not non_placeholder(row.get("package_sha256", "")):
-            errors.append(f"{row_id} has no pinned package_sha256; activate it with feature_hooks.py")
-        host = row.get("host_phase", "").strip()
+        host = fp.host_phase(row)
         if host not in PHASES:
-            errors.append(f"{row_id} has unknown host_phase '{host}'")
+            errors.append(f"{row_id} has unknown kind '{row.get('kind', '')}'")
             continue
         if status not in fp.STATUSES:
             errors.append(f"{row_id} has unknown status '{row.get('status', '')}'")
             continue
         if PHASES.index(host) > gated:
             continue
-        if status not in fp.TERMINAL:
+        if status == "blocked":
+            errors.append(f"{row_id} ({feature_id}) is blocked, waiting for the user: retry (feature_gate.py exit "
+                          "--answer \"<user's words>\") or defer (feature_hooks.py close --answer \"<user's words>\")")
+        elif status not in fp.TERMINAL:
             errors.append(
                 f"{row_id} ({feature_id}) hooks into {host} and is still {status}; "
                 + ("run feature_gate.py enter" if status == "planned" else "finish it and run feature_gate.py exit")
-                + ", or ask the user to close it (feature_hooks.py close)"
+                + ", or ask the user to defer it (feature_hooks.py close)"
             )
-        elif status == "passed":
-            match = re.match(r"READY @\S+ digest=([0-9a-f]{16})", row.get("exit_gate", "").strip())
-            if not match:
-                errors.append(f"{row_id} is passed without a feature_gate.py exit record; only the exit gate sets passed")
-            elif host == phase:
-                try:
-                    ctx = fp.build_context(root, features_root, row, rows, run_commands=False)
-                except ValueError as error:
-                    errors.append(f"{row_id}: {error}")
-                else:
-                    if fp.evidence_digest(ctx) != match.group(1):
-                        errors.append(f"{row_id} evidence changed after its exit gate (evidence files, VAL status, sources or package); "
-                                      "re-run it: feature_gate.py enter --restart, then exit")
-        elif status == "deferred-approved":
-            if not user_approved(decision_by_id.get(row.get("decision_id", "").strip(), {})):
-                errors.append(f"{row_id} is deferred-approved without a user-approved decision (owner=user, evidence 'user: ...')")
-        elif status == "blocked" and row.get("decision_id", "").strip() not in decision_by_id:
-            errors.append(f"{row_id} is blocked without a decision_id in decisions.tsv")
-    if phase == "handoff" and rows:
+    if phase == "validation" and rows:
         report_path = root / "report.md"
         text = report_path.read_text(encoding="utf-8", errors="replace") if report_path.is_file() else ""
         section = re.search(r"^##\s+External features\s*$(.*?)(?=^##\s|\Z)", text, re.MULTILINE | re.DOTALL)
@@ -351,279 +173,223 @@ def split_ids(value: str) -> list[str]:
     return [item.strip() for item in value.split(",") if item.strip() and item.strip().lower() != "none"]
 
 
-def inventory_link_errors(
-    inventory: list[dict[str, str]], queue: list[dict[str, str]], queue_fields: list[str], check_sync: bool,
-) -> list[str]:
-    """Every inventory capability is closed by queue work that names it.
-
-    A queue row closes the inventory rows listed in its ``inventory_ids`` (or
-    the row with its own id). Ledgers created before the column existed are
-    not checked. With ``check_sync``, an inventory row whose queue work is all
-    done must be closed as well.
-    """
-    if "inventory_ids" not in queue_fields:
-        return []
-    errors: list[str] = []
-    closers: dict[str, list[dict[str, str]]] = {}
-    for row in queue:
-        ids = set(split_ids(row.get("inventory_ids", "")))
-        ids.add(row.get("id", "").strip())
-        for value in ids:
-            closers.setdefault(value, []).append(row)
-    for row in inventory:
-        row_id = row.get("id", "").strip()
-        status = row.get("status", "").strip().lower()
-        linked = closers.get(row_id, [])
-        if not linked:
-            if status not in INVENTORY_CLOSED:
-                errors.append(
-                    f"{row_id} is not closed by any work-queue row; list it in a queue row's inventory_ids "
-                    "(a verification-only row is fine for keep/no-change capabilities)"
-                )
-            continue
-        if check_sync and status not in INVENTORY_CLOSED and all(
-            item.get("status", "").strip() in QUEUE_DONE | {"blocked"} for item in linked
-        ):
-            done = ", ".join(item.get("id", "") for item in linked)
-            errors.append(
-                f"{row_id} is still '{status or 'missing'}' although its queue work ({done}) is done; "
-                "set its inventory status to passed/verified/accepted-limitation/not-applicable/blocked with evidence"
-            )
-    return errors
+def parse_found_by(value: str) -> list[tuple[str, list[str]]]:
+    """``"preflight: PF-A, PF-B; scan: processes"`` -> ``[("preflight", ["PF-A", "PF-B"]), ("scan", ["processes"])]``."""
+    entries = []
+    for part in value.split(";"):
+        source, _, detail = part.partition(":")
+        if source.strip() or detail.strip():
+            entries.append((source.strip().lower(), [item.strip() for item in detail.split(",") if item.strip()]))
+    return entries
 
 
-def queue_fields(path: Path) -> list[str]:
+def cited_findings(inventory: list[dict[str, str]], source: str) -> set[str]:
+    return {item for row in inventory for name, details in parse_found_by(row.get("found_by", "")) if name == source
+            for item in details}
+
+
+def inventory_link_errors(inventory: list[dict[str, str]], queue: list[dict[str, str]]) -> list[str]:
+    """Every inventory row is named by a TASK row: the TASK closes it, its VAL rows prove it,
+    so even a no-change row needs one."""
+    named = {value for row in queue for value in split_ids(row.get("inventory_ids", ""))}
+    return [
+        f"{row.get('id', '').strip()} is not named by any TASK row; list it in a TASK row's inventory_ids "
+        "(a verification-only row with its VAL rows is the proof for keep/no-change capabilities)"
+        for row in inventory if row.get("id", "").strip() not in named
+    ]
+
+
+def scope_rows(state: str) -> list[tuple[str, str, str]]:
+    """``(field, value, evidence)`` of the STATE.md Scope table (application target, output layout, ...)."""
+    section = re.search(r"^##\s+Scope.*?$(.*?)(?=^##\s|\Z)", state, re.MULTILINE | re.DOTALL)
+    rows = []
+    for line in (section.group(1) if section else "").splitlines():
+        cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+        if len(cells) >= 3 and cells[0] not in {"Field", ""} and not set(cells[0]) <= {"-", ":"}:
+            rows.append((cells[0], cells[1], cells[2]))
+    return rows
+
+
+def read_json(path: Path) -> dict | None:
+    import json
+
     if not path.is_file():
-        return []
-    with path.open(newline="", encoding="utf-8") as stream:
-        return next(csv.reader(stream, delimiter="\t"), [])
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return data if isinstance(data, dict) else {}
 
 
 def evaluate(root: Path, phase: str, features_root: Path | None = None) -> list[str]:
     """Return the unmet gate conditions for ``phase``; empty means READY."""
     errors: list[str] = []
 
-    environment = read_rows(root / "environment.tsv")
-    baseline = read_rows(root / "baseline.tsv")
-    inventory = meaningful(read_rows(root / "inventory.tsv"))
-    queue = meaningful(read_rows(root / "work-queue.tsv"))
-    validation = meaningful(read_rows(root / "validation.tsv"))
-    all_diagnostics = meaningful(read_rows(root / "diagnostics.tsv"))
-    # Pilot attempts live in pilot.tsv; ledgers created before the split kept
-    # them in diagnostics.tsv with phase=pilot.
-    pilot_rows = meaningful(read_rows(root / "pilot.tsv")) + [
-        row for row in all_diagnostics if row.get("phase", "").lower() == "pilot"
-    ]
-    diagnostics = [row for row in all_diagnostics if row.get("phase", "").lower() != "pilot"]
-    package = read_rows(root / "package-manifest.tsv")
+    inventory = read_rows(root / "inventory.tsv")
+    queue = read_rows(root / "tasks.tsv")
+    validation = read_rows(root / "validation.tsv")
+    diagnostics = read_rows(root / "diagnostics.tsv")
     device = read_rows(root / "device-runs.tsv")
+    hap = device[-1] if device else {}
     state = (root / "STATE.md").read_text(encoding="utf-8", errors="replace") if (root / "STATE.md").is_file() else ""
-    contract = (root / "PORTING_CONTRACT.md").read_text(encoding="utf-8", errors="replace") if (root / "PORTING_CONTRACT.md").is_file() else ""
 
-    required_environment_categories = {
-        "qt-target",
-        "ohos-sdk",
-        "toolchain",
-        "package",
-        "qt-template",
-        "ohos-native",
-        "build-host",
-        "package-runtime",
-    }
     # Gates are cumulative: every later phase re-checks the earlier exit
     # conditions, so a READY gate also proves the phases before it.
     if phase in PHASES:
-        present = {
-            row.get("category", "")
-            for row in environment
-            if non_placeholder(row.get("value", "")) and non_placeholder(row.get("evidence", ""))
-        }
-        missing = sorted(required_environment_categories - present)
-        if missing:
-            errors.append("environment.tsv lacks evidence for: " + ", ".join(missing))
-        if not any(
-            row.get("kind") == "host-smoke"
-            and non_placeholder(row.get("result", ""))
-            and row.get("status", "") not in {"planned", "not-run"}
-            and non_placeholder(row.get("evidence", ""))
-            for row in baseline
-        ):
-            errors.append("baseline.tsv needs a completed host-smoke receipt with evidence")
-        errors.extend(layout_errors(environment, phase))
+        # No gate passes while the migration waits for the user; a stale verdict is set back here.
+        match = ASSESSMENT_RE.search(state)
+        assessment = match.group(1).lower() if match else ""
+        if assessment in {"blocked", "not-recommended"}:
+            errors.append(f"STATE.md Assessment is '{assessment}', waiting for the user: once solved, ledger.py state "
+                          '<root> --set "Assessment=ready" --set "Next executable action=..."')
+        profile = load_profile(root)
+        if profile is None:
+            errors.append(f"{ENV_PROFILE} has no rows: run env_probe.py --migration-root <root> (it writes the "
+                          "environment table every later command runs with)")
+        else:
+            items = profile["items"]
+            absent = [item for item in ENV_REQUIRED_ITEMS if item not in items]
+            if absent:
+                errors.append(f"{ENV_PROFILE} lacks the required items {', '.join(absent)}: rerun env_probe.py")
+            blocking = [f"{item} {row.get('status')}: {row.get('issue') or 'no detail'}"
+                        for item, row in items.items() if row.get("status") in ENV_BLOCKING_STATUSES]
+            if blocking:
+                errors.append(f"{ENV_PROFILE} has broken or missing items (fix them as the issue says, rerun "
+                              "env_probe.py; never edit the table): " + "; ".join(blocking)[:500])
+        smoke = read_json(root / ENV_SMOKE)
+        if smoke is None:
+            errors.append(f"{ENV_SMOKE} is missing: run env_smoke.py --migration-root <root> "
+                          "(the hello app through the application's whole pipeline, cached per machine)")
+        elif smoke.get("status") != "passed":
+            errors.append(f"{ENV_SMOKE} reports {smoke.get('status') or 'no status'}: {str(smoke.get('summary', ''))[:200]}; "
+                          "fix the environment with env_probe.py and rerun env_smoke.py --migration-root <root>")
+        elif (smoke.get("runtime") or {}).get("status") != "passed" and not no_device(root):
+            # With a connected device the hello app must also have been installed and launched.
+            errors.append(
+                f"environment.tsv reports a connected device but {ENV_SMOKE} has no passed runtime "
+                f"({(smoke.get('runtime') or {}).get('reason') or 'not run on the device'}): make signing work "
+                "(devecocli auth login) and run env_smoke.py --migration-root <root> --runtime-only")
+        errors.extend(layout_errors(root, state, phase))
 
-    if phase in {"inventory", "contract", "pilot", "implementation", "features", "diagnostics", "handoff"}:
+    if phase in {"inventory", "decisions", "tasks", "diagnostics", "features", "validation"}:
         if not inventory:
-            errors.append("inventory.tsv has no application CAP rows; bootstrap receipt is not an inventory")
+            errors.append("inventory.tsv has no INV rows")
         if not queue:
-            errors.append("work-queue.tsv has no application CAP rows")
+            errors.append("tasks.tsv has no TASK rows")
         if not validation:
-            errors.append("validation.tsv has no application VAL rows")
-        if any(not row.get("validation_id", "").strip() for row in inventory):
-            errors.append("every inventory row needs a validation_id")
-        validation_ids = {row.get("id", "") for row in validation}
-        for row in inventory:
-            if row.get("validation_id", "").strip() not in validation_ids:
-                errors.append(f"{row.get('id')} points to a missing validation row")
-        errors.extend(inventory_link_errors(
-            inventory, queue, queue_fields(root / "work-queue.tsv"),
-            check_sync=phase not in {"inventory", "contract", "pilot"},
-        ))
-        queue_ids = {row.get("id", "") for row in queue}
+            errors.append("validation.tsv has no VAL rows")
+        errors.extend(inventory_link_errors(inventory, queue))
         for row in queue:
             if not row.get("validation_ids", "").strip():
                 errors.append(f"{row.get('id')} has no validation_ids")
-            for prerequisite in row.get("prerequisites", "").split(","):
-                prerequisite = prerequisite.strip()
-                if prerequisite and prerequisite != "none" and prerequisite not in queue_ids:
-                    errors.append(f"{row.get('id')} has missing prerequisite {prerequisite}")
+        preflight = read_json(root / "preflight.json")
+        if preflight is None:
+            errors.append("preflight.json is missing: run preflight_build_files.py --migration-root <root> "
+                          "(static build-file checks before the first OHOS build)")
+        else:
+            cited = cited_findings(inventory, "preflight")
+            unlisted = [f.get("id", "") for f in preflight.get("findings", [])
+                        if f.get("severity") == "error" and not f.get("waived") and f.get("id", "") not in cited]
+            if unlisted:
+                errors.append("preflight error findings are not named by any inventory.tsv row: " + ", ".join(unlisted)
+                              + " (found_by 'preflight: <PF ids>' of the INV row that fixes it; a checked false "
+                              "positive: preflight_build_files.py --waive <id>=\"<reason>\")")
 
-    if phase in {"contract", "pilot", "implementation", "features", "diagnostics", "handoff"}:
-        if "TODO" in contract:
-            errors.append("PORTING_CONTRACT.md still contains TODO placeholders")
-        # Parse the recorded value; the template's option list also contains "ready".
-        match = ASSESSMENT_RE.search(state)
-        assessment = match.group(1).lower() if match else ""
-        # Only `ready` may enter implementation; open decisions must be closed first.
-        allowed = {"ready", "ready-with-decisions"} if phase in {"contract", "pilot"} else {"ready"}
-        if assessment not in allowed:
-            errors.append(
-                f"STATE.md Assessment is '{assessment or 'missing'}'; phase {phase} requires "
-                + " or ".join(sorted(allowed))
-            )
-        # Leaving contract/pilot needs queued work for implementation. From
-        # implementation on, a fully closed queue is the goal, not a defect
-        # (handoff separately rejects rows that are still open).
+    if phase in {"decisions", "tasks", "diagnostics", "features", "validation"}:
+        unset = [field for field, value, evidence in scope_rows(state) if "TODO" in value + evidence]
+        if unset:
+            errors.append("STATE.md Scope still has TODO in: " + ", ".join(unset)
+                          + ' (ledger.py state <root> --scope "<field>=<value>" --evidence "<field>=<evidence>")')
+        # From this phase on only a recorded ready passes (blocked and not-recommended are reported above).
+        if assessment not in ASSESSMENTS:
+            errors.append(f"STATE.md Assessment is '{assessment or 'missing'}'; phase {phase} requires ready")
+        # Leaving the decisions phase needs open TASK rows to implement. From
+        # the tasks phase on, a fully closed tasks.tsv is the goal, not a defect
+        # (the validation gate separately rejects rows that are still open).
         queue_closed = bool(queue) and all(row.get("status", "") in QUEUE_DONE for row in queue)
-        if phase in {"contract", "pilot"} and not queue_closed and not any(
-            row.get("status", "") in {"planned", "ready", "in-progress"}
-            and non_placeholder(row.get("capability", ""))
+        if phase == "decisions" and not queue_closed and not any(
+            row.get("status", "") in QUEUE_OPEN
+            and non_placeholder(row.get("task", ""))
             for row in queue
         ):
-            errors.append("work-queue.tsv has no executable capability row")
-        decisions = [row for row in read_rows(root / "decisions.tsv") if "-BOOT-" not in row.get("id", "")]
-        for row in decisions:
-            if (
-                row.get("status", "").strip().lower() == "approved"
-                and row.get("owner", "").strip().lower() == "user"
-                and unanswered(row)
-            ):
-                errors.append(
-                    f"{row.get('id')} is recorded as a user approval, but its evidence says the question was never "
-                    "answered (timeout/skip/no reply); that is not a user decision. Ask again and wait for the "
-                    "answer, then record the user's words as 'user: ...'"
-                )
-            if (
-                row.get("status", "").strip().lower() == "approved"
-                and DEGRADING_RE.search(row.get("selected", ""))
-                and not user_approved(row)
-            ):
-                errors.append(
-                    f"{row.get('id')} approves a degradation/stub without user approval; "
-                    "set owner=user with evidence 'user: <quote or prompt reference>', or record it blocked"
-                )
-        approved_scope = {
-            item.strip()
-            for row in decisions if user_approved(row)
-            for item in row.get("affected_ids", "").split(",")
-        }
-        for row in inventory:
-            if row.get("disposition", "").strip().lower() == "degraded-approved" and row.get("id") not in approved_scope:
-                errors.append(f"{row.get('id')} is degraded-approved but no user-approved decision lists it in affected_ids")
+            errors.append("tasks.tsv has no open TASK row to implement")
 
-    if phase in {"pilot", "implementation", "features", "diagnostics", "handoff"}:
-        if not pilot_rows:
-            errors.append("pilot.tsv needs a pilot attempt row before implementation; run batch_checks.py --phase pilot")
-        elif not any(
-            row.get("status", "") in PILOT_PASS_STATUSES
-            and non_placeholder(row.get("evidence", ""))
-            and non_placeholder(row.get("first_causal_signature", ""))
-            and non_placeholder(row.get("command", ""))
-            for row in pilot_rows
-        ):
-            errors.append("pilot must have a reviewed result; a bootstrap or TODO row is insufficient")
-        if not any(
-            row.get("id", "").startswith("VAL-")
-            and row.get("platform", "").lower() in {"ohos", "harmonyos", "host+ohos", "both"}
-            for row in validation
-        ):
-            errors.append("validation.tsv needs an OHOS acceptance scenario before pilot exit")
+    if phase in {"tasks", "diagnostics", "features", "validation"}:
+        configured = read_json(root / "preflight-configured.json")
+        if configured is None:
+            errors.append("preflight-configured.json is missing: the first step of the tasks phase configures the app with "
+                          "its own build system for OHOS (qmake -spec ohos-clang / the OHOS CMake toolchain) and runs "
+                          "preflight_build_files.py --configured <build dir> --app-library <APP_LIBRARY_NAME>")
+        elif any(f.get("severity") == "error" and not f.get("waived") for f in configured.get("findings", [])):
+            errors.append("preflight-configured.json has error findings: "
+                          + ", ".join(f.get("id", "") + " " + f.get("message", "")[:80]
+                                      for f in configured["findings"] if f.get("severity") == "error" and not f.get("waived"))[:400])
 
-    # External features: the user's selection from the contract on, closed
-    # features from their host phase on (features: capability, handoff: verification).
+    if phase in {"tasks", "diagnostics", "features", "validation"}:
+        # The tasks phase ends when every TASK row is closed; a blocked row waits for the user. Every
+        # inventory row is named by a TASK row (inventory gate), so this also settles every inventory row.
+        waiting = [row.get("id", "") for row in queue if row.get("status", "").strip() == "blocked"]
+        if waiting:
+            errors.append("tasks.tsv rows are blocked, waiting for the user: " + ", ".join(waiting)
+                          + " (with the answer: status accepted-limitation citing the DEC id, or in-progress)")
+        open_rows = [row.get("id", "") for row in queue
+                     if row.get("status", "").strip() not in QUEUE_CLOSE_STATUSES and row.get("status", "").strip() != "blocked"]
+        if open_rows:
+            errors.append("tasks.tsv rows are still open: " + ", ".join(open_rows)
+                          + ' (ledger.py update <root> tasks.tsv <TASK> --set status=<' + "|".join(QUEUE_CLOSE_STATUSES)
+                          + '> --set "evidence=...")')
+
+    if phase in {"diagnostics", "features", "validation"}:
+        # Every problem met is closed: fixed with its cause and fix, or accepted-limitation with its cause
+        # and the user's answer in fix. A blocked problem waits for the user.
+        for row in diagnostics:
+            row_id, status = row.get("id", ""), row.get("status", "").strip()
+            if status == "open":
+                errors.append(f"{row_id} is still open: fix it and record the fix (record_diagnostic.py --id {row_id} "
+                              "--fix ... --status fixed); after three failed fixes set it blocked and ask the user")
+            elif status == "fixed" and not (row.get("cause", "").strip() and row.get("fix", "").strip()):
+                errors.append(f"{row_id} is fixed but does not record its cause and fix: "
+                              f"record_diagnostic.py --id {row_id} --cause ... --fix ...")
+            elif status == "accepted-limitation" and not (row.get("cause", "").strip() and row.get("fix", "").strip()):
+                errors.append(f"{row_id} is accepted-limitation but does not record its cause and the user's answer: "
+                              f"record_diagnostic.py --id {row_id} --cause ... --fix \"user accepted: ...\"")
+            elif status == "blocked":
+                errors.append(f"{row_id} is blocked, waiting for the user: with the answer set it open (a new fix to "
+                              f"try) or accepted-limitation (record_diagnostic.py --id {row_id} --fix \"user accepted: "
+                              "...\" --status accepted-limitation)")
+        # The base migration is done when the application HAP passed hap_check.py and ran on the device
+        # (no-device: environment.tsv had no connected device). device-runs.tsv holds that one row.
+        status = hap.get("status", "").strip()
+        if status not in DEVICE_RUN_DONE:
+            errors.append({
+                "": "device-runs.tsv has no application HAP: package it in a batch with a hap_check.py step "
+                    "(batch_checks.py), then device_run.py run --project <ohos project> "
+                    "--migration-root <root> --record as a later step",
+                "hap-failed": "the application HAP failed hap_check.py (device-runs.tsv hap-failed): fix the "
+                              "diagnostics problem and rerun the packaging batch; if it stays blocked, ask the user",
+                "checked": "the application HAP passed hap_check.py but has not run on the device: run device_run.py "
+                           "run --project <ohos project> --migration-root <root> --record (as a batch step)",
+            }.get(status, f"device-runs.tsv has unknown status '{status}'"))
+
+    # External features: the capability features from the features phase on
+    # (after the base migration passed diagnostics), verification features in validation.
     errors.extend(hook_errors(root, phase, validation, features_root))
 
-    if phase in {"diagnostics", "handoff"}:
-        for row in diagnostics + pilot_rows:
-            status = row.get("status", "").strip().lower()
-            if status in {"failed", "timeout", "blocked"}:
-                required = ("first_causal_signature", "root_cause", "attempts", "command", "log_path", "fix_or_next_action", "evidence")
-                if not has_receipt(row, *required):
-                    errors.append(f"{row.get('id')} is a failure without a complete diagnostic receipt")
-                try:
-                    attempts = int(row.get("attempts", "0"))
-                except ValueError:
-                    attempts = 0
-                if attempts >= 3 and status not in {"blocked"}:
-                    errors.append(f"{row.get('id')} reached three attempts and must be blocked/escalated")
-            elif status == "resolved":
-                # A fixed problem is the most useful record of the migration: what broke and what fixed it.
-                fix = row.get("fix_or_next_action", "").strip().lower()
-                if not has_receipt(row, "category", "root_cause", "fix_or_next_action") or fix.startswith("classify with"):
-                    errors.append(
-                        f"{row.get('id')} is resolved but does not record its root cause and fix; "
-                        f"run record_diagnostic.py --id {row.get('id')} --category ... --root-cause ... --next-action <fix>"
-                    )
-        if not diagnostics:
-            errors.append("diagnostics.tsv has no build/package/device receipt")
-        build_rows = diagnostics
-        if not any(is_batch_receipt(row) for row in build_rows):
-            errors.append("diagnostics.tsv has no batch_checks.py receipt; run builds through batch_checks.py --diagnostics")
-        if build_rows and queue and all(
-            row.get("status", "") == "planned" and row.get("attempts", "0").strip() in {"", "0"}
-            for row in queue
-        ):
-            errors.append("work-queue.tsv is untouched after build attempts; update status/attempts/evidence of the worked rows")
-
-    if phase == "handoff":
-        unverified = [row.get("id", "") for row in validation if row.get("status", "") not in PASS_STATUSES]
+    if phase == "validation":
+        unverified = [row.get("id", "") for row in validation if row.get("status", "") not in VALIDATION_DONE]
         if unverified:
-            errors.append("handoff is blocked while validation rows remain unverified: " + ", ".join(unverified))
-        open_rows = [row.get("id", "") for row in queue if row.get("status", "") not in QUEUE_DONE | {"blocked"}]
-        if open_rows:
-            errors.append("work-queue.tsv rows are still open: " + ", ".join(open_rows))
-        open_inventory = [
-            row.get("id", "") for row in inventory if row.get("status", "").strip().lower() not in INVENTORY_CLOSED
-        ]
-        if open_inventory:
-            errors.append(
-                "inventory.tsv capabilities are not closed: " + ", ".join(open_inventory)
-                + "; set each to passed/verified/accepted-limitation/not-applicable/blocked with evidence"
-            )
-        if not any(
-            row.get("artifact_type") == "application-hap"
-            and row.get("status", "") in PASS_STATUSES
-            and non_placeholder(row.get("evidence", ""))
-            for row in package
-        ):
-            errors.append("package-manifest.tsv lacks verified final application HAP evidence")
-        if not any(
-            row.get("artifact_type") == "native-library"
-            and row.get("origin", "") == "application"
-            and row.get("status", "") in PASS_STATUSES
-            and non_placeholder(row.get("entry_path", ""))
-            and "pilot" not in row.get("entry_path", "").lower()
-            for row in package
-        ):
-            errors.append("package-manifest.tsv lacks verified final application native-library evidence")
-        operational_device = [row for row in device if row.get("id", "").strip() not in {"DEV-RUN-001"}]
-        if operational_device and any(row.get("status", "") in {"planned", "not-run"} for row in operational_device):
-            errors.append("device-runs.tsv still has unexecuted rows; mark them blocked/deferred with a decision")
+            errors.append("validation rows remain unverified: " + ", ".join(unverified))
+        # The deliverable is the HAP of device-runs.tsv; it must still be where hvigor wrote it.
+        path = hap.get("hap", "").rsplit(" (", 1)[0].strip()
+        if hap.get("status", "").strip() in DEVICE_RUN_DONE and not Path(path).is_file():
+            errors.append(f"the application HAP {path} of device-runs.tsv is gone: rerun the packaging batch")
 
     return errors
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("migration_root", type=Path)
     parser.add_argument("phase", choices=PHASES)
     parser.add_argument("--features-root", type=Path, help="features/ directory (default: the skill's)")

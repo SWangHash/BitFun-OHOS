@@ -141,6 +141,20 @@ function normalizeToolAnswer(input: unknown): ToolAnswer | undefined {
   return undefined;
 }
 
+/**
+ * Seconds after which the runtime answers this request with its recommended
+ * options (`autoDecideAfterSeconds`), read from the waiting envelope or the
+ * raw model params. `undefined` for a question that never auto-decides.
+ */
+function readAutoDecideSeconds(toolItem: FlowToolItem): number | undefined {
+  for (const source of [toolItem.questionRequest, toolItem.toolCall?.input]) {
+    if (!source || typeof source !== 'object') continue;
+    const value = (source as Record<string, unknown>).autoDecideAfterSeconds;
+    if (typeof value === 'number' && Number.isFinite(value) && value > 0) return value;
+  }
+  return undefined;
+}
+
 /** Same source as FileOperationToolCard: partial JSON while streaming, then final toolCall.input. */
 function isAwaitingQuestionPayload(
   isParamsStreaming: boolean | undefined,
@@ -171,6 +185,10 @@ const GenericAskUserQuestionCard: React.FC<ToolCardProps> = ({
     [toolResult?.result],
   );
   const timedOut = normalizedResult?.status === 'timeout';
+  // The runtime answered with the recommended options after nobody responded:
+  // the card keeps showing those answers but says the agent chose them.
+  const autoDecided = status === 'completed' && normalizedResult?.status === 'auto_decided';
+  const autoDecideSeconds = readAutoDecideSeconds(toolItem);
   const cancelled = status === 'cancelled' || normalizedResult?.status === 'cancelled';
   const rejected = status === 'rejected';
   const failed = status === 'error' || toolResult?.success === false;
@@ -624,13 +642,33 @@ const GenericAskUserQuestionCard: React.FC<ToolCardProps> = ({
       ? {
           cancelDisabled: !sessionId,
           cancelLabel: t('toolCards.askUser.cancelCountdown'),
-          hint: t('toolCards.askUser.timeoutSettingsHint'),
+          hint: autoDecideSeconds !== undefined
+            ? t('toolCards.askUser.autoDecideHint')
+            : t('toolCards.askUser.timeoutSettingsHint'),
           onCancel: startInteraction,
           remainingLabel: countdown,
         }
       : waitSettled
-        ? { settledLabel: t('toolCards.askUser.unlimitedWait') }
+        ? {
+            settledLabel: autoDecideSeconds !== undefined
+              ? t('toolCards.askUser.waitingAnswerAutoDecide', {
+                minutes: i18nService.formatNumber(Math.max(1, Math.round(autoDecideSeconds / 60)), { useGrouping: false }),
+              })
+              : t('toolCards.askUser.unlimitedWait'),
+          }
         : undefined;
+
+  // An auto-decided card collapses to a summary that says the agent chose the
+  // answers; expanding it shows the questions with those answers selected.
+  const autoDecidedDetail = autoDecided
+    ? questions
+      .map((_, questionIndex) => {
+        const answer = getEffectiveAnswer(questionIndex);
+        return Array.isArray(answer) ? answer.join(', ') : answer ?? '';
+      })
+      .filter(Boolean)
+      .join('; ')
+    : undefined;
 
   if (endedWithoutAnswer && !canFollowUp) {
     const canReviewQuestions = cancelled && designQuestions.length > 0;
@@ -694,8 +732,8 @@ const GenericAskUserQuestionCard: React.FC<ToolCardProps> = ({
       data-flowchat-interaction={canAnswer ? 'response' : undefined}
       data-tool-card-id={toolId ?? ''}
       disabled={!canEditAnswers}
-      defaultExpanded={!canFollowUp}
-      disclosure={{
+      defaultExpanded={!canFollowUp && !autoDecided}
+      disclosure={autoDecided ? undefined : {
         label: canFollowUp
           ? t('toolCards.askUser.skippedAnswer')
           : t('toolCards.askUser.questionsCount', { count: questions.length }),
@@ -724,7 +762,9 @@ const GenericAskUserQuestionCard: React.FC<ToolCardProps> = ({
       onSubmit={handleSubmit}
       questions={designQuestions}
       ref={cardRootRef}
-      state={componentState}
+      // The summary only renders on the questionnaire layout; the card stays
+      // disabled and offers no submit because the call already completed.
+      state={autoDecided ? 'asking' : componentState}
       statusLabel={showAnswerMessage
         || (componentState === 'asking' && !interactionFailed && !submissionFailed)
         ? undefined
@@ -738,6 +778,10 @@ const GenericAskUserQuestionCard: React.FC<ToolCardProps> = ({
         ? canFollowUp ? t('toolCards.askUser.sendFollowUp') : t('toolCards.askUser.submit')
         : undefined}
       submittingLabel={t('toolCards.askUser.submitting')}
+      summaryDetail={autoDecidedDetail || undefined}
+      summaryLabel={autoDecided
+        ? t('toolCards.askUser.autoDecidedSummary', { count: questions.length })
+        : undefined}
       submitTitle={!isAllAnswered()
         ? t('toolCards.askUser.answerAllBeforeSubmit')
         : undefined}

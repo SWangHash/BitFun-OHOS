@@ -781,6 +781,35 @@ describe('AskUserQuestionCard', () => {
     expect(container.querySelector('button, input')).toBeNull();
   });
 
+  it('announces the auto-decision while waiting and marks the agent-chosen answers once decided', () => {
+    const waiting = questionTool('running');
+    waiting.toolCall.input = { ...waiting.toolCall.input, autoDecideAfterSeconds: 600 };
+    act(() => root.render(<AskUserQuestionCard toolItem={waiting} config={config} sessionId="session-a" />));
+    expect(container.textContent).toContain('toolCards.askUser.waitingAnswerAutoDecide');
+
+    const decided = questionTool('completed');
+    decided.toolCall.input = { ...decided.toolCall.input, autoDecideAfterSeconds: 600 };
+    decided.toolResult = {
+      success: true,
+      result: { status: 'auto_decided', autoDecided: true, answers: { 0: 'SQLite' } },
+    };
+    act(() => root.render(
+      <AskUserQuestionCard toolItem={decided} config={config} sessionId="session-a" isLastItem />,
+    ));
+    expect(container.querySelector('[data-bitfun-part="summary-label"]')?.textContent)
+      .toBe('toolCards.askUser.autoDecidedSummary:1');
+    expect(container.querySelector('[data-bitfun-part="summary-detail"]')?.textContent).toBe('SQLite');
+    expect(container.textContent).not.toContain('toolCards.askUser.timeout');
+    expect(container.querySelector('[data-bitfun-part="submit"]')).toBeNull();
+
+    act(() => container.querySelector<HTMLButtonElement>('[data-bitfun-part="summary"]')!.click());
+    const chosen = container.querySelector<HTMLInputElement>('input[value="SQLite"]');
+    expect(chosen?.checked).toBe(true);
+    expect(chosen?.disabled).toBe(true);
+    expect(container.querySelector('[data-bitfun-part="submit"]')).toBeNull();
+    expect(toolAPI.submitUserAnswers).not.toHaveBeenCalled();
+  });
+
   it('shows only the live question form beside an obsolete retry', async () => {
     const old = questionTool('cancelled');
     old.interruptionReason = 'retry_superseded';

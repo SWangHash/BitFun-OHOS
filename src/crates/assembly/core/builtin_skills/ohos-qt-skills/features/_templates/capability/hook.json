@@ -10,15 +10,15 @@
   "trigger": { "keywords": ["示例能力", "example capability"] },
   "entry": {
     "requires": [
-      { "check": "phase-passed", "phase": "implementation" },
-      { "check": "ledger-row", "ledger": "device-runs.tsv", "status_in": ["passed"], "min": 1 }
+      { "check": "phase-passed", "phase": "diagnostics" },
+      { "check": "ledger-row", "ledger": "device-runs.tsv", "status_in": ["run"] }
     ]
   },
   "exit": {
-    "criteria": [ { "check": "validation-passed", "ids": "row" } ],
+    "criteria": [ { "check": "artifact", "path": "{workdir}/result.json", "json": { "result": "pass" } } ],
     "max_attempts": 3
   },
-  "outputs": { "ledgers": ["inventory.tsv", "work-queue.tsv", "validation.tsv", "device-runs.tsv"], "evidence_files": [] },
+  "outputs": { "ledgers": ["diagnostics.tsv", "device-runs.tsv"], "evidence_files": ["{workdir}/result.json"] },
   "permissions": { "modify_sources": true, "device": true },
   "milestones": ["阅读 skill", "按 skill 实施", "真机验证"],
   "playbook": "feature.md",

@@ -1,48 +1,38 @@
 /**
  * External features (skill hook mechanism) → panel view-model.
  *
- * A feature is a FEAT row of `feature-adoption.tsv`, written only by the
+ * A feature is a FEAT row of `features.tsv`, written only by the
  * skill's `feature_hooks.py` / `feature_gate.py`. The view is generic: it uses
  * the row's lifecycle columns (status, attempts, current_step, entry/exit gate)
  * and, when the feature package can be read, the display metadata of its
- * `hook.json` (title, milestones, max_attempts). Nothing here depends on a
- * particular feature.
+ * `hook.json` (title, milestones, max_attempts). The user's answers about a
+ * feature live in the row's `notes`; a FEAT row links to no other ledger.
+ * Nothing here depends on a particular feature.
  */
 
 import {
-  EXTERNAL_FEATURES_SCOPE,
   MIGRATION_PHASES,
-  hasLegacyHeader,
-  isBootstrapId,
   isPlaceholder,
   normalizeStatus,
 } from '../model/ledgerSchema';
 import type {
   ExternalFeatureView,
+  FeatureAnswerView,
   FeatureGateView,
-  FeatureLinkView,
   FeatureMilestoneView,
   FeaturePackageInfo,
-  FeatureSelectionView,
   LedgerRow,
   MigrationLedgerInput,
   MigrationPhaseId,
 } from '../model/types';
 
-export const ADOPTION_LEDGER = 'feature-adoption.tsv';
+export const ADOPTION_LEDGER = 'features.tsv';
 /** Same as `feature_predicates.DEFAULT_MAX_ATTEMPTS`. */
 export const DEFAULT_FEATURE_MAX_ATTEMPTS = 3;
-
-/** Ledgers searched for ids listed in `capability_ids` / `validation_ids`, in order. */
-const LINK_LEDGERS = ['work-queue.tsv', 'inventory.tsv', 'validation.tsv', 'device-runs.tsv', 'decisions.tsv', 'diagnostics.tsv'];
 
 function clean(raw: string | undefined): string {
   const text = (raw ?? '').trim();
   return isPlaceholder(text) ? '' : text;
-}
-
-function splitIds(raw: string | undefined): string[] {
-  return (raw ?? '').split(/[,;\s]+/).map((entry) => entry.trim()).filter((entry) => entry && !isPlaceholder(entry));
 }
 
 export function packageKey(path: string | undefined): string {
@@ -55,34 +45,23 @@ function parseTime(raw: string | undefined): number | undefined {
   return Number.isFinite(at) ? at : undefined;
 }
 
-const GATE_RE = /^(READY|BLOCKED)\s+@(\S+)(.*)$/i;
-const CLOSED_RE = /^CLOSED\s+(\S+)(?:\s+by\s+(\S+))?(?:\s+@(\S+))?/i;
+const GATE_RE = /^(READY|NOT-READY)\s+@(\S+)(.*)$/i;
 const UNMET_RE = /\((\d+)\s+unmet:\s*(.*)\)\s*$/i;
 
 /**
- * Parse an `entry_gate` / `exit_gate` cell:
- * `READY @<iso>[ restart| digest=…]`, `BLOCKED @<iso> (N unmet: first)` or
- * `CLOSED <status> by DEC-x @<iso>`.
+ * Parse an `entry_gate` / `exit_gate` cell: `READY @<iso>[ restart]` or
+ * `NOT-READY @<iso> (N unmet: first)`. `exit_gate` only ever holds the last
+ * failed exit attempt (empty when the first attempt passed).
  */
 export function parseFeatureGate(raw: string | undefined): FeatureGateView | undefined {
   const text = (raw ?? '').trim();
   if (!text || isPlaceholder(text)) return undefined;
-  const closed = text.match(CLOSED_RE);
-  if (closed) {
-    return {
-      verdict: 'closed',
-      raw: text,
-      closedStatus: closed[1],
-      closedBy: closed[2],
-      at: parseTime(closed[3]),
-    };
-  }
   const gate = text.match(GATE_RE);
   if (!gate) return undefined;
   const rest = gate[3] ?? '';
   const unmet = rest.match(UNMET_RE);
   return {
-    verdict: gate[1].toUpperCase() === 'READY' ? 'ready' : 'blocked',
+    verdict: gate[1].toUpperCase() === 'READY' ? 'ready' : 'not-ready',
     raw: text,
     at: parseTime(gate[2]),
     unmetCount: unmet ? Number.parseInt(unmet[1], 10) : undefined,
@@ -151,36 +130,28 @@ function findPackage(
   row: LedgerRow,
 ): FeaturePackageInfo | undefined {
   if (!packages) return undefined;
-  const byPath = packages[packageKey(row.package_path)];
-  if (byPath && clean(row.package_path)) return byPath;
   const featureId = clean(row.feature_id).toLowerCase();
   return featureId ? Object.values(packages).find((entry) => entry.featureId?.toLowerCase() === featureId) : undefined;
 }
 
-function linkIndex(input: MigrationLedgerInput): Map<string, FeatureLinkView> {
-  const index = new Map<string, FeatureLinkView>();
-  for (const ledger of LINK_LEDGERS) {
-    for (const row of input.tsv[ledger]?.rows ?? []) {
-      const id = (row.id ?? '').trim();
-      if (!id || index.has(id)) continue;
-      index.set(id, { id, ledger, status: normalizeStatus(row.status), rawStatus: row.status ?? '' });
-    }
-  }
-  return index;
-}
-
-/** Rows that stand for an external feature (template placeholders and legacy "none" rows excluded). */
+/** Rows that stand for an external feature (template placeholders excluded). */
 export function featureRows(input: MigrationLedgerInput): LedgerRow[] {
   return (input.tsv[ADOPTION_LEDGER]?.rows ?? []).filter((row) => {
     const id = (row.id ?? '').trim();
-    if (!id || isBootstrapId(id) || isPlaceholder(id) || !clean(row.feature_id)) return false;
+    if (!id || isPlaceholder(id) || !clean(row.feature_id)) return false;
     return (row.status ?? '').trim().toLowerCase() !== 'not-applicable';
   });
 }
 
-/** Host phase of a FEAT row: `host_phase`, else the package's hook, else `features`. */
+/** The phase each feature kind hooks into (the skill's `feature_predicates.HOST_PHASES`). */
+const KIND_HOST_PHASES: Readonly<Record<string, MigrationPhaseId>> = {
+  capability: 'features',
+  verification: 'validation',
+};
+
+/** Host phase of a FEAT row: from its kind, else the package's hook, else `features`. */
 export function featureHostPhase(row: LedgerRow, input: MigrationLedgerInput): MigrationPhaseId {
-  return hostPhaseOf(row.host_phase ?? '')
+  return KIND_HOST_PHASES[clean(row.kind).toLowerCase()]
     ?? hostPhaseOf(findPackage(input.featurePackages, row)?.hookPhase ?? '')
     ?? 'features';
 }
@@ -189,46 +160,28 @@ export function featureTitle(row: LedgerRow, input: MigrationLedgerInput): strin
   return findPackage(input.featurePackages, row)?.title || clean(row.feature_id) || row.id;
 }
 
-// Same rules as the skill's phase_gate.USER_EVIDENCE_RE / NON_ANSWER_RE.
-const USER_EVIDENCE_RE = /\buser:\s*\S/i;
-const NON_ANSWER_TERMS =
-  'time[sd]?[ -]?out|timeout|expired|no (?:response|answer|reply|input)|unanswered|skipp?(?:ed|ing)?'
-  + '|\u8d85\u65f6|\u672a\u56de\u590d|\u672a\u56de\u7b54|\u672a\u4f5c\u7b54|\u6ca1\u6709\u56de\u590d|\u6ca1\u6709\u56de\u7b54|\u65e0\u54cd\u5e94|\u672a\u54cd\u5e94|\u65e0\u56de\u590d';
-const NON_ANSWER_RE = new RegExp(
-  `(?:askuserquestion|question|prompt|ask(?:ed|ing)?\\b|\u8be2\u95ee|\u63d0\u95ee|\u95ee\u9898|\u5f39\u7a97)[^.;。；\\n]{0,60}(?:${NON_ANSWER_TERMS})`
-  + '|(?:user|\u7528\u6237)\\s*(?:did ?n[o\']t|never|has ?n[o\']t|\u672a|\u6ca1\u6709|\u6ca1)\\s*(?:respond|answer|reply|select|choose|\u56de\u590d|\u56de\u7b54|\u4f5c\u7b54|\u9009\u62e9|\u54cd\u5e94)'
-  + '|no (?:response|answer|reply|input) from (?:the )?user|without (?:a |any )?(?:user )?(?:response|answer|reply|input)'
-  + '|skip[- ]and[- ]continue|(?:skill|tool|agent)[\'’]?s? default (?:is|=|applies|applied|used)',
-  'i',
-);
+const ANSWER_RE = /^(activated|attempts reset|closed\s+([\w-]+))\b.*?:\s*user answer:\s*(.+)$/i;
 
-/** The evidence records a question the user never answered. */
-export function isUnansweredEvidence(evidence: string | undefined): boolean {
-  return NON_ANSWER_RE.test(evidence ?? '');
-}
-
-/** Newest `external-features` decision (the one the skill's gate uses). */
-export function buildFeatureSelection(input: MigrationLedgerInput): FeatureSelectionView | undefined {
-  const rows = (input.tsv['decisions.tsv']?.rows ?? []).filter((row) =>
-    (row.feature_or_scope ?? '').trim().toLowerCase() === EXTERNAL_FEATURES_SCOPE && !isBootstrapId((row.id ?? '').trim()));
-  const row = rows[rows.length - 1];
-  if (!row) return undefined;
-  const evidence = (row.evidence ?? '').trim();
-  const unanswered = isUnansweredEvidence(evidence);
-  const confirmed = (row.status ?? '').trim().toLowerCase() === 'approved'
-    && (row.owner ?? '').trim().toLowerCase() === 'user'
-    && USER_EVIDENCE_RE.test(evidence)
-    && !unanswered;
-  const selected = (row.selected ?? '').split(/[,;\s]+/).map((entry) => entry.trim())
-    .filter((entry) => entry && entry.toLowerCase() !== 'none' && !isPlaceholder(entry));
-  return { decisionId: (row.id ?? '').trim(), selected, confirmed, unanswered, evidence: evidence || undefined };
+/**
+ * The user's answers recorded in a FEAT row's `notes`. The scripts append
+ * `; `-separated entries: `activated @<ts>: user answer: …` (feature_hooks.py
+ * activate), `attempts reset @<ts>: user answer: …` (feature_gate.py exit
+ * --answer) and `closed <status>: user answer: …` (feature_hooks.py close).
+ */
+export function featureAnswers(notes: string | undefined): FeatureAnswerView[] {
+  return (notes ?? '').split(/;\s+/).flatMap((entry): FeatureAnswerView[] => {
+    const match = entry.trim().match(ANSWER_RE);
+    if (!match || !match[3].trim()) return [];
+    const head = match[1].toLowerCase();
+    if (head === 'activated') return [{ context: 'activate', text: match[3].trim() }];
+    if (head === 'attempts reset') return [{ context: 'retry', text: match[3].trim() }];
+    return [{ context: 'close', text: match[3].trim(), status: match[2] }];
+  });
 }
 
 export function buildExternalFeatures(input: MigrationLedgerInput, working: boolean): ExternalFeatureView[] {
   const parsed = input.tsv[ADOPTION_LEDGER];
   if (!parsed) return [];
-  const legacyLedger = !parsed.header.includes('host_phase') && hasLegacyHeader(ADOPTION_LEDGER, parsed.header);
-  const links = linkIndex(input);
 
   return featureRows(input).map((row): ExternalFeatureView => {
     const pkg = findPackage(input.featurePackages, row);
@@ -237,9 +190,8 @@ export function buildExternalFeatures(input: MigrationLedgerInput, working: bool
     const currentStep = clean(row.current_step) || undefined;
     const milestones = milestoneViews(pkg?.milestones ?? [], rawStatus, currentStep);
     const attempts = Number.parseInt(row.attempts ?? '', 10);
-    const hostPhaseRaw = clean(row.host_phase) || pkg?.hookPhase || undefined;
+    const hostPhaseRaw = KIND_HOST_PHASES[clean(row.kind).toLowerCase()] || pkg?.hookPhase || undefined;
     const workdir = input.featureWorkdirs?.[row.id.trim()];
-    const ids = [...splitIds(row.capability_ids), ...splitIds(row.validation_ids)];
     return {
       id: row.id.trim(),
       featureId: clean(row.feature_id),
@@ -247,7 +199,7 @@ export function buildExternalFeatures(input: MigrationLedgerInput, working: bool
       summary: pkg?.summary || undefined,
       kind: clean(row.kind) || pkg?.kind || undefined,
       version: pkg?.version || undefined,
-      hostPhase: hostPhaseOf(hostPhaseRaw ?? '') ?? (legacyLedger ? 'features' : undefined),
+      hostPhase: hostPhaseOf(hostPhaseRaw ?? ''),
       hostPhaseRaw,
       status,
       rawStatus,
@@ -259,15 +211,12 @@ export function buildExternalFeatures(input: MigrationLedgerInput, working: bool
       stepMatched: milestones.matched,
       entryGate: parseFeatureGate(row.entry_gate),
       exitGate: parseFeatureGate(row.exit_gate),
-      decisionId: clean(row.decision_id) || undefined,
-      links: [...new Set(ids)].map((id) => links.get(id) ?? { id, status: 'pending', rawStatus: '' }),
+      answers: featureAnswers(row.notes),
       notes: clean(row.notes) || undefined,
-      evidence: clean(row.evidence) || undefined,
       packageResolved: !!pkg,
       playbookPath: pkg?.playbookPath,
       workdir: workdir?.path,
       files: workdir?.files ?? [],
-      legacy: legacyLedger || (!clean(row.host_phase) && !!clean(row.playbook_path)),
     };
   });
 }

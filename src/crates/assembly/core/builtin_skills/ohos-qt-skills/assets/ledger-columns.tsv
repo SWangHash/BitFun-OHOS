@@ -1,0 +1,64 @@
+ledger	column	meaning	values	written_by
+environment.tsv	id	ENV-NNN in row order (env_probe.py renumbers on every run)		env_probe.py
+environment.tsv	item	the environment item; one row per item and every finding about it lands on that row: core items always, conditional items when this host or application needs them or they were found	vocab.ENV_CORE_ITEMS | vocab.ENV_CONDITIONAL_ITEMS | tool:<name>	env_probe.py
+environment.tsv	path	the path the scripts use (the space-free alias when there is one; host: the short build and download cache)		env_probe.py
+environment.tsv	version	the item's version (Qt version, API/SDK/clang, tool --version), empty when the tool reports none		env_probe.py
+environment.tsv	detail	other facts of the item (qt-sdk: xspec, ABI and the module list after 'modules:'; device: connected devices; original path of an alias)		env_probe.py
+environment.tsv	status	worst finding of the item; error and missing block the gate	vocab.ENV_STATUSES	env_probe.py
+environment.tsv	issue	what is wrong or what env_probe.py fixed, with KI ids; empty when ok. Fix the environment as it says and rerun env_probe.py		env_probe.py
+environment.tsv	command_env	what the skill's scripts inject into every external tool they start (batch steps, devecocli, deploy, portgraph, feature checks): NAME=value or PATH+=<dir>, joined by ' | '; PATH entries are prepended in row order		env_probe.py
+inventory.tsv	id	INV-NNN, one capability or compatibility gap that does not work as is on OHOS		ledger.py add
+inventory.tsv	category	kind of gap for grouping, e.g. qt-module, build-files, platform-branches, runtime-integration, resources, third-party, qt-api-gap		ledger.py
+inventory.tsv	location	where the problem is: <kind>: <file:line[, file:line ...]>, kind one of build-file, source, resource, vendored		ledger.py
+inventory.tsv	cause	why it is a problem: what the app does on its existing hosts and why that does not work as is on OHOS; cite KI-* ids here		ledger.py
+inventory.tsv	found_by	why the row exists: <source>: <detail> entries joined by '; ' (preflight: PF ids, closure: finding, scan: vocab.SCAN_ITEMS names, qt-api-gap); the inventory gate needs every preflight error id here	vocab.FOUND_BY_SOURCES	ledger.py
+inventory.tsv	disposition	what the migration plans to do with it, fixed in the inventory phase (needs-decision: the user chooses in decisions.tsv; the TASK row applying the answer cites the DEC id)	vocab.DISPOSITIONS	ledger.py
+inventory.tsv	target_behavior	what it does on OHOS once handled		ledger.py
+tasks.tsv	id	TASK-NNN, one slice of the tasks phase		ledger.py add
+tasks.tsv	task	what the slice does and how (one line; cite DEC ids of answers it applies)		ledger.py
+tasks.tsv	inventory_ids	INV rows the slice handles; every INV row is named by a TASK row, and the state of those TASK rows is what became of it		ledger.py
+tasks.tsv	validation_ids	VAL rows the slice must pass		ledger.py
+tasks.tsv	status	state of the slice; batch_checks.py moves planned to in-progress; blocked waits for the user's answer; closed with ledger.py update together with evidence (vocab.QUEUE_CLOSE_STATUSES)	vocab.QUEUE_STATUSES	ledger.py; batch_checks.py
+tasks.tsv	evidence	why the slice is done: batch receipts and checks, required once the row is closed; [last batch ...] is appended by batch_checks.py		ledger.py; batch_checks.py
+decisions.tsv	id	DEC-NNN		ledger.py add
+decisions.tsv	question	the question asked		ledger.py
+decisions.tsv	answer	the answer; empty until answered (the phase 6 feature selection is never here)		ledger.py
+decisions.tsv	owner	who answered: user, or agent-default when AskUserQuestion auto-decided the recommended option; empty until answered	vocab.DECISION_OWNERS	ledger.py
+diagnostics.tsv	id	DIAG-NNN, one row per problem (a retry updates the same row)		batch_checks.py; record_diagnostic.py
+diagnostics.tsv	location	where it showed: <stage>: <step, file:line or component>	vocab.STAGES (the part before ':')	batch_checks.py --stage; record_diagnostic.py
+diagnostics.tsv	symptom	what was seen: the first causal error line or the observed behavior		batch_checks.py; record_diagnostic.py
+diagnostics.tsv	cause	why it happens (KI-* id when a known issue matched); required before the next batch		record_diagnostic.py; known issue match
+diagnostics.tsv	reproduce	how to reproduce: the command (and cwd) and its log path		batch_checks.py; record_diagnostic.py
+diagnostics.tsv	fix	what fixes it (the planned fix while open)		record_diagnostic.py; known issue match
+diagnostics.tsv	status	open until fixed; fixed needs cause and fix; blocked (three fixes failed or it needs the user) needs cause and waits for the user's answer; accepted-limitation (the user accepts it unfixed) needs cause and the answer in fix	vocab.DIAGNOSTIC_STATUSES	batch_checks.py --diag; record_diagnostic.py
+features.tsv	id	FEAT-NNN		feature_hooks.py activate
+features.tsv	feature_id	registered feature (its package: registry.tsv package_path)		feature_hooks.py
+features.tsv	kind	capability (hooks into phase features) or verification (phase validation); the host phase follows from it	vocab.FEATURE_KINDS	feature_hooks.py
+features.tsv	status	feature lifecycle; blocked after max_attempts failed exits, waiting for the user; written only by the feature scripts	vocab.FEATURE_STATUSES	feature_hooks.py; feature_gate.py
+features.tsv	attempts	exit-gate attempts		feature_gate.py
+features.tsv	current_step	milestone in progress		feature_hooks.py progress
+features.tsv	entry_gate	last entry verdict		feature_gate.py enter
+features.tsv	exit_gate	the reason of the last failed exit attempt (NOT-READY @<time> ...); empty when the first attempt passed		feature_gate.py exit
+features.tsv	notes	activation, retry and closing notes with the user's answers (never in decisions.tsv)		feature_hooks.py; feature_gate.py
+device-runs.tsv	id	DEV-RUN-001, the one row: the application HAP's latest result, overwritten each time (failures are diagnostics.tsv problems; smoke-test and envelope HAPs are never written)	vocab.DEVICE_RUN_ID	batch_checks.py; device_run.py run --record
+device-runs.tsv	hap	path of the HAP hap_check.py checked, and its bundle: "<path> (<bundle>)"		batch_checks.py
+device-runs.tsv	status	hap-failed (hap_check.py failed), checked (passed, not run yet), no-device (passed, environment.tsv has no device), run (passed on the device)	vocab.DEVICE_RUN_STATUSES	batch_checks.py (hap_check.py step); device_run.py run --record (run)
+device-runs.tsv	evidence	the batch and hap_check.py's verdict (signing, or the first problem and its DIAG id); after a run "; device:" process running, clean hilog, no new crash log, logs		batch_checks.py; device_run.py
+validation.tsv	id	VAL-NNN, one acceptance scenario		ledger.py add
+validation.tsv	scenario	what is accepted (a host regression says so: 'host regression: ...')		ledger.py
+validation.tsv	steps	how it is checked, including a negative control that was really run		ledger.py
+validation.tsv	expected	the expected result		ledger.py
+validation.tsv	status	planned until checked; the validation gate needs passed, accepted-limitation (cannot pass, the user accepted it) or not-applicable	vocab.VALIDATION_STATUSES	ledger.py
+validation.tsv	evidence	what was observed and where the proof is (log, screenshot, DEV-RUN id)		ledger.py
+knowledge-manifest.tsv	baseline_manifest_sha256	hash of the skill knowledge baseline the migration is pinned to		sync_knowledge.py
+knowledge-manifest.tsv	source_revision	upstream revision of the page		sync_knowledge.py
+knowledge-manifest.tsv	source_path	page path under upstream-kb/knowledge		sync_knowledge.py
+knowledge-manifest.tsv	source_sha256	upstream hash of the page		sync_knowledge.py
+knowledge-manifest.tsv	skill_snapshot_path	the page in the installed skill		sync_knowledge.py
+knowledge-manifest.tsv	skill_snapshot_sha256	its hash		sync_knowledge.py
+knowledge-manifest.tsv	snapshot_path	local adapted copy (modified=yes only)		sync_knowledge.py --register-modified
+knowledge-manifest.tsv	snapshot_sha256	its hash		sync_knowledge.py
+knowledge-manifest.tsv	used	yes when the migration consulted the page	yes no	mark_knowledge_used.py
+knowledge-manifest.tsv	modified	yes when the project adapted the page	yes no	sync_knowledge.py
+knowledge-manifest.tsv	action	referenced or locally-modified		sync_knowledge.py
+knowledge-manifest.tsv	last_synced_at	time of the last sync		sync_knowledge.py
