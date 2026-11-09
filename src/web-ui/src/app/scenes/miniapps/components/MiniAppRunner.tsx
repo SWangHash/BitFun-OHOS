@@ -101,7 +101,7 @@ const MiniAppRunner: React.FC<MiniAppRunnerProps> = ({ app, runScope, strictRunt
         sandbox="allow-scripts allow-downloads"
         referrerPolicy="no-referrer"
         style={{ flex: '1 1 auto', width: '100%', minHeight: 0, border: 'none', display: 'block' }}
-        title={app.name}
+        aria-label={app.name}
       />
     );
   }
@@ -114,7 +114,7 @@ const MiniAppRunner: React.FC<MiniAppRunnerProps> = ({ app, runScope, strictRunt
       data-run-scope={runScope?.kind ?? 'active'}
       sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups allow-downloads"
       style={{ flex: '1 1 auto', width: '100%', minHeight: 0, border: 'none', display: 'block' }}
-      title={app.name}
+      aria-label={app.name}
     />
   );
 };

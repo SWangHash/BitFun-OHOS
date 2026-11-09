@@ -6,10 +6,12 @@ const SCROLL_SETTLE_MS = 240;
 const VIEWPORT_MARGIN = 8;
 const GAP = 6;
 
-// Monaco's find-widget buttons only carry `aria-label` (their `title`
-// attribute is set conditionally on internal heading nodes), so the host
-// also matches labelled elements inside the editor chrome.
-const TOOLTIP_SELECTOR = '[title], .find-widget [aria-label], .monaco-editor [aria-label]';
+// Serves `[title]` elements in app chrome. Editor-internal labelled elements
+// (find-widget buttons, fold glyphs) are owned by the dedicated editor chrome
+// hover layer and must not be matched here: the overlap duplicated every
+// chrome hint on OHOS and pinned when ArkWeb dropped the mouseout (issue
+// #432).
+const TOOLTIP_SELECTOR = '[title]';
 
 function readTooltipText(element: HTMLElement): string {
   return element.getAttribute('title') ?? element.getAttribute('aria-label') ?? '';
@@ -96,6 +98,22 @@ export const TitleTooltipHost: React.FC = () => {
         hide();
         return;
       }
+      // The editor chrome hover layer (monacoChromeI18n) owns the find-widget
+      // buttons and the fold-margin glyphs: it localizes their labels and
+      // hides its bubble on leave. Serving the same elements here showed a
+      // second bubble for every chrome hint and stayed pinned when ArkWeb
+      // dropped the synthetic mouseout (issue #432).
+      if (withLabel.closest('.find-widget, .margin-view-overlays')) {
+        hide();
+        return;
+      }
+      // An iframe's title names the frame for assistive tech; it is not a
+      // hover hint. A bubble pinned to the frame's whole rect is noise
+      // (miniapp runner iframes carry the app name, issue #457/#475).
+      if (withLabel.tagName === 'IFRAME') {
+        hide();
+        return;
+      }
       if (withLabel === target) return;
       hide();
       target = withLabel;
@@ -104,6 +122,22 @@ export const TitleTooltipHost: React.FC = () => {
     };
 
     const onOut = (event: MouseEvent): void => {
+      if (!target) return;
+      const next = event.relatedTarget instanceof Node ? event.relatedTarget : null;
+      if (next && target.contains(next)) return;
+      hide();
+    };
+
+    // Pointer-event interrupts. ArkWeb can swallow the synthesized mouse
+    // sequence (mouseout, touch-driven mousedown), which left a shown bubble
+    // pinned until the next mouseover replaced it — every reported
+    // never-disappearing tooltip (#432/#457/#475) followed this gap. Pointer
+    // events are the native unified input stream and are not synthesized, so
+    // they stay deliverable where the mouse events do not. Only the
+    // low-frequency pointerout/pointerdown are hooked: a document-wide
+    // pointermove listener ran on every pointer move and measurably janked
+    // window maximize/restore on device.
+    const onPointerOut = (event: PointerEvent): void => {
       if (!target) return;
       const next = event.relatedTarget instanceof Node ? event.relatedTarget : null;
       if (next && target.contains(next)) return;
@@ -129,6 +163,8 @@ export const TitleTooltipHost: React.FC = () => {
     document.addEventListener('mouseover', onOver, true);
     document.addEventListener('mouseout', onOut, true);
     document.addEventListener('mousedown', onInterrupt, true);
+    document.addEventListener('pointerout', onPointerOut, true);
+    document.addEventListener('pointerdown', onInterrupt, true);
     document.addEventListener('wheel', onScrollInterrupt, { capture: true, passive: true });
     document.addEventListener('scroll', onScrollInterrupt, true);
     window.addEventListener('blur', onInterrupt);
@@ -137,6 +173,8 @@ export const TitleTooltipHost: React.FC = () => {
       document.removeEventListener('mouseover', onOver, true);
       document.removeEventListener('mouseout', onOut, true);
       document.removeEventListener('mousedown', onInterrupt, true);
+      document.removeEventListener('pointerout', onPointerOut, true);
+      document.removeEventListener('pointerdown', onInterrupt, true);
       document.removeEventListener('wheel', onScrollInterrupt, true);
       document.removeEventListener('scroll', onScrollInterrupt, true);
       window.removeEventListener('blur', onInterrupt);

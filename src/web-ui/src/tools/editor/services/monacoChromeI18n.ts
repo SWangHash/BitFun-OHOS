@@ -238,7 +238,14 @@ function attachChromeHoverLayer(container: HTMLElement): () => void {
   tooltip.style.display = 'none';
   document.body.appendChild(tooltip);
 
+  // The element the bubble is currently anchored to. Pointer-event guards
+  // below compare against it because ArkWeb can swallow the synthesized
+  // mouse sequence — without them a shown hint stayed pinned until the next
+  // mouseover (issue #432).
+  let currentTarget: Element | null = null;
+
   const hide = (): void => {
+    currentTarget = null;
     tooltip.style.display = 'none';
   };
 
@@ -248,6 +255,7 @@ function attachChromeHoverLayer(container: HTMLElement): () => void {
       hide();
       return;
     }
+    currentTarget = target;
     tooltip.textContent = label;
     tooltip.style.display = 'block';
     const rect = target.getBoundingClientRect();
@@ -276,6 +284,19 @@ function attachChromeHoverLayer(container: HTMLElement): () => void {
     hide();
   };
 
+  // Pointer-event interrupts: pointer events are the native unified input
+  // stream on ArkWeb and survive where the synthesized mouse sequence is
+  // dropped (issue #432 — pinned chrome hints). Only the low-frequency
+  // pointerout/pointerdown are hooked; a container-wide pointermove listener
+  // ran on every pointer move over the editor and measurably janked window
+  // maximize/restore on device.
+  const onPointerOut = (event: PointerEvent): void => {
+    if (!currentTarget) return;
+    const next = event.relatedTarget instanceof Node ? event.relatedTarget : null;
+    if (next && currentTarget.contains(next)) return;
+    hide();
+  };
+
   // Monaco's managed hover ALSO shows when a chrome element receives FOCUS
   // (clicking a button or tabbing into the find widget — capture-phase focus
   // listener on the target, issue #432 verification). Blocking focus descent
@@ -290,11 +311,15 @@ function attachChromeHoverLayer(container: HTMLElement): () => void {
 
   container.addEventListener('mouseover', onOver, true);
   container.addEventListener('mouseout', onOut, true);
+  container.addEventListener('pointerout', onPointerOut, true);
+  container.addEventListener('pointerdown', hide, true);
   container.addEventListener('focus', onFocus, true);
   container.addEventListener('scroll', hide, true);
   return () => {
     container.removeEventListener('mouseover', onOver, true);
     container.removeEventListener('mouseout', onOut, true);
+    container.removeEventListener('pointerout', onPointerOut, true);
+    container.removeEventListener('pointerdown', hide, true);
     container.removeEventListener('focus', onFocus, true);
     container.removeEventListener('scroll', hide, true);
     tooltip.remove();

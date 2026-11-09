@@ -310,11 +310,23 @@ export const Tooltip: React.FC<TooltipProps> = ({
   useEffect(() => {
     if (visible) {
       scheduleCalculatePosition();
+      // Geometry-settle recalc: after a window maximize/restore ArkWeb
+      // switches the compositor to the new window geometry before the layout
+      // tree reflows, so the first show can compute its position from
+      // pre-change trigger coordinates and stay offset — the resize event
+      // has already fired by then and nothing marks the settle afterwards
+      // (issue #443, device dump: bubble placed from the maximized-era
+      // trigger rect, ~185 CSS px above the restored anchor). Boundary
+      // crossings are the cheapest reliable "the pointer moved again"
+      // signal: re-measure on them while visible. pointerover fires per
+      // element crossing, not per move, and the rAF merge dedupes bursts.
+      document.addEventListener('pointerover', scheduleCalculatePosition, { capture: true, passive: true });
       if (!followCursor) {
         window.addEventListener('scroll', scheduleCalculatePosition, { capture: true, passive: true });
       }
       window.addEventListener('resize', scheduleCalculatePosition, { passive: true });
       return () => {
+        document.removeEventListener('pointerover', scheduleCalculatePosition, { capture: true });
         if (!followCursor) {
           window.removeEventListener('scroll', scheduleCalculatePosition, { capture: true });
         }

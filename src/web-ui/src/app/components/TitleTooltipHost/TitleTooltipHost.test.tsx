@@ -48,27 +48,54 @@ describe('TitleTooltipHost', () => {
     await act(async () => vi.advanceTimersByTimeAsync(milliseconds));
   }
 
-  it.each(['title', 'find-widget'] as const)('keeps the delayed fallback for %s controls', async kind => {
-    let button: HTMLElement;
-    if (kind === 'title') {
-      button = titledButton('Fold region');
-    } else {
-      const findWidget = document.createElement('div');
-      findWidget.className = 'find-widget';
-      button = document.createElement('button');
-      button.setAttribute('aria-label', 'Next match');
-      button.setAttribute('custom-hover', 'true');
-      findWidget.append(button);
-      fixture.append(findWidget);
-    }
+  it('keeps the delayed fallback for titled controls', async () => {
+    const button = titledButton('Fold region');
 
     hover(button);
     await advance(399);
     expect(visibleTooltip()).toBeNull();
     await advance(1);
-    expect(visibleTooltip()?.textContent).toBe(kind === 'title' ? 'Fold region' : 'Next match');
+    expect(visibleTooltip()?.textContent).toBe('Fold region');
 
     button.dispatchEvent(new MouseEvent('mouseout', { bubbles: true, relatedTarget: fixture }));
+    expect(visibleTooltip()).toBeNull();
+  });
+
+  it.each([
+    { name: 'find-widget buttons', render: () => {
+      const findWidget = document.createElement('div');
+      findWidget.className = 'find-widget';
+      const button = document.createElement('button');
+      button.setAttribute('aria-label', 'Next match');
+      button.setAttribute('custom-hover', 'true');
+      findWidget.append(button);
+      fixture.append(findWidget);
+      return button;
+    } },
+    { name: 'fold-margin glyphs', render: () => {
+      const margin = document.createElement('div');
+      margin.className = 'margin-view-overlays';
+      const glyph = document.createElement('div');
+      glyph.className = 'cldr';
+      glyph.setAttribute('aria-label', 'Click to expand the range.');
+      margin.append(glyph);
+      fixture.append(margin);
+      return glyph;
+    } },
+    { name: 'iframe titles', render: () => {
+      const frame = document.createElement('iframe');
+      frame.title = 'PPT Live';
+      fixture.append(frame);
+      return frame;
+    } },
+  ])('leaves $name to the editor chrome hover layer', async ({ render }) => {
+    const target = render();
+
+    hover(target);
+    await advance(1_000);
+    // The dedicated editor chrome layer owns these hints (issue #432): a
+    // second host bubble here duplicated every chrome hint and pinned when
+    // ArkWeb dropped the synthetic mouseout.
     expect(visibleTooltip()).toBeNull();
   });
 
@@ -103,6 +130,36 @@ describe('TitleTooltipHost', () => {
     hover(fixture);
     expect(visibleTooltip()).toBeNull();
     await advance(1_000);
+    expect(visibleTooltip()).toBeNull();
+  });
+
+  // ArkWeb can swallow the synthesized mouse sequence, so the pointer-event
+  // interrupts must stand in for mouseout/mousedown (issue #432/#457/#475:
+  // tooltips pinned until the next mouseover). Only the low-frequency
+  // pointerout/pointerdown are hooked — a document-wide pointermove listener
+  // janked window maximize/restore on device.
+  function pointer(type: string, target: HTMLElement, relatedTarget?: Node): void {
+    const Ctor = typeof PointerEvent === 'function' ? PointerEvent : MouseEvent;
+    target.dispatchEvent(new Ctor(type, { bubbles: true, relatedTarget }));
+  }
+
+  it('hides when a pointerout leaves the target without a mouseout', async () => {
+    const button = titledButton();
+    hover(button);
+    await advance();
+    expect(visibleTooltip()).not.toBeNull();
+
+    pointer('pointerout', button, fixture);
+    expect(visibleTooltip()).toBeNull();
+  });
+
+  it('hides on a pointerdown tap without any mousedown', async () => {
+    const button = titledButton();
+    hover(button);
+    await advance();
+    expect(visibleTooltip()).not.toBeNull();
+
+    pointer('pointerdown', fixture);
     expect(visibleTooltip()).toBeNull();
   });
 
