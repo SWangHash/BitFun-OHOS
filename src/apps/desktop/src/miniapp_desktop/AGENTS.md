@@ -51,6 +51,16 @@ Content action contracts are reserved and their advertised capability list is
 empty. Remote workspace, Peer, mobile, and detached hosts do not acquire local
 presentation as a silent fallback.
 
+HarmonyOS keeps the same registry and shell protocol but has no sidecar process:
+`open_window` prepares the instance and shell lease, then asks the ArkTS host to
+create a `WindowStage` sub-window (`api/ohos/miniapp_window.rs`). That window
+relays `bootstrap` / `ready` / `poll` / `rpc` / `local` back through the `#[napi]`
+`miniapp_window_call` entry, so `dispatch` stays the single owner of shell
+semantics. `bootstrap` is the in-process equivalent of the sidecar `open` reply;
+do not fork the payload. Shell-local operations map to the existing OHOS picker,
+file manager, browser opener and notification bridges. The window does not
+advertise the Agent window bridge or custom chrome, and refuses `chat.*`.
+
 The agent bridge is relayed, never reimplemented. A Shell that advertises
 `miniapp_agent_bridge_v1` lets the host push `agentRequest` events into the
 window; the Shell forwards them to its content frame over the same postMessage

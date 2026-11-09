@@ -75,6 +75,38 @@ creation, initial storage configuration, evaluation failures, bounds updates,
 and drag handling.
 These tests mock ArkUI and do not verify webpage rendering on a device.
 
+## MiniApp independent windows
+
+The Desktop "open in an independent window" MiniApp presentation uses a real
+HarmonyOS `WindowStage` sub-window instead of the desktop sidecar executable,
+which a packaged HarmonyOS app cannot spawn.
+
+- `MiniAppWindowService.ets` creates one sub-window per MiniApp instance and
+  loads `pages/MiniAppWindow`, which hosts
+  `resources/rawfile/miniapp-window/shell.html` in an ArkWeb `Web`.
+- The shell page speaks the same JSON-RPC protocol as a tab and as the desktop
+  shell (`bootstrap` / `ready` / `poll` / `rpc` / `local`), but reaches the host
+  through the injected `window.ohosMiniAppHost` proxy
+  (`javaScriptProxy` + `asyncMethodList: ['call']`) instead of
+  `miniapp_shell_call` over local IPC.
+- `miniapp_window_call` (`src/apps/desktop/src/api/ohos/miniapp_window.rs`) is
+  the `#[napi]` return path. The ArkTS bridge binds `instanceId` / `viewId` /
+  `nonce` from the window it belongs to; MiniApp content never supplies
+  identity. Keep that binding out of the shell page.
+- Rust still owns the instance registry, shell lease, Worker/Agent execution
+  and events: `open_ohos_window` prepares the instance and inserts the lease
+  before asking ArkTS to create the window. The `bootstrap` operation reuses the
+  desktop `open` reply payload.
+- Closing the OS window retires the instance; when the host releases an instance
+  first, `poll` reports `released` and the shell closes its own window.
+- Degraded on purpose in this first version: the floating chat composer
+  (`chat.*`) is refused, the window does not render MiniApp custom chrome, and
+  it does not advertise the Agent window bridge. Those stay tab/desktop-window
+  capabilities until a HarmonyOS implementation exists.
+
+Run `node --test src/apps/ohos/tests/miniapp-window.test.cjs` for the source
+contract. It does not prove ArkTS compilation or device behavior.
+
 ## Secure credential bridge
 
 `SecureCredentialStore.ets` returns Base64 secret bytes to Rust. The legacy

@@ -1347,6 +1347,11 @@ pub async fn _run() {
             }
 
             let app_handle = app.handle().clone();
+            // The ArkTS MiniApp window relays shell operations back into the
+            // in-process host protocol; publish the handle before any window
+            // can exist.
+            #[cfg(target_env = "ohos")]
+            crate::api::ohos::miniapp_window::install(&app_handle);
 
             // HarmonyOS cannot prepare the bootstrap snapshot inline the way the
             // desktop path below does: setup runs on the main thread with no

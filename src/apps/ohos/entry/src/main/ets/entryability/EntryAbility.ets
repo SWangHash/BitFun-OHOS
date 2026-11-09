@@ -34,6 +34,7 @@ import { FeedbackCredentialStore } from '../utils/FeedbackCredentialStore';
 import { ScreenCaptureStore } from '../utils/ScreenCaptureStore';
 import { SecureCredentialStore } from '../utils/SecureCredentialStore';
 import { WindowHostRequest, WindowHostService } from '../services/WindowHostService';
+import { installDesktopCardWindowService } from '../services/DesktopCardWindowService';
 import {
   BrowserWebviewService,
   CreateRequest,
@@ -670,6 +671,15 @@ export default class EntryAbility extends RustAbility implements StatusBarTrayHo
       this.context.terminateSelf(() => {
         hilog.info(DOMAIN_NUMBER, TAG, 'WebDriver requested Ability termination');
       });
+    });
+    // Desktop cards are ArkUI subwindows on this host. Rust owns the card
+    // records and pushes the presentation view; the service owns lifecycle.
+    const desktopCardWindowService = installDesktopCardWindowService(windowStage);
+    RustModule.registerArktsFunction('desktop_card_window_ohos', async (
+      _err: Error,
+      arg: string,
+    ): Promise<string> => {
+      return await desktopCardWindowService.handle(arg);
     });
 
     // HarmonyOS has no desktop tray. On 2in1 devices the equivalent surface is

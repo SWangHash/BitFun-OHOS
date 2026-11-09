@@ -649,6 +649,26 @@ async fn open_window(
     record: launcher::LaunchRecord,
     icon_svg: Option<String>,
 ) -> Result<Ticket, String> {
+    // HarmonyOS has no sidecar executable: the independent window is an ArkTS
+    // sub-window in this same process, so only the registry and shell lease
+    // setup are shared with the desktop sidecar path below.
+    #[cfg(target_env = "ohos")]
+    {
+        let _ = icon_svg;
+        open_ohos_window(app, record).await
+    }
+    #[cfg(not(target_env = "ohos"))]
+    {
+        open_desktop_window(app, record, icon_svg).await
+    }
+}
+
+#[cfg(not(target_env = "ohos"))]
+async fn open_desktop_window(
+    app: &tauri::AppHandle,
+    record: launcher::LaunchRecord,
+    icon_svg: Option<String>,
+) -> Result<Ticket, String> {
     let icon_record = record.clone();
     tokio::task::spawn_blocking(move || launcher::prepare_icons(&icon_record, icon_svg.as_deref()))
         .await
@@ -710,6 +730,158 @@ async fn open_window(
     });
     changed(app);
     Ok(Ticket { instance, view })
+}
+
+/// HarmonyOS independent window: an ArkTS `WindowStage` sub-window presents the
+/// same shell protocol that a sidecar window would, but its calls come back
+/// through [`miniapp_window_call`] instead of the local IPC socket.
+#[cfg(target_env = "ohos")]
+async fn open_ohos_window(
+    app: &tauri::AppHandle,
+    record: launcher::LaunchRecord,
+) -> Result<Ticket, String> {
+    let host = app.state::<DesktopMiniApps>();
+    let (instance, view) = host.instances.prepare(
+        record.app_id.clone(),
+        record.workspace_path.clone(),
+        MiniAppViewKind::Window,
+    )?;
+    // The window is a new event destination for the same app-scoped Worker and
+    // Agent streams the sidecar shell would receive.
+    if host
+        .worker_listeners
+        .lock()
+        .unwrap_or_else(|p| p.into_inner())
+        .insert(record.app_id.clone())
+    {
+        sdk::install_worker_events(app, &record.app_id);
+    }
+    let mut nonce = String::new();
+    {
+        let mut shells = host.shells.lock().unwrap_or_else(|p| p.into_inner());
+        if let Some(lease) = shells.get_mut(&view.view_id) {
+            // The window already exists; keep its identity and let the ArkTS
+            // service bring it to the front below.
+            lease.push("focus", Value::Null);
+            nonce = lease.nonce.clone();
+        } else {
+            nonce = uuid::Uuid::new_v4().to_string();
+            shells.insert(
+                view.view_id.clone(),
+                ShellLease {
+                    instance_id: instance.instance_id.clone(),
+                    nonce: nonce.clone(),
+                    streams: HashSet::new(),
+                    events: VecDeque::new(),
+                    sequence: 0,
+                    event_bytes: 0,
+                    agent_bridge: false,
+                    notify: Arc::new(tokio::sync::Notify::new()),
+                },
+            );
+        }
+    }
+    let payload = json!({
+        "instanceId": instance.instance_id.clone(),
+        "viewId": view.view_id.clone(),
+        "nonce": nonce,
+        "appId": instance.app_id.clone(),
+        "title": record.name,
+        "workspacePath": instance.workspace_path.clone(),
+    });
+    if let Err(error) = crate::api::ohos::miniapp_window::open_window(payload).await {
+        host.instances.detach(&instance.instance_id, &view.view_id);
+        host.shells
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .remove(&view.view_id);
+        changed(app);
+        return Err(error);
+    }
+    changed(app);
+    Ok(Ticket { instance, view })
+}
+
+/// One shell operation relayed from the ArkTS MiniApp window.
+///
+/// Window content never supplies its own identity: the ArkTS bridge object
+/// injects `instanceId` / `viewId` / `nonce` from the window it belongs to.
+#[cfg(target_env = "ohos")]
+pub(crate) async fn miniapp_window_call(
+    app: &tauri::AppHandle,
+    operation: &str,
+    params: Value,
+) -> Result<Value, String> {
+    match operation {
+        "local" => {
+            let method = string(&params, "method")?;
+            window_local_call(
+                app,
+                &method,
+                params.get("params").cloned().unwrap_or(json!({})),
+            )
+            .await
+        }
+        _ => dispatch(app, operation, params).await,
+    }
+}
+
+/// Shell-local operations that a desktop shell implements with Tauri plugin
+/// dialogs and openers. The HarmonyOS window reuses the existing OHOS picker,
+/// file manager, browser opener and notification bridges instead.
+#[cfg(target_env = "ohos")]
+async fn window_local_call(
+    app: &tauri::AppHandle,
+    method: &str,
+    params: Value,
+) -> Result<Value, String> {
+    match method {
+        "dialog.open" => {
+            let options = serde_json::to_string(&params).map_err(|e| e.to_string())?;
+            let picked = bitfun_core::util::open_dialog_file(&options).await?;
+            // The OHOS picker answers a bare path, `null` on cancel, or a JSON
+            // array string for multi-select.
+            if picked.is_empty() || picked == "null" {
+                Ok(Value::Null)
+            } else if picked.starts_with('[') {
+                serde_json::from_str(&picked).map_err(|e| e.to_string())
+            } else {
+                Ok(Value::String(picked))
+            }
+        }
+        "system.openExternal" => {
+            let url = string(&params, "url")?;
+            crate::api::system_api::open_external_ohos(url).await?;
+            Ok(Value::Null)
+        }
+        "system.revealInFolder" => {
+            let path = string(&params, "path")?;
+            crate::api::ohos::ohos_file_system::reveal_in_oh_explorer(path)?;
+            Ok(Value::Null)
+        }
+        "notifications.system" => {
+            crate::api::system_api::send_system_notification(
+                app.clone(),
+                crate::api::system_api::SendNotificationRequest {
+                    title: params
+                        .get("title")
+                        .and_then(Value::as_str)
+                        .unwrap_or_default()
+                        .to_string(),
+                    body: params
+                        .get("body")
+                        .and_then(Value::as_str)
+                        .map(str::to_owned),
+                },
+            )
+            .await?;
+            Ok(Value::Null)
+        }
+        "dialog.save" | "dialog.message" => Err(format!(
+            "MiniApp window operation '{method}' is not supported on HarmonyOS yet"
+        )),
+        _ => Err(format!("Unsupported MiniApp window operation: {method}")),
+    }
 }
 
 /// The desktop app the user published for one MiniApp, if any.
@@ -949,6 +1121,48 @@ fn string(value: &Value, key: &str) -> Result<String, String> {
         .ok_or_else(|| format!("Missing MiniApp {key}"))
 }
 
+/// Reply shared by the sidecar `open` operation and the in-process HarmonyOS
+/// `bootstrap` operation. `capabilities` is what this shell implementation
+/// actually honours; an older/no-capability shell gets an empty list.
+async fn bootstrap_response(
+    app: &tauri::AppHandle,
+    instance: MiniAppInstance,
+    view: MiniAppView,
+    capabilities: Vec<&'static str>,
+    miniapp: Value,
+) -> Result<Value, String> {
+    let host = app.state::<DesktopMiniApps>();
+    let document = miniapp
+        .get("compiled_html")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    if document.trim().is_empty() {
+        return Err("MiniApp document is empty; rebuild it in BitFun".into());
+    }
+    let locale = crate::api::i18n_api::i18n_get_current_language(app.state()).await?;
+    let catalog =
+        include_str!("../../../../shared/miniapp-chrome/presentation-labels.generated.json");
+    let catalog: Value = serde_json::from_str(catalog).map_err(|e| e.to_string())?;
+    let shared_terms = match locale.as_str() {
+        "zh-CN" => include_str!("../../../../shared/i18n/resources/shared/zh-CN/terms.json"),
+        "zh-TW" => include_str!("../../../../shared/i18n/resources/shared/zh-TW/terms.json"),
+        _ => include_str!("../../../../shared/i18n/resources/shared/en-US/terms.json"),
+    };
+    let shared_terms: Value = serde_json::from_str(shared_terms).map_err(|e| e.to_string())?;
+    let mut ui = catalog.get(&locale).unwrap_or(&catalog["en-US"]).clone();
+    for key in ["minimize", "maximize", "restore", "close"] {
+        ui[key] = shared_terms["window"][key].clone();
+    }
+    let transfer_confirmed = host
+        .confirmed_transfers
+        .lock()
+        .unwrap_or_else(|p| p.into_inner())
+        .remove(&view.view_id);
+    Ok(
+        json!({"presentationCapabilities":capabilities,"transferConfirmed":transfer_confirmed,"instance":instance,"view":view,"app":miniapp,"hostEpoch":host.instances.snapshot().host_epoch,"locale":locale,"appearanceMode":crate::appearance::AppearanceConfig::miniapp_mode(),"ui":ui}),
+    )
+}
+
 async fn dispatch(app: &tauri::AppHandle, method: &str, params: Value) -> Result<Value, String> {
     let host = app.state::<DesktopMiniApps>();
     if method == "ping" {
@@ -1026,29 +1240,18 @@ async fn dispatch(app: &tauri::AppHandle, method: &str, params: Value) -> Result
             }
         }
         changed(app);
-        let locale = crate::api::i18n_api::i18n_get_current_language(app.state()).await?;
-        let catalog =
-            include_str!("../../../../shared/miniapp-chrome/presentation-labels.generated.json");
-        let catalog: Value = serde_json::from_str(catalog).map_err(|e| e.to_string())?;
-        let shared_terms = match locale.as_str() {
-            "zh-CN" => include_str!("../../../../shared/i18n/resources/shared/zh-CN/terms.json"),
-            "zh-TW" => include_str!("../../../../shared/i18n/resources/shared/zh-TW/terms.json"),
-            _ => include_str!("../../../../shared/i18n/resources/shared/en-US/terms.json"),
-        };
-        let shared_terms: Value = serde_json::from_str(shared_terms).map_err(|e| e.to_string())?;
-        let mut ui = catalog.get(&locale).unwrap_or(&catalog["en-US"]).clone();
-        for key in ["minimize", "maximize", "restore", "close"] {
-            ui[key] = shared_terms["window"][key].clone();
-        }
-
-        let transfer_confirmed = host
-            .confirmed_transfers
-            .lock()
-            .unwrap_or_else(|p| p.into_inner())
-            .remove(&view.view_id);
-        return Ok(
-            json!({"presentationCapabilities":[ipc::MINIAPP_CUSTOM_CHROME_CAPABILITY,ipc::MINIAPP_CHAT_SNAPSHOT_CAPABILITY,ipc::MINIAPP_AGENT_BRIDGE_CAPABILITY],"transferConfirmed":transfer_confirmed,"instance":instance,"view":view,"app":miniapp,"hostEpoch":host.instances.snapshot().host_epoch,"locale":locale,"appearanceMode":crate::appearance::AppearanceConfig::miniapp_mode(),"ui":ui}),
-        );
+        return bootstrap_response(
+            app,
+            instance,
+            view,
+            vec![
+                ipc::MINIAPP_CUSTOM_CHROME_CAPABILITY,
+                ipc::MINIAPP_CHAT_SNAPSHOT_CAPABILITY,
+                ipc::MINIAPP_AGENT_BRIDGE_CAPABILITY,
+            ],
+            json!(miniapp),
+        )
+        .await;
     }
     let instance_id = string(&params, "instanceId")?;
     let view_id = string(&params, "viewId")?;
@@ -1065,6 +1268,45 @@ async fn dispatch(app: &tauri::AppHandle, method: &str, params: Value) -> Result
         if lease.nonce != nonce || lease.instance_id != instance_id {
             return Err("MiniApp shell identity mismatch".into());
         }
+    }
+    // HarmonyOS windows are opened by the in-process ArkTS host instead of a
+    // sidecar launcher, so their bootstrap arrives as its own operation on an
+    // already prepared view. The payload matches the sidecar `open` reply.
+    if method == "bootstrap" {
+        let instance = host.instances.touch(&instance_id, &view_id)?;
+        let view = instance
+            .pending_view
+            .clone()
+            .filter(|view| view.view_id == view_id)
+            .or_else(|| {
+                instance
+                    .primary_view
+                    .clone()
+                    .filter(|view| view.view_id == view_id)
+            })
+            .ok_or("MiniApp view was released")?;
+        let capabilities = {
+            let shells = host.shells.lock().unwrap_or_else(|p| p.into_inner());
+            shells
+                .get(&view_id)
+                .map(|lease| lease.agent_bridge)
+                .unwrap_or(false)
+        };
+        let capabilities = if capabilities {
+            vec![ipc::MINIAPP_AGENT_BRIDGE_CAPABILITY]
+        } else {
+            Vec::new()
+        };
+        let miniapp = miniapp_api::get_miniapp(
+            app.state(),
+            miniapp_api::GetMiniAppRequest {
+                app_id: instance.app_id.clone(),
+                appearance_mode: Some(crate::appearance::AppearanceConfig::miniapp_mode().into()),
+                workspace_path: instance.workspace_path.clone(),
+            },
+        )
+        .await?;
+        return bootstrap_response(app, instance, view, capabilities, json!(miniapp)).await;
     }
     if method == "close" {
         close_view(app, &instance_id, &view_id).await?;

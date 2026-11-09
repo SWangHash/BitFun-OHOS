@@ -1,0 +1,226 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MiniApp</title>
+<style>
+  :root {
+    color-scheme: dark;
+    font-family: sans-serif;
+    background: #1c1c1e;
+    color: #f2f2f7;
+  }
+  html[data-appearance-mode="light"] {
+    color-scheme: light;
+    background: #ffffff;
+    color: #1c1c1e;
+  }
+  html, body { margin: 0; height: 100%; }
+  body { display: flex; flex-direction: column; background: inherit; color: inherit; }
+  iframe { flex: 1; min-height: 0; width: 100%; border: 0; }
+  #status { padding: 12px; white-space: pre-wrap; overflow: auto; }
+  #status button { font: inherit; padding: 5px 12px; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div id="status" role="status"><span id="status-text">BitFun…</span> <button id="retry" hidden>Retry</button></div>
+<iframe id="app" title="MiniApp" sandbox="allow-scripts allow-forms allow-modals allow-popups allow-downloads" referrerpolicy="no-referrer" hidden></iframe>
+<script>
+(() => {
+  'use strict';
+  // Injected by `MiniAppWindow.ets` through `javaScriptProxy`. Every shell
+  // operation carries the identity bound to this window by ArkTS.
+  const host = window.ohosMiniAppHost;
+  const frame = document.getElementById('app');
+  const status = document.getElementById('status');
+  const statusText = document.getElementById('status-text');
+  const retry = document.getElementById('retry');
+  const localMethods = new Set([
+    'dialog.open',
+    'system.openExternal',
+    'system.revealInFolder',
+    'notifications.system',
+  ]);
+  let bootstrap = null;
+  let cursor = 0;
+  let pollGeneration = 0;
+  let documentUrl = null;
+  let stopped = false;
+
+  const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+  const event = (name, payload) => frame.contentWindow?.postMessage(
+    { type: 'bitfun:event', event: name, payload }, '*');
+  const reply = (id, result) => frame.contentWindow?.postMessage(
+    { jsonrpc: '2.0', id, result }, '*');
+  const replyError = (id, message) => frame.contentWindow?.postMessage(
+    { jsonrpc: '2.0', id, error: { code: -32000, message } }, '*');
+  const showError = value => {
+    statusText.textContent = String(value);
+    status.hidden = false;
+    retry.hidden = false;
+  };
+
+  // ArkTS JavaScript proxies run on the UI thread, so an operation is
+  // submitted and its settled envelope is polled instead of blocking there.
+  async function hostCall(operation, params) {
+    if (!host || typeof host.call !== 'function' || typeof host.result !== 'function') {
+      throw new Error('The HarmonyOS MiniApp host bridge is unavailable');
+    }
+    const submitted = JSON.parse(host.call(JSON.stringify({ operation, params: params || {} })));
+    if (!submitted || submitted.ok !== true) {
+      throw new Error(submitted && submitted.error ? submitted.error : 'MiniApp host call failed');
+    }
+    const deadline = Date.now() + 120000;
+    for (;;) {
+      await sleep(16);
+      if (Date.now() > deadline) {
+        throw new Error('The MiniApp host did not answer in time');
+      }
+      const raw = host.result(submitted.requestId);
+      const parsed = JSON.parse(raw);
+      if (!parsed || parsed.pending === true) continue;
+      if (parsed.ok !== true) {
+        throw new Error(parsed.error || 'MiniApp host call failed');
+      }
+      return parsed.result;
+    }
+  }
+
+  window.addEventListener('message', async message => {
+    if (!frame.contentWindow || message.source !== frame.contentWindow || !message.data) return;
+    const request = message.data;
+    if (typeof request.method !== 'string') return;
+    const id = request.id;
+    const method = request.method;
+    const params = request.params || {};
+    const generation = pollGeneration;
+    const assertCurrent = () => {
+      if (generation !== pollGeneration) throw new Error('MiniApp content view changed');
+    };
+    try {
+      if (method === 'bitfun/request-locale') {
+        reply(id, { locale: bootstrap ? bootstrap.locale : 'en-US' });
+        if (bootstrap) event('localeChange', { locale: bootstrap.locale });
+        return;
+      }
+      if (method === 'bitfun/request-appearance') {
+        if (bootstrap) event('appearanceChange', { mode: bootstrap.appearanceMode, vars: {} });
+        return;
+      }
+      if (method.startsWith('chat.')) {
+        replyError(id, 'The floating MiniApp chat composer is not available in this window');
+        return;
+      }
+      if (method === 'clipboard.writeText') {
+        await navigator.clipboard.writeText(String(params.text ?? ''));
+        reply(id, null);
+        return;
+      }
+      if (method === 'clipboard.readText') {
+        reply(id, await navigator.clipboard.readText());
+        return;
+      }
+      if (localMethods.has(method)) {
+        reply(id, await hostCall('local', { method, params }));
+        return;
+      }
+      const result = await hostCall('rpc', { method, params });
+      assertCurrent();
+      reply(id, result);
+    } catch (cause) {
+      replyError(id, String(cause));
+    }
+  });
+
+  async function poll(generation) {
+    let failures = 0;
+    while (!stopped && generation === pollGeneration) {
+      try {
+        // No long poll: the ArkTS proxy blocks the JS thread for the duration
+        // of a host call, so idle polling stays short and yields between calls.
+        const batch = await hostCall('poll', { after: cursor, waitMs: 0 });
+        if (generation !== pollGeneration) return;
+        failures = 0;
+        if (batch && batch.released) {
+          stopped = true;
+          if (host && typeof host.closeSelf === 'function') host.closeSelf();
+          return;
+        }
+        for (const item of (batch && batch.events) || []) {
+          if (item.sequence <= cursor) continue;
+          if (item.event === 'reload') {
+            cursor = item.sequence;
+            void start();
+            return;
+          }
+          if (item.event === 'focus' || item.event === 'agentRequest') {
+            cursor = item.sequence;
+            continue;
+          }
+          event(item.event, item.payload);
+          cursor = item.sequence;
+        }
+        cursor = Math.max(cursor, (batch && batch.cursor) || 0);
+      } catch (cause) {
+        if (generation !== pollGeneration) return;
+        if (++failures >= 3) showError(cause);
+      }
+      await sleep(failures > 0 ? 800 : 120);
+    }
+  }
+
+  async function start() {
+    const generation = ++pollGeneration;
+    retry.hidden = true;
+    try {
+      const next = await hostCall('bootstrap', {});
+      if (generation !== pollGeneration) return;
+      bootstrap = next;
+      const app = bootstrap.app;
+      if (!app || !app.compiled_html) {
+        throw new Error('The MiniApp document is empty; rebuild it in BitFun');
+      }
+      document.documentElement.style.colorScheme = bootstrap.appearanceMode;
+      document.documentElement.dataset.appearanceMode = bootstrap.appearanceMode;
+      document.documentElement.lang = bootstrap.locale;
+      document.title = (app.chrome && app.chrome.titlebar && app.chrome.titlebar.title)
+        || (app.i18n && app.i18n.locales && app.i18n.locales[bootstrap.locale]
+          && app.i18n.locales[bootstrap.locale].name)
+        || app.name
+        || 'MiniApp';
+      if (documentUrl) URL.revokeObjectURL(documentUrl);
+      documentUrl = URL.createObjectURL(
+        new Blob([app.compiled_html], { type: 'text/html;charset=utf-8' }),
+      );
+      frame.setAttribute('sandbox', app.runtime_profile === 'market_strict'
+        ? 'allow-scripts allow-downloads'
+        : 'allow-scripts allow-forms allow-modals allow-popups allow-downloads');
+      frame.onload = async () => {
+        try {
+          if (generation !== pollGeneration) return;
+          await hostCall('ready', {});
+          if (generation !== pollGeneration) return;
+          status.hidden = true;
+          frame.hidden = false;
+          event('activate', {});
+        } catch (cause) {
+          showError(cause);
+        }
+      };
+      frame.src = documentUrl;
+      stopped = false;
+      void poll(generation);
+    } catch (cause) {
+      if (generation !== pollGeneration) return;
+      showError(cause);
+    }
+  }
+
+  retry.onclick = () => void start();
+  void start();
+})();
+</script>
+</body>
+</html>
