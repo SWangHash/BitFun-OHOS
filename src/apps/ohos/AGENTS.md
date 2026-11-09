@@ -47,14 +47,16 @@ Consequences for the split between ArkTS and the page:
 - `pet_window_hide` from Rust destroys the subwindow; `pet_window_show` recreates
   it. The page reconnects through `AppStorage('bitfunPetWindow')`.
 
-Two window facts came from device logs and still apply:
+Three window facts came from device logs and still apply:
 
 - Chrome APIs called before the window is in a normal state fail with
   `1300002 "window state abnormal"` and leave the title bar visible, so the
   subwindow hides its chrome after `showWindow`. `createSubWindowWithOptions`
   already takes `decorEnabled: false`, which avoids the flash in between.
-- A move/resize can bring the system title bar back, so chrome is hidden again
-  after geometry.
+- `setWindowDecorHeight(0)` is rejected (error 401; the platform only accepts
+  37..112), so only `setWindowDecorVisible(false)` is used.
+- `setWindowTopmost` is main-window only (error 1300004, "Invalid window type"),
+  so the pet subwindow must not call it; it sits above its parent anyway.
 
 The packaged-frontend directory is resolved by Rust (`pet_window::dist_root` from
 the resource directory) and passed through the launch payload; ArkTS must not
@@ -66,10 +68,16 @@ The pet's webview is a plain ArkWeb, not the `oh-rs-ability` webview Rust create
 for the main window, so **it has no Tauri IPC and no Tauri asset protocol**. Two
 consequences to preserve:
 
-- `PetWindow.ets` serves the packaged frontend (`resources/resfile/dist`) through
-  an app-owned `bitfunpet://` scheme registered with `customizeSchemes` and
-  answered by `onInterceptRequest`. `tauri://localhost` cannot be requested here,
-  and `file://` cannot import ES modules, so do not "simplify" this to either.
+- `PetWindow.ets` loads `tauri://localhost/index.html?bitfunWindow=agent-companion`
+  and answers the requests itself through `onInterceptRequest`, serving bytes
+  from `<bundleCodeDir>/entry/resources/resfile/dist` (probing both resfile
+  layouts and logging each). Do **not** switch back to a private scheme via
+  `customizeSchemes`: the ArkWeb engine starts with the main window, so
+  registration fails with `17100020`, the page then runs with origin `null`, and
+  ArkWeb blocks every module script and stylesheet by CORS. Only `arkweb`,
+  `asset`, `chrome*`, `data`, `http(s)`, `ipc` and `tauri` are CORS-enabled
+  schemes, which is why `tauri` — already registered by the main window — is the
+  carrier here. `file://` cannot import ES modules either.
 - Cross-window traffic cannot use the Tauri event bus. `PetWindowChannel.ets`
   carries it over custom common events: `deliver`/`hide`/`rect` from the main
   side, `command` from the pet side, which `EntryAbility` injects into the main

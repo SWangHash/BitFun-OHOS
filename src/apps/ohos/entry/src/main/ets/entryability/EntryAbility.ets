@@ -133,7 +133,6 @@ interface SetResizableArg {
 }
 interface PetWindowShowRequest {
   path?: string;
-  distRoot?: string;
 }
 interface PetWindowRectRequest {
   width: number;
@@ -1071,16 +1070,10 @@ export default class EntryAbility extends RustAbility implements StatusBarTrayHo
     // or task entry, which a separate UIAbility would add.
     RustModule.registerArktsFunction('pet_window_show', async (_err: Error, arg: string): Promise<string> => {
       let pagePath: string = PET_DEFAULT_PAGE_PATH;
-      // Rust resolves the packaged frontend directory because the HAP layout is
-      // platform knowledge, not something ArkTS can derive safely.
-      let distRoot: string = '';
       try {
         const request: PetWindowShowRequest = JSON.parse(arg) as PetWindowShowRequest;
         if (typeof request.path === 'string' && request.path.length > 0) {
           pagePath = request.path;
-        }
-        if (typeof request.distRoot === 'string') {
-          distRoot = request.distRoot;
         }
       } catch (error) {
         hilog.warn(DOMAIN, PET_WINDOW_TAG, 'pet_window_show payload unusable, loading the default page');
@@ -1091,9 +1084,10 @@ export default class EntryAbility extends RustAbility implements StatusBarTrayHo
         return JSON.stringify({ ok: false, error: 'window stage not ready' });
       }
       try {
-        await service.show(pagePath, distRoot);
-        hilog.info(DOMAIN, PET_WINDOW_TAG,
-          `pet window requested: page=${pagePath} distRoot=${distRoot.length > 0 ? distRoot : '(unset)'}`);
+        // The page resolves the packaged frontend itself, probing the HAP layout
+        // it observes rather than trusting a path computed elsewhere.
+        await service.show(pagePath);
+        hilog.info(DOMAIN, PET_WINDOW_TAG, `pet window requested: page=${pagePath}`);
         return JSON.stringify({ ok: true });
       } catch (error) {
         const businessError: BusinessError = error as BusinessError;

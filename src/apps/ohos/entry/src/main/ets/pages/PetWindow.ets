@@ -27,11 +27,23 @@ const DOMAIN: number = 0x0000;
  * bytes from an app-owned scheme keeps module scripts working (a `file://` page
  * cannot import ES modules) without duplicating the bundle into rawfile.
  */
-const PET_SCHEME: string = 'bitfunpet';
-const PET_SCHEME_HOST: string = 'local';
-const RESFILE_DIST: string = 'resources/resfile/dist';
+/**
+ * Scheme the pet page is served from.
+ *
+ * ArkWeb only treats a fixed set of schemes as CORS-enabled
+ * (`arkweb`, `asset`, `chrome*`, `data`, `http(s)`, `ipc`, `tauri`). A private
+ * scheme registered with `customizeSchemes` is rejected once the ArkWeb engine
+ * has already started (error 17100020, because the main window started it), and
+ * the page then runs with origin `null`, which blocks every module script and
+ * stylesheet. `tauri` is in that allowed set and the main window's webview
+ * already registered it process-wide, so the pet page reuses it and answers the
+ * requests itself through `onInterceptRequest`.
+ */
+const PET_SCHEME: string = 'tauri';
+const PET_SCHEME_HOST: string = 'localhost';
+const ENTRY_RESFILE_DIST: string = 'entry/resources/resfile/dist';
+const APP_RESFILE_DIST: string = 'resources/resfile/dist';
 const PAGE_PATH_KEY: string = 'bitfunPetPagePath';
-const DIST_ROOT_KEY: string = 'bitfunPetDistRoot';
 
 interface PetRectRequest {
   width: number;
@@ -126,31 +138,16 @@ struct PetWindow {
   private rectSubscriber: commonEventManager.CommonEventSubscriber | null = null;
   private petWindow: window.Window | null = null;
   private pageUrl: string = '';
-  private distRoot: string = '';
   private resolvedDistRoot: string = '';
   private lastWidth: number = 0;
   private lastHeight: number = 0;
   private servedFirstFile: boolean = false;
 
   aboutToAppear(): void {
-    // The scheme has to be registered before the Web component attaches its
-    // controller, otherwise the first navigation fails and the window stays
-    // blank until a reload.
-    try {
-      webview.WebviewController.customizeSchemes([
-        { schemeName: PET_SCHEME, isSupportCORS: true, isSupportFetch: true },
-      ]);
-    } catch (error) {
-      const businessError: BusinessError = error as BusinessError;
-      hilog.error(DOMAIN, PET_WINDOW_TAG,
-        `customizeSchemes failed: code=${businessError.code} message=${businessError.message}`);
-    }
     const pagePath: string = AppStorage.get<string>(PAGE_PATH_KEY) ?? 'index.html?bitfunWindow=agent-companion';
-    this.distRoot = AppStorage.get<string>(DIST_ROOT_KEY) ?? '';
     this.pageUrl = `${PET_SCHEME}://${PET_SCHEME_HOST}/${pagePath}`;
     this.petWindow = AppStorage.get<window.Window>('bitfunPetWindow') ?? null;
-    hilog.info(DOMAIN, PET_WINDOW_TAG,
-      `pet page loading: ${this.pageUrl} distRoot=${this.distRoot.length > 0 ? this.distRoot : '(fallback)'}`);
+    hilog.info(DOMAIN, PET_WINDOW_TAG, `pet page loading: ${this.pageUrl}`);
     this.subscribeHostEvents();
   }
 
@@ -329,12 +326,14 @@ struct PetWindow {
       return this.resolvedDistRoot;
     }
     const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
-    const candidates: string[] = [];
-    if (this.distRoot.length > 0) {
-      candidates.push(this.distRoot);
-    }
-    candidates.push(`${context.bundleCodeDir}/${RESFILE_DIST}`);
-    candidates.push(`${context.bundleCodeDir}/entry/${RESFILE_DIST}`);
+    // Module resources live one level below the bundle root on this platform:
+    // `/data/storage/el1/bundle/entry/resources/resfile/dist` holds the staged
+    // frontend, while the bundle-level `resources/resfile` stays empty. Keep both
+    // candidates and log each probe so a packaging change is visible in hilog.
+    const candidates: string[] = [
+      `${context.bundleCodeDir}/${ENTRY_RESFILE_DIST}`,
+      `${context.bundleCodeDir}/${APP_RESFILE_DIST}`,
+    ];
     for (const candidate of candidates) {
       const hasIndex: boolean = fileIo.accessSync(`${candidate}/index.html`);
       hilog.info(DOMAIN, PET_WINDOW_TAG,

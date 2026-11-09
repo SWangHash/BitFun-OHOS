@@ -16,7 +16,6 @@ const PET_WINDOW_INITIAL_SIZE: number = 120;
 const PET_WINDOW_EDGE_GAP: number = 16;
 
 const PAGE_PATH_KEY: string = 'bitfunPetPagePath';
-const DIST_ROOT_KEY: string = 'bitfunPetDistRoot';
 const WINDOW_HANDLE_KEY: string = 'bitfunPetWindow';
 const DEFAULT_PAGE_PATH: string = 'index.html?bitfunWindow=agent-companion';
 
@@ -45,10 +44,9 @@ export class PetWindowService {
   }
 
   /** Show (or recreate) the pet window and load the pet page into it. */
-  async show(pagePath: string, distRoot: string): Promise<void> {
+  async show(pagePath: string): Promise<void> {
     AppStorage.setOrCreate<string>(PAGE_PATH_KEY,
       pagePath.length > 0 ? pagePath : DEFAULT_PAGE_PATH);
-    AppStorage.setOrCreate<string>(DIST_ROOT_KEY, distRoot);
 
     if (this.petWindow === null) {
       const created: window.Window | null = await this.createWindow();
@@ -120,13 +118,6 @@ export class PetWindowService {
       } catch (error) {
         this.logWindowError('setWindowFocusable', error);
       }
-      try {
-        // Cross-application stacking needs a system-level permission; without it
-        // the pet stays above its own app only.
-        await created.setWindowTopmost(true);
-      } catch (error) {
-        this.logWindowError('setWindowTopmost', error);
-      }
       hilog.info(DOMAIN, PET_WINDOW_TAG,
         `pet subwindow created: rect=${rect.width}x${rect.height}@${rect.left},${rect.top}`);
       return created;
@@ -144,8 +135,10 @@ export class PetWindowService {
       this.logWindowError('setWindowBackgroundColor', error);
     }
     try {
+      // `setWindowDecorHeight(0)` is not accepted here (error 401: the platform
+      // only allows 37..112), and the window was created with `decorEnabled:
+      // false`, so hiding visibility alone removes the title bar.
       petWindow.setWindowDecorVisible(false);
-      petWindow.setWindowDecorHeight(0);
     } catch (error) {
       this.logWindowError('setWindowDecorVisible', error);
     }

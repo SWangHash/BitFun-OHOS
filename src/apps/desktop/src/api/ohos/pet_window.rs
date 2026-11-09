@@ -35,57 +35,15 @@ fn validate_rect(width: f64, height: f64) -> Result<(), String> {
     Ok(())
 }
 
-/// Locate the packaged frontend directory the pet page is served from.
-///
-/// ArkTS cannot guess this path: the HAP install layout differs between builds
-/// and `resfile` is the packaging convention, not an API. Tauri already resolves
-/// the same tree for the main window, so ask it and log every candidate; a wrong
-/// guess here is exactly what makes the pet window come up blank.
-pub(crate) fn dist_root(app: &tauri::AppHandle) -> String {
-    use tauri::Manager;
-
-    let candidates = ["dist", "resources/resfile/dist"]
-        .iter()
-        .filter_map(|relative| {
-            app.path()
-                .resolve(relative, tauri::path::BaseDirectory::Resource)
-                .ok()
-        })
-        .collect::<Vec<_>>();
-
-    let mut chosen = String::new();
-    for candidate in &candidates {
-        let has_index = candidate.join("index.html").is_file();
-        log::info!(
-            "Agent companion pet frontend candidate: path={} index_html={}",
-            candidate.display(),
-            has_index
-        );
-        if has_index && chosen.is_empty() {
-            chosen = candidate.to_string_lossy().to_string();
-        }
-    }
-    if chosen.is_empty() {
-        chosen = candidates
-            .first()
-            .map(|candidate| candidate.to_string_lossy().to_string())
-            .unwrap_or_default();
-        log::warn!(
-            "Agent companion pet frontend not found under the resource directory; falling back to {}",
-            chosen
-        );
-    }
-    chosen
-}
-
 /// Ask ArkTS to show (or reuse) the pet window, loading `page_path` from the
-/// packaged frontend. The path keeps the desktop entry query so the same bundle
-/// selects the pet root; `distRoot` is the directory ArkTS serves it from.
-pub(crate) async fn show(app: &tauri::AppHandle, page_path: &str) -> Result<(), String> {
-    let request = serde_json::json!({
-        "path": page_path,
-        "distRoot": dist_root(app),
-    });
+/// packaged frontend.
+///
+/// The page path keeps the desktop entry query so the same bundle selects the
+/// pet root. ArkTS resolves the frontend directory itself: the HAP install
+/// layout is only observable from the ArkTS context (`bundleCodeDir`), and
+/// probing it there keeps this bridge free of path assumptions.
+pub(crate) async fn show(page_path: &str) -> Result<(), String> {
+    let request = serde_json::json!({ "path": page_path });
     call_host("pet_window_show", request.to_string())
         .await
         .map(|_| ())

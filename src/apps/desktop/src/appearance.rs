@@ -1267,9 +1267,9 @@ pub async fn show_agent_companion_desktop_pet(app: tauri::AppHandle) -> Result<(
 /// same bundle entry the desktop companion window uses.
 #[cfg(target_env = "ohos")]
 #[tauri::command]
-pub async fn show_agent_companion_desktop_pet(app: tauri::AppHandle) -> Result<(), String> {
+pub async fn show_agent_companion_desktop_pet(_app: tauri::AppHandle) -> Result<(), String> {
     let page_path = builtin_frontend_path("?bitfunWindow=agent-companion");
-    crate::api::ohos::pet_window::show(&app, &page_path).await
+    crate::api::ohos::pet_window::show(&page_path).await
 }
 
 /// Keep the independent companion visible when the main window is minimized.
