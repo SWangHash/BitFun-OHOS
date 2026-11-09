@@ -8,8 +8,11 @@ pub mod commands;
 #[cfg(windows)]
 mod desktop_layer;
 mod fetch_gate;
+#[cfg(target_env = "ohos")]
+mod ohos;
 mod refresh;
 mod store;
+mod view_model;
 mod windows;
 
 use std::collections::{HashMap, HashSet};
@@ -188,6 +191,10 @@ impl DesktopCards {
                 error
             );
         }
+        // HarmonyOS renders cards natively, so the web-ui event above has no
+        // listener there; push the same change to the ArkUI subwindow instead.
+        #[cfg(target_env = "ohos")]
+        ohos::push_changed(card_id, card, deleted);
     }
 
     fn save_locked(store: &mut CardStore) -> Result<(), String> {
@@ -962,6 +969,47 @@ impl DesktopCards {
             }
             DesktopCardHostRequest::Refresh { card_id } => {
                 json!({ "card": self.refresh_now(&card_id).await? })
+            }
+            DesktopCardHostRequest::SetChecklistItem {
+                card_id,
+                item_id,
+                done,
+            } => {
+                json!({ "card": self.set_checklist_item(&card_id, &item_id, done).await? })
+            }
+            DesktopCardHostRequest::SetAlwaysOnTop {
+                card_id,
+                always_on_top,
+                desktop_pinned,
+            } => {
+                json!({ "card": self.set_stacking(&card_id, always_on_top, desktop_pinned).await? })
+            }
+            DesktopCardHostRequest::RecordGeometry {
+                card_id,
+                position,
+                size,
+            } => {
+                self.record_geometry(card_id, position, size);
+                json!({ "ok": true })
+            }
+            DesktopCardHostRequest::OpenSourceSession { card_id } => {
+                let card = self.get(&card_id).await?;
+                let session_id = card.origin.session_id.clone().unwrap_or_default();
+                if session_id.is_empty() {
+                    return Err("This desktop card has no source session.".to_string());
+                }
+                if let Err(error) = self.app.emit(
+                    "agent-companion://open-session",
+                    json!({ "sessionId": session_id }),
+                ) {
+                    log::warn!(
+                        "Failed to request the card source session: card_id={}, error={}",
+                        card_id,
+                        error
+                    );
+                }
+                crate::appearance::show_main_window(self.app.clone()).await?;
+                json!({ "ok": true })
             }
         };
         log::debug!("Desktop card tool request handled: action={}", action);

@@ -577,6 +577,28 @@ pub enum DesktopCardHostRequest {
     Refresh {
         card_id: String,
     },
+    /// Host-surface card interaction. Desktop reaches these through dedicated
+    /// Tauri commands; hosts without a webview IPC channel (HarmonyOS) reach
+    /// them through this same handle so the store stays single-owner.
+    SetChecklistItem {
+        card_id: String,
+        item_id: String,
+        done: bool,
+    },
+    /// `desktop_pinned` is omitted by older callers and stays Windows-only.
+    SetAlwaysOnTop {
+        card_id: String,
+        always_on_top: bool,
+        desktop_pinned: Option<bool>,
+    },
+    /// Persists the geometry a native card window reports.
+    RecordGeometry {
+        card_id: String,
+        position: Option<DesktopCardPosition>,
+        size: Option<DesktopCardSize>,
+    },
+    /// Brings the main window forward and opens the card's origin session.
+    OpenSourceSession { card_id: String },
 }
 
 impl DesktopCardHostRequest {
@@ -590,6 +612,10 @@ impl DesktopCardHostRequest {
             Self::Hide { .. } => "hide",
             Self::Delete { .. } => "delete",
             Self::Refresh { .. } => "refresh",
+            Self::SetChecklistItem { .. } => "setChecklistItem",
+            Self::SetAlwaysOnTop { .. } => "setAlwaysOnTop",
+            Self::RecordGeometry { .. } => "recordGeometry",
+            Self::OpenSourceSession { .. } => "openSourceSession",
         }
     }
 }
