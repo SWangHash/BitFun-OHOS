@@ -44,6 +44,7 @@ import {
   LabelRequest,
 } from '../services/BrowserWebviewService';
 import { FileShareRequest, FileShareService } from '../services/FileShareService';
+import { MiniAppWindowService } from '../services/MiniAppWindowService';
 import { StatusBarTrayHost, StatusBarTrayService } from '../services/StatusBarTrayService';
 
 
@@ -681,6 +682,15 @@ export default class EntryAbility extends RustAbility implements StatusBarTrayHo
     ): Promise<string> => {
       return await desktopCardWindowService.handle(arg);
     });
+    // Independent MiniApp windows: the Rust presentation adapter asks this
+    // service to create a WindowStage sub-window instead of spawning a sidecar
+    // process, which HarmonyOS does not support for packaged apps.
+    const miniAppWindows = MiniAppWindowService.getInstance();
+    miniAppWindows.install(windowStage);
+    RustModule.registerArktsFunction('miniapp_window_open', async (
+      _err: Error,
+      arg: string,
+    ): Promise<string> => miniAppWindows.open(arg));
 
     // HarmonyOS has no desktop tray. On 2in1 devices the equivalent surface is
     // the system status bar, and the system only lists a third-party entry that
