@@ -345,11 +345,23 @@ impl AppearanceConfig {
         // the GTK frame square on Wayland. Advertise that so neither this
         // bootstrap nor the Web UI paints an opaque page background over the
         // transparent corners.
-        let native_frame_attribute = if cfg!(target_os = "linux") {
+        //
+        // OpenHarmony compiles as `aarch64-unknown-linux-ohos`, so `target_os` is
+        // "linux" there as well, but the ArkUI host owns a square native window
+        // frame. The client-frame contract must not reach it: the Web UI answers
+        // that attribute by repainting the launch surface with the theme surface
+        // tone, which turned the constant black start window into the app theme
+        // color for the rest of startup. Only desktop Linux advertises it.
+        let client_owned_frame = cfg!(all(target_os = "linux", not(target_env = "ohos")));
+        let native_frame_attribute = if client_owned_frame {
             "root.setAttribute('data-bitfun-native-frame', 'client');"
         } else {
             ""
         };
+        // The transparent page background still covers OpenHarmony: its window
+        // paints the launch black, so an unpainted page must show that instead of
+        // the theme surface tone. The launch canvas itself is forced black by the
+        // startup document there.
         let transparent_page_background = native_sidebar_material || cfg!(target_os = "linux");
         let startup_trace_id_json = serde_json::to_string(startup_trace_id)
             .unwrap_or_else(|_| "\"desktop-unknown\"".to_string());

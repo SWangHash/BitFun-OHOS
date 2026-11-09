@@ -125,6 +125,7 @@ describe('startup performance contract', () => {
     const abilitySource = readSource(
       '../../../../apps/ohos/entry/src/main/ets/entryability/EntryAbility.ets',
     );
+    const appearanceSource = readSource('../../../../apps/desktop/src/appearance.rs');
     const componentSource = readSource(
       '../../../../apps/ohos/oh-rs-ability/src/main/ets/components/DefaultXComponent.ets',
     );
@@ -162,6 +163,18 @@ describe('startup performance contract', () => {
     expect(source).toContain(
       "document.body.style.setProperty('background-color', '#000000', 'important')",
     );
+
+    // The HarmonyOS target compiles as `aarch64-unknown-linux-ohos`, so its host
+    // reports `target_os = "linux"` as well. The desktop-Linux client-frame
+    // contract must stay off it: the Web UI answers that attribute with
+    // `html[data-bitfun-native-frame='client'] .splash-screen`, which repaints the
+    // launch sheet with the theme surface tone instead of the start-window black
+    // while the mirror and the overlay hand over. Every other Linux-only branch in
+    // the same module already excludes `target_env = "ohos"`.
+    expect(appearanceSource).toContain(
+      'cfg!(all(target_os = "linux", not(target_env = "ohos")))',
+    );
+    expect(source).toContain("root.removeAttribute('data-bitfun-native-frame')");
 
     // No white frame between the system start window and the launch page: the
     // ability window and the launch page root are painted with the launch

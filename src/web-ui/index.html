@@ -99,6 +99,23 @@
         }
         root.setAttribute('data-contrast', 'standard');
         root.setAttribute('data-density', 'compact');
+        // The HarmonyOS build of the Rust host reports `target_os = "linux"`
+        // (its target is `aarch64-unknown-linux-ohos`), so the desktop-Linux
+        // client-frame contract can reach this page. Answering it repaints the
+        // startup sheet with the theme surface tone and rounds the shell to 12px,
+        // which showed up as the launch canvas switching from the start-window
+        // black to the app theme color before the splash was dropped. The ArkUI
+        // host owns a square native frame, so the contract never applies here and
+        // the attribute is dropped before the launch styles resolve.
+        // The fingerprint mirrors isOpenHarmonyRuntime() in
+        // src/infrastructure/runtime/environment.ts (this script cannot import);
+        // the startup script at the end of the body reuses the published result.
+        window.__BITFUN_IS_OHOS_HOST__ = /(?:openharmony|harmonyos|ohos)/i.test(
+          (navigator.userAgent || '') + ' ' + (navigator.platform || '')
+        );
+        if (window.__BITFUN_IS_OHOS_HOST__) {
+          root.removeAttribute('data-bitfun-native-frame');
+        }
         // The shell owns the window frame background when the desktop bootstrap
         // advertises a client-side frame; painting it here would cover the
         // transparent corners.
@@ -514,12 +531,9 @@
         // size and no idle animation. The overlay stays mounted until the shell
         // hands off and is then dropped in one frame (see the instant-exit class
         // below); the loading hint stays off because the OHOS host draws its own
-        // launch copy.
-        // The fingerprint mirrors isOpenHarmonyRuntime() in
-        // src/infrastructure/runtime/environment.ts (this script cannot import).
-        var isOhosHost = /(?:openharmony|harmonyos|ohos)/i.test(
-          (navigator.userAgent || '') + ' ' + (navigator.platform || '')
-        );
+        // launch copy. The host fingerprint was resolved by the head script, which
+        // also drops the desktop-Linux client-frame contract on this host.
+        var isOhosHost = window.__BITFUN_IS_OHOS_HOST__ === true;
         if (isOhosHost) {
           var ohosSplash = document.querySelector('.splash-screen');
           if (ohosSplash) ohosSplash.classList.add('splash-screen--ohos-brand');

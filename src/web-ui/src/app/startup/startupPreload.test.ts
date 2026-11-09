@@ -276,7 +276,18 @@ describe('startup preload shell', () => {
     // native splash mirror exactly on the takeover frame (no gap between them).
     expect(html).toContain('bitfun-startup-overlay-presented');
 
-    const dom = new JSDOM(html, {
+    // The HarmonyOS build of the Rust host reports `target_os = "linux"`, so the
+    // desktop client-frame contract can arrive here. Answering it repaints the
+    // splash sheet with the theme surface tone (and rounds the shell), which is
+    // the launch canvas turning from the start-window black into the app theme
+    // color before the overlay is dropped.
+    expect(html).toContain("root.removeAttribute('data-bitfun-native-frame')");
+    const clientFrameHtml = html.replace(
+      '<html lang="zh-CN">',
+      '<html lang="zh-CN" data-bitfun-native-frame="client">',
+    );
+
+    const dom = new JSDOM(clientFrameHtml, {
       url: 'http://localhost:1422/',
       runScripts: 'dangerously',
       beforeParse(window) {
@@ -284,6 +295,7 @@ describe('startup preload shell', () => {
       },
     });
 
+    expect(dom.window.document.documentElement.hasAttribute('data-bitfun-native-frame')).toBe(false);
     expect(
       dom.window.document.querySelector('.splash-screen')?.classList.contains('splash-screen--ohos-brand'),
     ).toBe(true);
