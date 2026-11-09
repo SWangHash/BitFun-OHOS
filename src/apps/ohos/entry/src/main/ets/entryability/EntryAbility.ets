@@ -724,7 +724,7 @@ export default class EntryAbility extends RustAbility implements StatusBarTrayHo
     // soon as the window stage does so a show request never races the stage.
     // It stays after the launch-chrome step, which must remain the first
     // synchronous action of this method.
-    this.petWindowService = new PetWindowService(windowStage);
+    this.petWindowService = new PetWindowService(windowStage, this.context);
     // Paint the window frame itself black for the whole launch. The system start
     // window owns the first frames; the moment it goes away the window's own
     // background shows through until the launch page paints, and its default is

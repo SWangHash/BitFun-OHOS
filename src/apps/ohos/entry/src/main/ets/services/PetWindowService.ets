@@ -1,3 +1,4 @@
+import { common } from '@kit.AbilityKit';
 import { display, window } from '@kit.ArkUI';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
@@ -5,10 +6,12 @@ import { PET_WINDOW_TAG } from './PetWindowChannel';
 
 const DOMAIN: number = 0x0000;
 /**
- * Subwindow name. A subwindow is the only HarmonyOS carrier that is a real
- * top-level window without its own Dock/task entry: a second UIAbility gets its
- * own task, so hovering the Dock icon previews two windows.
+ * Window names. A float window is the only carrier that stays above *other*
+ * applications; a subwindow is the fallback for builds that cannot get the
+ * restricted float permission, and is still a real top-level window without its
+ * own Dock/task entry (a second UIAbility would add one).
  */
+const PET_FLOAT_WINDOW_NAME: string = 'agent-companion-pet-float';
 const PET_SUBWINDOW_NAME: string = 'agent-companion-pet';
 const PET_SUBWINDOW_TITLE: string = 'BitFun Pet';
 /** Initial CSS pixel box; the pet page resizes it as bubbles appear. */
@@ -20,16 +23,21 @@ const WINDOW_HANDLE_KEY: string = 'bitfunPetWindow';
 const DEFAULT_PAGE_PATH: string = 'index.html?bitfunWindow=agent-companion';
 
 /**
- * Owns the Agent companion pet's subwindow.
+ * Owns the Agent companion pet window.
  *
- * The pet needs its own desktop position and must be draggable outside the app
- * window, but it must not become a second application task: a subwindow belongs
- * to the main window (no Dock icon, no task entry, not in Alt+Tab) while still
- * being a real OS window that can sit anywhere on screen.
+ * Carrier preference, best first:
  *
- * The trade-off is lifecycle: HarmonyOS hides a subwindow with its parent, so
- * minimizing the main window hides the pet. That is the platform's rule for
- * this carrier, not something this service can opt out of.
+ * 1. **Float window** (`TYPE_FLOAT`). The only HarmonyOS window that stays above
+ *    other applications, which is what a desktop pet is for. It requires
+ *    `ohos.permission.SYSTEM_FLOAT_WINDOW`, a restricted (ACL) permission, so a
+ *    normal build gets error 201 here and falls back.
+ * 2. **Subwindow**. A real top-level window with its own screen position and no
+ *    Dock/task entry, but other applications cover it, and HarmonyOS hides it
+ *    with its parent on minimize.
+ *
+ * `setWindowTopmost` is not an option for either: main windows reject a
+ * subwindow with 1300004 ("Only main windows are supported"), and a main window
+ * needs `ohos.permission.WINDOW_TOPMOST`, equally restricted.
  *
  * The page (`pages/PetWindow.ets`) receives the handle through AppStorage and
  * drives its own geometry/move loop; this service only creates, shows and
@@ -37,10 +45,14 @@ const DEFAULT_PAGE_PATH: string = 'index.html?bitfunWindow=agent-companion';
  */
 export class PetWindowService {
   private readonly windowStage: window.WindowStage;
+  private readonly context: common.UIAbilityContext;
   private petWindow: window.Window | null = null;
+  /** Which carrier actually got created; reported for logs and diagnostics. */
+  private carrier: string = 'none';
 
-  constructor(windowStage: window.WindowStage) {
+  constructor(windowStage: window.WindowStage, context: common.UIAbilityContext) {
     this.windowStage = windowStage;
+    this.context = context;
   }
 
   /** Show (or recreate) the pet window and load the pet page into it. */
@@ -71,7 +83,7 @@ export class PetWindowService {
       // leaves the title bar visible.
       this.hideChrome(petWindow);
       hilog.info(DOMAIN, PET_WINDOW_TAG,
-        `pet subwindow shown: decor=${petWindow.getWindowDecorVisible()}`);
+        `pet window shown: carrier=${this.carrier} decor=${petWindow.getWindowDecorVisible()}`);
     } catch (error) {
       this.logWindowError('showWindow', error);
     }
@@ -87,7 +99,7 @@ export class PetWindowService {
     }
     try {
       await petWindow.destroyWindow();
-      hilog.info(DOMAIN, PET_WINDOW_TAG, 'pet subwindow destroyed');
+      hilog.info(DOMAIN, PET_WINDOW_TAG, `pet window destroyed: carrier=${this.carrier}`);
     } catch (error) {
       this.logWindowError('destroyWindow', error);
     }
@@ -99,6 +111,53 @@ export class PetWindowService {
   }
 
   private async createWindow(): Promise<window.Window | null> {
+    const floatWindow: window.Window | null = await this.createFloatWindow();
+    if (floatWindow !== null) {
+      this.carrier = 'float';
+      return floatWindow;
+    }
+    const subWindow: window.Window | null = await this.createSubWindow();
+    this.carrier = subWindow === null ? 'none' : 'subwindow';
+    return subWindow;
+  }
+
+  /**
+   * Try the always-on-top carrier.
+   *
+   * `TYPE_FLOAT` is the only window type HarmonyOS keeps above other
+   * applications, and it is gated by the restricted
+   * `ohos.permission.SYSTEM_FLOAT_WINDOW`. A normal build answers 201 here, which
+   * is expected — the pet then falls back to a subwindow that other apps cover.
+   */
+  private async createFloatWindow(): Promise<window.Window | null> {
+    try {
+      const created: window.Window = await window.createWindow({
+        name: PET_FLOAT_WINDOW_NAME,
+        windowType: window.WindowType.TYPE_FLOAT,
+        ctx: this.context,
+        decorEnabled: false,
+        title: PET_SUBWINDOW_TITLE,
+      });
+      // `Configuration` has no rectangle field, so a float window is placed
+      // explicitly; a subwindow already takes `windowRect` at creation.
+      await this.configureCreatedWindow(created, true);
+      hilog.info(DOMAIN, PET_WINDOW_TAG,
+        'pet float window created; it stays above other applications');
+      return created;
+    } catch (error) {
+      const businessError: BusinessError = error as BusinessError;
+      if (businessError.code === 201) {
+        hilog.warn(DOMAIN, PET_WINDOW_TAG,
+          'pet float window unavailable: ohos.permission.SYSTEM_FLOAT_WINDOW is not granted; '
+          + 'falling back to a subwindow, which other applications cover');
+      } else {
+        this.logWindowError('createWindow(TYPE_FLOAT)', error);
+      }
+      return null;
+    }
+  }
+
+  private async createSubWindow(): Promise<window.Window | null> {
     const rect: window.Rect = this.initialRect();
     try {
       const created: window.Window =
@@ -111,19 +170,34 @@ export class PetWindowService {
           outlineEnabled: false,
           windowRect: rect,
         });
-      try {
-        // The reply composer needs focus; showing the window must not take it,
-        // which `setWindowFocusable` alone does not change.
-        await created.setWindowFocusable(true);
-      } catch (error) {
-        this.logWindowError('setWindowFocusable', error);
-      }
+      await this.configureCreatedWindow(created, false);
       hilog.info(DOMAIN, PET_WINDOW_TAG,
         `pet subwindow created: rect=${rect.width}x${rect.height}@${rect.left},${rect.top}`);
       return created;
     } catch (error) {
       this.logWindowError('createSubWindowWithOptions', error);
       return null;
+    }
+  }
+
+  /** Settings both carriers need; a float window additionally places itself. */
+  private async configureCreatedWindow(created: window.Window, isFloat: boolean): Promise<void> {
+    try {
+      // The reply composer needs focus; showing the window must not take it,
+      // which `setWindowFocusable` alone does not change.
+      await created.setWindowFocusable(true);
+    } catch (error) {
+      this.logWindowError('setWindowFocusable', error);
+    }
+    if (!isFloat) {
+      return;
+    }
+    const rect: window.Rect = this.initialRect();
+    try {
+      await created.resizeAsync(rect.width, rect.height);
+      await created.moveWindowTo(rect.left, rect.top);
+    } catch (error) {
+      this.logWindowError('place float window', error);
     }
   }
 

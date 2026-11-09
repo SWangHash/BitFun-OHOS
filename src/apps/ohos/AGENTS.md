@@ -95,10 +95,17 @@ Set `localStorage.bitfun.agentCompanionInAppFallback=1` to bring back the previo
 in-app overlay (`AgentCompanionInAppPet`) plus the minimize-to-pet morph without a
 rebuild; the fallback is the device escape hatch, not dead code.
 
-Cross-application stacking is `window.Window.setWindowTopmost(true)`, which
-requires `ohos.permission.WINDOW_TOPMOST` (system-level). The ability does not
-declare it, so the call rejects on a normal build and the pet stays a normal
-window; it is wrapped in a logged try/catch for exactly that reason.
+Staying above **other applications** is a platform capability, not a flag:
+
+- `setWindowTopmost` rejects a subwindow outright (1300004, "Only main windows
+  are supported") and needs `ohos.permission.WINDOW_TOPMOST` on a main window.
+- `window.createWindow({ windowType: TYPE_FLOAT })` is the only carrier that
+  floats above other apps, and it needs the restricted
+  `ohos.permission.SYSTEM_FLOAT_WINDOW` (error 201 without it).
+
+`PetWindowService` therefore tries a float window first and falls back to a
+subwindow, logging `carrier=float|subwindow`, so a build that can be granted the
+ACL permission gets true pet behavior while a normal build degrades predictably.
 
 ArkUI API notes worth keeping in mind here: `WebResourceResponse` is a global
 ArkUI class with setters (`setResponseData`/`setResponseMimeType`/
