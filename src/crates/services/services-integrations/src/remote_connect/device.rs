@@ -16,6 +16,9 @@ pub use crate::remote_persistence::DeviceIdentityRecord as DeviceIdentity;
 
 static CACHED_IDENTITY: Mutex<Option<DeviceIdentity>> = Mutex::new(None);
 
+/// Last-resort name for a host that answered no usable name at all.
+const UNKNOWN_DEVICE_NAME: &str = "unknown-host";
+
 #[cfg(test)]
 thread_local! {
     static TEST_IDENTITY_PATH: std::cell::RefCell<Option<PathBuf>> = const { std::cell::RefCell::new(None) };
@@ -27,14 +30,14 @@ impl DeviceIdentity {
         if let Ok(guard) = CACHED_IDENTITY.lock() {
             if let Some(cached) = guard.as_ref() {
                 let mut identity = cached.clone();
-                identity.device_name = get_hostname();
+                identity.device_name = device_display_name();
                 identity.mac_address = get_mac_address();
                 return Ok(identity);
             }
         }
 
         let mut identity = load_persisted()?.unwrap_or_else(compute_initial_identity);
-        identity.device_name = get_hostname();
+        identity.device_name = device_display_name();
         identity.mac_address = get_mac_address();
         save_persisted(&identity)?;
         cache_identity(identity.clone());
@@ -61,7 +64,7 @@ impl DeviceIdentity {
             identity.device_id
         );
         identity.device_id = device_id.to_string();
-        identity.device_name = get_hostname();
+        identity.device_name = device_display_name();
         identity.mac_address = get_mac_address();
         save_persisted(&identity)?;
         cache_identity(identity.clone());
@@ -153,19 +156,35 @@ pub async fn local_device_metadata() -> serde_json::Value {
     metadata_payload(os, model, version)
 }
 
+/// The DeviceInfo NDK getters this host reads, shared by the name and the
+/// metadata so both use one link declaration.
 #[cfg(target_env = "ohos")]
-fn ohos_device_metadata() -> (Option<String>, Option<String>) {
+mod device_info_ndk {
+    use super::metadata_value;
     use std::ffi::{c_char, CStr};
 
     // DeviceInfo NDK APIs are available since API 10, below the HAP's API 21 minimum.
     #[link(name = "deviceinfo_ndk.z")]
     unsafe extern "C" {
+        fn OH_GetMarketName() -> *const c_char;
         fn OH_GetProductModel() -> *const c_char;
         fn OH_GetDisplayVersion() -> *const c_char;
     }
 
+    pub(super) fn market_name() -> Option<String> {
+        read(OH_GetMarketName)
+    }
+
+    pub(super) fn product_model() -> Option<String> {
+        read(OH_GetProductModel)
+    }
+
+    pub(super) fn display_version() -> Option<String> {
+        read(OH_GetDisplayVersion)
+    }
+
     fn read(get: unsafe extern "C" fn() -> *const c_char) -> Option<String> {
-        // SAFETY: both DeviceInfo getters take no arguments and return borrowed,
+        // SAFETY: these DeviceInfo getters take no arguments and return borrowed,
         // NUL-terminated platform strings. Copy them without changing ownership.
         let value = unsafe { get() };
         if value.is_null() {
@@ -177,8 +196,14 @@ fn ohos_device_metadata() -> (Option<String>, Option<String>) {
             .ok()
             .and_then(metadata_value)
     }
+}
 
-    (read(OH_GetProductModel), read(OH_GetDisplayVersion))
+#[cfg(target_env = "ohos")]
+fn ohos_device_metadata() -> (Option<String>, Option<String>) {
+    (
+        device_info_ndk::product_model(),
+        device_info_ndk::display_version(),
+    )
 }
 
 // Validate independently: a broken firmware/probe value must not reject the
@@ -287,11 +312,56 @@ fn get_hostname() -> String {
     hostname::get()
         .ok()
         .and_then(|h| h.into_string().ok())
-        .unwrap_or_else(|| "unknown-host".to_string())
+        .unwrap_or_else(|| UNKNOWN_DEVICE_NAME.to_string())
 }
 
 fn get_mac_address() -> String {
     "00:00:00:00:00:00".to_string()
+}
+
+/// The name other devices see for this machine.
+///
+/// A kernel nodename is the only name a plain Windows, macOS, or Linux host can
+/// answer, but a sandboxed platform replaces it with the kernel default:
+/// HarmonyOS reports `localhost` for `gethostname()`, the same value Android
+/// reports, so the nodename alone is never a HarmonyOS device name. The host
+/// kinds that publish a product name are asked first, and a placeholder from
+/// any source is skipped rather than shown as a name.
+fn device_display_name() -> String {
+    #[cfg(target_env = "ohos")]
+    let platform_names = [
+        device_info_ndk::market_name(),
+        device_info_ndk::product_model(),
+    ];
+    #[cfg(not(target_env = "ohos"))]
+    let platform_names: [Option<String>; 2] = [None, None];
+
+    first_usable_name(platform_names.into_iter().chain([Some(get_hostname())]))
+        .unwrap_or_else(|| UNKNOWN_DEVICE_NAME.to_string())
+}
+
+/// First candidate a peer can recognize, ignoring unset and placeholder values.
+fn first_usable_name(candidates: impl IntoIterator<Item = Option<String>>) -> Option<String> {
+    candidates
+        .into_iter()
+        .flatten()
+        .find_map(|candidate| device_name_value(&candidate))
+}
+
+/// A displayable device name, or `None` when the value names the sandbox rather
+/// than the machine. Validation matches what the Relay accepts for `device_name`
+/// (non-blank, at most 256 bytes, no control characters).
+fn device_name_value(raw: &str) -> Option<String> {
+    const PLACEHOLDERS: [&str; 6] = [
+        "localhost",
+        "localhost.localdomain",
+        "localhost6",
+        "unknown-host",
+        "unknown",
+        "none",
+    ];
+    let value = metadata_value(raw)?;
+    (!PLACEHOLDERS.contains(&value.to_ascii_lowercase().as_str())).then_some(value)
 }
 
 #[cfg(test)]
@@ -328,6 +398,66 @@ mod tests {
             .map(|d| d.as_nanos())
             .unwrap_or(0);
         format!("{nanos:x}")
+    }
+
+    #[test]
+    fn placeholder_nodenames_never_become_device_names() {
+        // HarmonyOS answers `localhost` for gethostname(), like Android: the
+        // kernel default names the sandbox, not the machine.
+        for placeholder in [
+            "localhost",
+            " LocalHost ",
+            "localhost.localdomain",
+            "unknown-host",
+            "none",
+            "",
+            "   ",
+        ] {
+            assert_eq!(device_name_value(placeholder), None, "{placeholder:?}");
+        }
+        assert_eq!(
+            device_name_value(" Studio-Mac.local "),
+            Some("Studio-Mac.local".into())
+        );
+        assert_eq!(device_name_value(&"x".repeat(257)), None);
+    }
+
+    #[test]
+    fn platform_name_wins_over_a_placeholder_nodename() {
+        assert_eq!(
+            first_usable_name([
+                Some("HUAWEI MateBook Pro".to_string()),
+                Some("TianYing".to_string()),
+                Some("localhost".to_string()),
+            ]),
+            Some("HUAWEI MateBook Pro".to_string())
+        );
+        // A platform that answers nothing usable still never promotes the
+        // placeholder: the next candidate is used, else the caller falls back.
+        assert_eq!(
+            first_usable_name([
+                None,
+                Some("TianYing".to_string()),
+                Some("localhost".to_string())
+            ]),
+            Some("TianYing".to_string())
+        );
+        assert_eq!(
+            first_usable_name([None, None, Some("localhost".to_string())]),
+            None
+        );
+    }
+
+    #[test]
+    fn device_display_name_is_never_a_placeholder_or_empty() {
+        let name = device_display_name();
+        assert!(!name.trim().is_empty());
+        // Either a real name that survives peer display validation, or the
+        // documented last-resort constant when this host has no usable name.
+        assert!(
+            name == UNKNOWN_DEVICE_NAME
+                || device_name_value(&name).as_deref() == Some(name.as_str())
+        );
     }
 
     #[test]

@@ -148,15 +148,6 @@
           "when": "always"
         }
       },
-      // Gates the bundle-manager (application info) access the host performs on
-      // this product line. Do not remove it as "unused": the reference is native,
-      // not visible in ArkTS. A compile SDK that does not predefine this
-      // permission rejects it during PreBuild validation; that is an SDK gap, not
-      // a reason to drop the request.
-      {
-        "name": "ohos.permission.ALLOW_USE_BM",
-        "reason": "$string:permission_use_bm_reason"
-      },
       // Agent companion pet window stacking. SYSTEM_FLOAT_WINDOW (system_basic,
       // provisionEnable) is what lets the pet sit above other applications; it
       // only arrives through a signing profile whose ACLs include it, which is
