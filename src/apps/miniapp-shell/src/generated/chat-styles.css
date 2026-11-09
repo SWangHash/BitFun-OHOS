@@ -2744,13 +2744,13 @@
 }
 
 .model-round-item__ai-disclaimer {
-  flex: 0 0 100%;
-  margin-block-start: var(--bitfun-space-1);
+  flex: 0 1 auto;
+  min-inline-size: 0;
   color: var(--bitfun-color-content-muted);
   font-family: var(--bitfun-type-flow-meta-font-family);
   font-size: var(--bitfun-type-flow-meta-font-size);
   line-height: var(--bitfun-type-flow-meta-line-height);
-  text-align: start;
+  text-align: end;
   opacity: 0.7;
 }
 

@@ -767,6 +767,9 @@ export const ModelRoundItem = React.memo<ModelRoundItemProps>(
               <TurnUsageMetrics usage={turnTokenUsage} durationMs={turnOutputDurationMs} ttftMs={turnTtftMs} focusable={shouldRevealFooter} />
             </div>
             <div className="model-round-item__completion">
+              <span className="model-round-item__ai-disclaimer">
+                {t('modelRound.aiDisclaimer')}
+              </span>
               {durationMetaItem && (
                 <div
                   className="model-round-item__meta"
@@ -858,9 +861,6 @@ export const ModelRoundItem = React.memo<ModelRoundItemProps>(
                 )} />}
               </div>
             </div>
-            <span className="model-round-item__ai-disclaimer">
-              {t('modelRound.aiDisclaimer')}
-            </span>
           </TurnFooter>
         )}
       </div>

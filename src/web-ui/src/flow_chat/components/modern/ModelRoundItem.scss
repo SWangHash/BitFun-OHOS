@@ -89,16 +89,17 @@
   min-inline-size: 0;
 }
 
-// End-of-turn notice. It takes its own line so the usage readout and the
-// action buttons keep their existing alignment on the row above.
+// End-of-turn notice. It shares the completion cluster with the duration
+// readout so the notice sits on the same row, immediately before the elapsed
+// time, instead of taking its own line under the usage readout.
 .model-round-item__ai-disclaimer {
-  flex: 0 0 100%;
-  margin-block-start: var(--bitfun-space-1);
+  flex: 0 1 auto;
+  min-inline-size: 0;
   color: var(--bitfun-color-content-muted);
   font-family: var(--bitfun-type-flow-meta-font-family);
   font-size: var(--bitfun-type-flow-meta-font-size);
   line-height: var(--bitfun-type-flow-meta-line-height);
-  text-align: start;
+  text-align: end;
   opacity: 0.7;
 }
 
