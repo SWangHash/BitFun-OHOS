@@ -150,12 +150,26 @@
       },
       // Gates the bundle-manager (application info) access the host performs on
       // this product line. Do not remove it as "unused": the reference is native,
-      // not visible from ArkTS. A compile SDK that does not predefine this
+      // not visible in ArkTS. A compile SDK that does not predefine this
       // permission rejects it during PreBuild validation; that is an SDK gap, not
       // a reason to drop the request.
       {
         "name": "ohos.permission.ALLOW_USE_BM",
         "reason": "$string:permission_use_bm_reason"
+      },
+      // Agent companion pet window stacking. SYSTEM_FLOAT_WINDOW (system_basic,
+      // provisionEnable) is what lets the pet sit above other applications; it
+      // only arrives through a signing profile whose ACLs include it, which is
+      // why the pet window falls back to a subwindow when the permission is
+      // missing. WINDOW_TOPMOST is a normal-level permission and covers the
+      // main-window carrier.
+      {
+        "name": "ohos.permission.SYSTEM_FLOAT_WINDOW",
+        "reason": "$string:permission_system_float_window_reason"
+      },
+      {
+        "name": "ohos.permission.WINDOW_TOPMOST",
+        "reason": "$string:permission_window_topmost_reason"
       }
     ],
     "extensionAbilities": [

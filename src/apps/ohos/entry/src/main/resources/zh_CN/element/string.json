@@ -71,6 +71,14 @@
         {
             "name": "status_bar_show_desktop_pet",
             "value": "显示桌面宠物"
+        },
+        {
+            "name": "permission_system_float_window_reason",
+            "value": "用于让智能体宠物始终显示在其他应用窗口之上"
+        },
+        {
+            "name": "permission_window_topmost_reason",
+            "value": "用于将智能体宠物窗口固定在其他窗口之上"
         }
     ]
 }

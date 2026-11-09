@@ -12,6 +12,7 @@ const DOMAIN: number = 0x0000;
  * own Dock/task entry (a second UIAbility would add one).
  */
 const PET_FLOAT_WINDOW_NAME: string = 'agent-companion-pet-float';
+const PET_MAIN_WINDOW_NAME: string = 'agent-companion-pet-main';
 const PET_SUBWINDOW_NAME: string = 'agent-companion-pet';
 const PET_SUBWINDOW_TITLE: string = 'BitFun Pet';
 /** Initial CSS pixel box; the pet page resizes it as bubbles appear. */
@@ -116,9 +117,58 @@ export class PetWindowService {
       this.carrier = 'float';
       return floatWindow;
     }
+    const mainWindow: window.Window | null = await this.createTopmostMainWindow();
+    if (mainWindow !== null) {
+      this.carrier = 'main-topmost';
+      return mainWindow;
+    }
     const subWindow: window.Window | null = await this.createSubWindow();
     this.carrier = subWindow === null ? 'none' : 'subwindow';
     return subWindow;
+  }
+
+  /**
+   * Second attempt: a main-type window pinned with `setWindowTopmost`.
+   *
+   * `WINDOW_TOPMOST` is a normal-level, system-granted permission, so a plain
+   * build can hold it, unlike the float permission. `setWindowTopmost` refuses
+   * subwindows ("only main windows are supported"), which is why this path
+   * creates a `TYPE_MAIN` window instead of reusing the subwindow carrier.
+   */
+  private async createTopmostMainWindow(): Promise<window.Window | null> {
+    let created: window.Window | null = null;
+    try {
+      created = await window.createWindow({
+        name: PET_MAIN_WINDOW_NAME,
+        windowType: window.WindowType.TYPE_MAIN,
+        ctx: this.context,
+        decorEnabled: false,
+        title: PET_SUBWINDOW_TITLE,
+      });
+      await created.setWindowTopmost(true);
+      await this.configureCreatedWindow(created, true);
+      hilog.info(DOMAIN, PET_WINDOW_TAG,
+        'pet main-type window created and pinned above other windows (WINDOW_TOPMOST)');
+      return created;
+    } catch (error) {
+      const businessError: BusinessError = error as BusinessError;
+      if (businessError.code === 201) {
+        hilog.warn(DOMAIN, PET_WINDOW_TAG,
+          'pet main-type window unavailable: ohos.permission.WINDOW_TOPMOST is not granted '
+          + 'or the window type is not allowed here');
+      } else {
+        this.logWindowError('createWindow(TYPE_MAIN)+setWindowTopmost', error);
+      }
+      // A half-configured window would stay on screen and cover the fallback.
+      if (created !== null) {
+        try {
+          await created.destroyWindow();
+        } catch (destroyError) {
+          this.logWindowError('destroyWindow(after failed topmost)', destroyError);
+        }
+      }
+      return null;
+    }
   }
 
   /**

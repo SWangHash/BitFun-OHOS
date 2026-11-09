@@ -74,6 +74,14 @@
         {
             "name": "status_bar_show_desktop_pet",
             "value": "Show desktop pet"
+        },
+        {
+            "name": "permission_system_float_window_reason",
+            "value": "Keep the agent companion pet visible above other applications"
+        },
+        {
+            "name": "permission_window_topmost_reason",
+            "value": "Pin the agent companion pet window above other windows"
         }
     ]
 }

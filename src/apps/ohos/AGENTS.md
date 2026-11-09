@@ -103,9 +103,19 @@ Staying above **other applications** is a platform capability, not a flag:
   floats above other apps, and it needs the restricted
   `ohos.permission.SYSTEM_FLOAT_WINDOW` (error 201 without it).
 
-`PetWindowService` therefore tries a float window first and falls back to a
-subwindow, logging `carrier=float|subwindow`, so a build that can be granted the
-ACL permission gets true pet behavior while a normal build degrades predictably.
+`PetWindowService` therefore tries carriers in order and logs which one it got
+(`carrier=float|main-topmost|subwindow`):
+
+1. `TYPE_FLOAT` window — stays above other apps; needs `SYSTEM_FLOAT_WINDOW`
+   (system_basic, arrives only through a signing profile that lists it in ACLs).
+2. `TYPE_MAIN` window pinned with `setWindowTopmost` — needs `WINDOW_TOPMOST`
+   (normal level, so a plain build can hold it), but `TYPE_MAIN` creation may be
+   refused depending on the platform build.
+3. Subwindow — always available, and the only carrier other applications cover.
+
+Both stacking permissions are declared in `module.json5`. If a debug-signed
+install fails to parse the HAP after that change, `SYSTEM_FLOAT_WINDOW` is the
+one to drop: it is the system_basic entry, while `WINDOW_TOPMOST` is harmless.
 
 ArkUI API notes worth keeping in mind here: `WebResourceResponse` is a global
 ArkUI class with setters (`setResponseData`/`setResponseMimeType`/
