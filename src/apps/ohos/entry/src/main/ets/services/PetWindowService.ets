@@ -232,6 +232,11 @@ export class PetWindowService {
 
   /** Settings both carriers need; a float window additionally places itself. */
   private async configureCreatedWindow(created: window.Window, isFloat: boolean): Promise<void> {
+    // Transparent before the first frame: the OS window paints white until this
+    // is applied, and the page cannot cover it while it is still loading. A
+    // window that is not in a normal state yet rejects the call, which is why
+    // `show` applies it again after showing.
+    this.hideChrome(created);
     try {
       // The reply composer needs focus; showing the window must not take it,
       // which `setWindowFocusable` alone does not change.
@@ -246,6 +251,7 @@ export class PetWindowService {
     try {
       await created.resizeAsync(rect.width, rect.height);
       await created.moveWindowTo(rect.left, rect.top);
+      await created.setWindowShadowRadius(0);
     } catch (error) {
       this.logWindowError('place float window', error);
     }

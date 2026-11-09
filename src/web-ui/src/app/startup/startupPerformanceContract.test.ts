@@ -956,7 +956,11 @@ describe('startup performance contract', () => {
     expect(petSource).toContain("listen<AIExperienceSettings>('agent-companion://settings-updated'");
     expect(petSource).toContain("listen<AgentCompanionActivityPayload>('agent-companion://activity-updated'");
     expect(petSource).toContain("emit('agent-companion://ready')");
-    expect(petSource).toContain("getCurrentWindow().hide()");
+    // The hide path moved behind the host port so the desktop and HarmonyOS pet
+    // windows share one implementation; the bridge still must not pull the
+    // window API into the component directly.
+    expect(petSource).toContain('petWindowHost.hideWindow()');
+    expect(petSource).not.toContain("from '@tauri-apps/api/window'");
   });
 
   it('cancels stale Agent companion startup sync when settings change', () => {
