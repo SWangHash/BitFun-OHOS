@@ -49,6 +49,59 @@ export interface RelatedPath {
   description?: string | null;
 }
 
+/** BitFun-managed data categories that workspace deletion can remove. */
+export type WorkspaceDeletionTargetKind =
+  | 'workspaceRuntime'
+  | 'projectPlans'
+  | 'projectSearchIndex'
+  | 'projectTemp'
+  | 'projectComputerUseDebug'
+  | 'workspaceIconAsset'
+  | 'remoteWorkspaceMirror'
+  | 'remoteWorkspaceLegacyMirror';
+
+export interface WorkspaceDeletionTarget {
+  kind: WorkspaceDeletionTargetKind;
+  /** Host-local absolute path; never the remote workspace source path. */
+  path: string;
+  exists: boolean;
+}
+
+/** Data categories that workspace deletion intentionally keeps. */
+export type WorkspaceDeletionRetainedKind =
+  | 'workspaceSource'
+  | 'projectConfig'
+  | 'projectRules'
+  | 'projectPlugins'
+  | 'projectAgents'
+  | 'projectOtherData'
+  | 'scheduledJobs'
+  | 'remoteHostData';
+
+export interface WorkspaceDeletionRetained {
+  kind: WorkspaceDeletionRetainedKind;
+  path?: string;
+}
+
+export interface WorkspaceDeletionPlan {
+  workspaceId: string;
+  workspaceName: string;
+  isRemote: boolean;
+  targets: WorkspaceDeletionTarget[];
+  retained: WorkspaceDeletionRetained[];
+}
+
+export interface WorkspaceDeletionFailure {
+  path: string;
+  message: string;
+}
+
+export interface DeleteWorkspaceResponse {
+  removed: string[];
+  missing: string[];
+  failed: WorkspaceDeletionFailure[];
+}
+
 export interface WorkspaceInfo {
   id: string;
   name: string;
@@ -325,9 +378,19 @@ export class GlobalAPI {
     }
   }
 
-  async deleteWorkspace(workspaceId: string): Promise<void> {
+  async previewWorkspaceDeletion(workspaceId: string): Promise<WorkspaceDeletionPlan> {
     try {
-      await api.invoke('delete_workspace', {
+      return await api.invoke('preview_workspace_deletion', {
+        request: { workspaceId }
+      });
+    } catch (error) {
+      throw createTauriCommandError('preview_workspace_deletion', error, { workspaceId });
+    }
+  }
+
+  async deleteWorkspace(workspaceId: string): Promise<DeleteWorkspaceResponse> {
+    try {
+      return await api.invoke('delete_workspace', {
         request: { workspaceId }
       });
     } catch (error) {

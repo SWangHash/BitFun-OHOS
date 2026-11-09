@@ -6,8 +6,10 @@ import { workspaceAPI } from '@/infrastructure/api';
 import type {
   ApplicationState as APIApplicationState,
   AppStatus as APIAppStatus,
+  DeleteWorkspaceResponse,
   OpenRemoteWorkspaceOptions,
   RemoteWorkspaceSnapshot as APIRemoteWorkspaceSnapshot,
+  WorkspaceDeletionPlan,
   WorkspaceStartupStateSnapshot as APIWorkspaceStartupStateSnapshot,
   WorkspaceInfo as APIWorkspaceInfo,
 } from '@/infrastructure/api/service-api/GlobalAPI';
@@ -249,7 +251,8 @@ export interface GlobalStateAPI {
   getPrimaryAssistantWorkspace(): Promise<WorkspaceInfo | null>;
   setPrimaryAssistantWorkspace(workspaceId: string): Promise<WorkspaceInfo>;
   deleteAssistantWorkspace(workspaceId: string): Promise<void>;
-  deleteWorkspace(workspaceId: string): Promise<void>;
+  previewWorkspaceDeletion(workspaceId: string): Promise<WorkspaceDeletionPlan>;
+  deleteWorkspace(workspaceId: string): Promise<DeleteWorkspaceResponse>;
   resetAssistantWorkspace(workspaceId: string): Promise<WorkspaceInfo>;
   closeWorkspace(workspaceId: string): Promise<void>;
   setActiveWorkspace(workspaceId: string): Promise<WorkspaceInfo>;
@@ -585,7 +588,11 @@ export function createGlobalStateAPI(): GlobalStateAPI {
       return await globalAPI.deleteAssistantWorkspace(workspaceId);
     },
 
-    async deleteWorkspace(workspaceId: string): Promise<void> {
+    async previewWorkspaceDeletion(workspaceId: string): Promise<WorkspaceDeletionPlan> {
+      return await globalAPI.previewWorkspaceDeletion(workspaceId);
+    },
+
+    async deleteWorkspace(workspaceId: string): Promise<DeleteWorkspaceResponse> {
       return await globalAPI.deleteWorkspace(workspaceId);
     },
 

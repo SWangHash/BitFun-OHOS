@@ -33,7 +33,11 @@ import {
 import { describeFileAccessError } from './fileAccessErrorPresentation';
 import { readSourceDeviceId } from '@/infrastructure/peer-device/deviceSurfaceRouting';
 import { isRemoteWorkspaceConnectionConflictError } from '@/infrastructure/api/errors/TauriCommandError';
-import type { OpenRemoteWorkspaceOptions } from '@/infrastructure/api/service-api/GlobalAPI';
+import type {
+  DeleteWorkspaceResponse,
+  OpenRemoteWorkspaceOptions,
+  WorkspaceDeletionPlan,
+} from '@/infrastructure/api/service-api/GlobalAPI';
 
 const log = createLogger('WorkspaceManager');
 
@@ -1292,7 +1296,15 @@ class WorkspaceManager {
     }
   }
 
-  public async deleteWorkspace(workspaceId: string): Promise<void> {
+  public async previewWorkspaceDeletion(
+    workspaceId: string
+  ): Promise<WorkspaceDeletionPlan> {
+    return globalStateAPI.previewWorkspaceDeletion(workspaceId);
+  }
+
+  public async deleteWorkspace(
+    workspaceId: string
+  ): Promise<DeleteWorkspaceResponse> {
     const surface = this.captureSurface();
     try {
       this.setLoading(true);
@@ -1305,7 +1317,7 @@ class WorkspaceManager {
         await this.cancelRunningSessionsForWorkspace(removedWorkspace, surface);
       }
 
-      await globalStateAPI.deleteWorkspace(workspaceId);
+      const result = await globalStateAPI.deleteWorkspace(workspaceId);
       this.assertSurfaceUnchanged(surface, 'delete workspace');
 
       if (removedWorkspace) {
@@ -1331,6 +1343,7 @@ class WorkspaceManager {
       );
 
       this.emit({ type: 'workspace:active-changed', workspace: currentWorkspace });
+      return result;
     } catch (error) {
       if (!this.isSurfaceUnchanged(surface)) {
         throw error;
