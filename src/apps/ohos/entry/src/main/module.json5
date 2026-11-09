@@ -43,6 +43,12 @@
         "srcEntry": "./ets/agentcompanionability/AgentCompanionAbility.ets",
         "description": "$string:EntryAbility_desc",
         "label": "$string:EntryAbility_label",
+        // Required for every ability that owns a window. The pet window paints
+        // itself transparent in `onWindowStageCreate`; this pair only covers the
+        // system start window, so it reuses the app's launch resources instead of
+        // adding pet-specific ones.
+        "startWindowIcon": "$media:bitfun_start_window",
+        "startWindowBackground": "$color:start_window_background",
         "launchType": "singleton",
         "excludeFromMissions": true,
         "exported": false
