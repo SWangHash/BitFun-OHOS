@@ -51,6 +51,7 @@ import {
   PET_COMMAND_EVENT,
   PET_DELIVER_EVENT,
   PET_HIDE_EVENT,
+  PET_READY_EVENT,
   PET_RECT_EVENT,
   PET_WINDOW_TAG,
   createPetSubscriber,
@@ -192,6 +193,7 @@ export default class EntryAbility extends RustAbility implements StatusBarTrayHo
   // subwindow belongs to a ready parent.
   private petWindowService: PetWindowService | undefined = undefined;
   private petHideSubscriber: commonEventManager.CommonEventSubscriber | null = null;
+  private petReadySubscriber: commonEventManager.CommonEventSubscriber | null = null;
   // Pending fallback that reveals the system title buttons if the app shell
   // never reports its startup handoff. Any explicit chrome request from the
   // shell cancels it.
@@ -356,6 +358,8 @@ export default class EntryAbility extends RustAbility implements StatusBarTrayHo
     this.petCommandSubscriber = null;
     disposePetSubscriber(this.petHideSubscriber);
     this.petHideSubscriber = null;
+    disposePetSubscriber(this.petReadySubscriber);
+    this.petReadySubscriber = null;
     void this.petWindowService?.dispose();
     this.petWindowService = undefined;
     RustModule.ohosMarkCleanShutdown();
@@ -420,6 +424,11 @@ export default class EntryAbility extends RustAbility implements StatusBarTrayHo
     // that ability also owns the main window.
     this.petHideSubscriber = await createPetSubscriber(PET_HIDE_EVENT, () => {
       void this.petWindowService?.hide();
+    });
+    // The window is created hidden and only shown once the page reports that the
+    // pet is laid out, so the first visible frame already has the pet on it.
+    this.petReadySubscriber = await createPetSubscriber(PET_READY_EVENT, () => {
+      void this.petWindowService?.reveal();
     });
   }
 

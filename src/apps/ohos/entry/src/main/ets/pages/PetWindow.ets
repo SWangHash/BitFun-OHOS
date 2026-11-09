@@ -9,6 +9,7 @@ import {
   PET_COMMAND_EVENT,
   PET_DELIVER_EVENT,
   PET_HIDE_EVENT,
+  PET_READY_EVENT,
   PET_RECT_EVENT,
   PET_WINDOW_TAG,
   buildPetCommandEnvelope,
@@ -44,6 +45,35 @@ const PET_SCHEME_HOST: string = 'localhost';
 const ENTRY_RESFILE_DIST: string = 'entry/resources/resfile/dist';
 const APP_RESFILE_DIST: string = 'resources/resfile/dist';
 const PAGE_PATH_KEY: string = 'bitfunPetPagePath';
+/**
+ * Document-start styling for this window.
+ *
+ * The shared frontend boots like the main window: it paints the theme's surface
+ * colour on `<html>`/`<body>` and mounts a startup splash. In this small window
+ * both read as a flat coloured frame, so the stylesheet is overridden before the
+ * first paint and the splash is suppressed. `!important` beats the inline
+ * background the bootstrap writes, and `#root` is forced visible because the
+ * usual rule hides the shell until the splash hands off — there is no handoff
+ * here.
+ */
+const PET_SURFACE_SCRIPT: string = '(function () {'
+  + 'function paint() {'
+  + 'try {'
+  + 'if (!document.getElementById("bitfun-pet-window-surface")) {'
+  + 'var style = document.createElement("style");'
+  + 'style.id = "bitfun-pet-window-surface";'
+  + 'style.textContent = "html,body{background:transparent !important;}"'
+  + '+ "#bitfun-startup-overlay{display:none !important;}"'
+  + '+ "#root{visibility:visible !important;}";'
+  + '(document.head || document.documentElement).appendChild(style);'
+  + '}'
+  + 'if (document.documentElement) { document.documentElement.style.background = "transparent"; }'
+  + 'if (document.body) { document.body.style.background = "transparent"; }'
+  + '} catch (error) {}'
+  + '}'
+  + 'paint();'
+  + 'if (document.readyState === "loading") { document.addEventListener("DOMContentLoaded", paint); }'
+  + '})();';
 
 interface PetRectRequest {
   width: number;
@@ -86,6 +116,7 @@ class PetWindowHostProxy {
   private onRect: (rect: PetRectRequest) => void;
   private onFocus: () => void;
   private onStartDrag: () => void;
+  private readyReported: boolean = false;
 
   constructor(
     controller: webview.WebviewController,
@@ -110,8 +141,17 @@ class PetWindowHostProxy {
     this.onHide();
   }
 
+  /**
+   * The page's first resize means the pet has measured itself, which is the
+   * earliest frame worth showing: the window is sized correctly and the pet is
+   * laid out, so revealing it cannot expose a boot background.
+   */
   resize(width: number, height: number): void {
     this.onRect({ width: width, height: height });
+    if (!this.readyReported) {
+      this.readyReported = true;
+      void publishPetEvent(PET_READY_EVENT, '{}');
+    }
   }
 
   focus(): void {
@@ -380,6 +420,7 @@ struct PetWindow {
         .darkMode(WebDarkMode.Auto)
         .forceDarkAccess(false)
         .javaScriptAccess(true)
+        .javaScriptOnDocumentStart([{ script: PET_SURFACE_SCRIPT, scriptRules: ['*'] }])
         .javaScriptProxy({
           object: new PetWindowHostProxy(
             this.controller,

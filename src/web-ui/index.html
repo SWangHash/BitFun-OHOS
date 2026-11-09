@@ -94,14 +94,6 @@
         window.__BITFUN_STARTUP_OVERLAY_STARTED_AT__ = performance.now();
         root.setAttribute('lang', resolveLocale());
         root.setAttribute('data-bitfun-design-system-root', '');
-        // Secondary windows (the companion pet today) are small, transparent
-        // surfaces. The startup splash and the opaque chrome background belong to
-        // the main window: painting them here shows a full white/flat frame before
-        // the window's own content appears.
-        var windowKind = new URLSearchParams(window.location.search).get('bitfunWindow');
-        if (windowKind) {
-          root.setAttribute('data-bitfun-window', windowKind);
-        }
         if (!root.hasAttribute('data-color-scheme')) {
           root.setAttribute('data-color-scheme', m && m.matches ? 'dark' : 'light');
         }
@@ -168,25 +160,6 @@
       html[data-bitfun-native-frame='client'],
       html[data-bitfun-native-frame='client'] body {
         background-color: transparent;
-      }
-
-      /* Secondary windows are transparent surfaces: no chrome background and no
-         startup splash, which would otherwise flash a flat frame before the
-         window's own content paints. */
-      html[data-bitfun-window],
-      html[data-bitfun-window] body {
-        background-color: transparent;
-      }
-
-      html[data-bitfun-window] #bitfun-startup-overlay {
-        display: none;
-      }
-
-      /* The overlay's presence normally hides the mounting shell until handoff.
-         With the splash gone there is no handoff to wait for, so keep the window
-         content visible instead of leaving it hidden forever. */
-      html[data-bitfun-window] #root:has(+ #bitfun-startup-overlay) {
-        visibility: visible;
       }
 
       html[data-bitfun-native-frame='client'] #root,

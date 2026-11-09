@@ -23,6 +23,12 @@ export const PET_COMMAND_EVENT: string = 'bitfun.agentCompanion.command';
 export const PET_HIDE_EVENT: string = 'bitfun.agentCompanion.hide';
 /** Ask the pet window to take a CSS pixel size (`{ width, height }`). */
 export const PET_RECT_EVENT: string = 'bitfun.agentCompanion.rect';
+/**
+ * The pet page has measured itself and is drawing. The window stays hidden until
+ * this arrives so the first visible frame already contains the pet instead of the
+ * page's boot background.
+ */
+export const PET_READY_EVENT: string = 'bitfun.agentCompanion.ready';
 
 /** `{ event, payload }` — payload keeps its original JSON type. */
 export interface PetWindowDeliverEnvelope {

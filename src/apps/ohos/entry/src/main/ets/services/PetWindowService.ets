@@ -18,6 +18,8 @@ const PET_SUBWINDOW_TITLE: string = 'BitFun Pet';
 /** Initial CSS pixel box; the pet page resizes it as bubbles appear. */
 const PET_WINDOW_INITIAL_SIZE: number = 120;
 const PET_WINDOW_EDGE_GAP: number = 16;
+/** How long the window waits for the page's readiness signal before showing. */
+const REVEAL_FALLBACK_MS: number = 2500;
 
 const PAGE_PATH_KEY: string = 'bitfunPetPagePath';
 const WINDOW_HANDLE_KEY: string = 'bitfunPetWindow';
@@ -50,13 +52,23 @@ export class PetWindowService {
   private petWindow: window.Window | null = null;
   /** Which carrier actually got created; reported for logs and diagnostics. */
   private carrier: string = 'none';
+  /** Whether the window has been shown for the current page. */
+  private revealed: boolean = false;
+  private revealTimer: number = -1;
 
   constructor(windowStage: window.WindowStage, context: common.UIAbilityContext) {
     this.windowStage = windowStage;
     this.context = context;
   }
 
-  /** Show (or recreate) the pet window and load the pet page into it. */
+  /**
+   * Create the pet window and load the page into it, without showing it.
+   *
+   * The window only becomes visible once the page reports that the pet has been
+   * measured (`reveal`). Showing it earlier exposes the document's boot
+   * background — a flat theme colour — for as long as the SPA needs to start,
+   * which is the flash users see before the pet appears.
+   */
   async show(pagePath: string): Promise<void> {
     AppStorage.setOrCreate<string>(PAGE_PATH_KEY,
       pagePath.length > 0 ? pagePath : DEFAULT_PAGE_PATH);
@@ -67,6 +79,7 @@ export class PetWindowService {
         return;
       }
       this.petWindow = created;
+      this.revealed = false;
       AppStorage.setOrCreate<window.Window>(WINDOW_HANDLE_KEY, created);
       try {
         await created.loadContent('pages/PetWindow');
@@ -74,9 +87,24 @@ export class PetWindowService {
         this.logWindowError('loadContent', error);
         return;
       }
+      this.armRevealFallback();
+      return;
     }
 
-    const petWindow: window.Window = this.petWindow;
+    await this.reveal();
+  }
+
+  /**
+   * Make the window visible. Idempotent, and safe to call from the page's
+   * readiness signal or from the fallback timer.
+   */
+  async reveal(): Promise<void> {
+    const petWindow: window.Window | null = this.petWindow;
+    if (this.revealed || petWindow === null) {
+      return;
+    }
+    this.revealed = true;
+    this.cancelRevealFallback();
     try {
       await petWindow.showWindow();
       // Chrome changes are only accepted once the window is in a normal state;
@@ -84,14 +112,39 @@ export class PetWindowService {
       // leaves the title bar visible.
       this.hideChrome(petWindow);
       hilog.info(DOMAIN, PET_WINDOW_TAG,
-        `pet window shown: carrier=${this.carrier} decor=${petWindow.getWindowDecorVisible()}`);
+        `pet window revealed: carrier=${this.carrier} decor=${petWindow.getWindowDecorVisible()}`);
     } catch (error) {
+      this.revealed = false;
       this.logWindowError('showWindow', error);
+    }
+  }
+
+  /**
+   * Safety net: if the page never reports readiness (a page that failed to start,
+   * a webview that does not run hidden), show the window anyway so the pet cannot
+   * become permanently invisible.
+   */
+  private armRevealFallback(): void {
+    this.cancelRevealFallback();
+    this.revealTimer = setTimeout(() => {
+      this.revealTimer = -1;
+      hilog.warn(DOMAIN, PET_WINDOW_TAG,
+        'pet page did not report readiness in time; revealing the window anyway');
+      void this.reveal();
+    }, REVEAL_FALLBACK_MS);
+  }
+
+  private cancelRevealFallback(): void {
+    if (this.revealTimer !== -1) {
+      clearTimeout(this.revealTimer);
+      this.revealTimer = -1;
     }
   }
 
   /** Destroy the pet window; the next `show` recreates it. */
   async hide(): Promise<void> {
+    this.cancelRevealFallback();
+    this.revealed = false;
     const petWindow: window.Window | null = this.petWindow;
     this.petWindow = null;
     AppStorage.setOrCreate<window.Window | null>(WINDOW_HANDLE_KEY, null);
