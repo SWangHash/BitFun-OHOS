@@ -33,6 +33,17 @@ function extractBlock(stylesheet: string, selector: string): string {
 }
 
 describe('NavPanel layout styles', () => {
+  it('replaces the retained main navigation whenever a scene owns the layer', () => {
+    const stylesheet = readNavPanelStylesheet();
+
+    // Both navigation layers paint on the shared shell material and the scene
+    // layer adds no opaque cover of its own, so a scene navigation (including
+    // the split-open file tree) must hide the retained main navigation.
+    // Keeping it visible stacked the session list under the file tree.
+    expect(stylesheet).not.toContain('.is-scene:not(.is-split-open)');
+    expect(extractBlock(stylesheet, '&--main')).toMatch(/\.is-scene\s*&/);
+  });
+
   it('allows navigation list wrappers to shrink instead of inheriting long item widths', () => {
     const stylesheet = readNavPanelStylesheet();
     const rootBlock = extractBlock(stylesheet, '.bitfun-nav-panel');

@@ -72,8 +72,11 @@ $_section-header-height: 22px;
       transform: translate3d(0, 0, 0);
       transition: none;
 
-      // Non-split scenes move as a coordinated pair when pointer motion is on.
-      .is-scene:not(.is-split-open) & {
+      // A scene owning this layer replaces the retained main navigation. Both
+      // layers share the shell material and the scene layer paints no opaque
+      // backdrop of its own, so leaving main visible would stack the session
+      // list and the scene navigation on top of each other.
+      .is-scene & {
         opacity: 0;
         transform: translate3d(-4px, 0, 0);
         pointer-events: none;
@@ -99,9 +102,8 @@ $_section-header-height: 22px;
         transform: translate3d(0, 0, 0);
       }
 
-      // Split-open scenes (file-viewer): clip-path reveal from anchor.
-      // The opaque background ensures revealed portions fully cover MainNav
-      // so departing items never bleed through.
+      // Split-open scenes (file-viewer): clip-path reveal from anchor while the
+      // retained main navigation leaves underneath.
       .is-split-open.has-pointer-motion & {
         clip-path: inset(var(--clip-origin-top) 0 var(--clip-origin-bottom) 0);
         transition: clip-path 0.26s cubic-bezier(0.22, 1, 0.36, 1),
