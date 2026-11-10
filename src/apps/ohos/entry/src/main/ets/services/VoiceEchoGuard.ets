@@ -34,7 +34,15 @@ export enum VoiceSignalKind {
  * count as echo. Below this, an interruption may merely reuse a few words the
  * assistant was saying.
  */
-const ECHO_COVERAGE_THRESHOLD = 0.6;
+const ECHO_COVERAGE_THRESHOLD = 0.7;
+
+/**
+ * Between this and the echo threshold the snapshot is neither clearly our own
+ * playback nor clearly a new request. Dropping it is the safe choice: acting on
+ * it can start a task from our own words, which is how a call ends up talking to
+ * itself.
+ */
+const PARTIAL_COVERAGE_THRESHOLD = 0.5;
 
 function isCjkCode(code: number): boolean {
   // CJK unified ideographs, extension A, compatibility ideographs.
@@ -157,5 +165,11 @@ export function classifyVoiceSignal(snapshot: string, spokenText: string): Voice
   if (candidate.length === 1) {
     return coverage >= 1 ? VoiceSignalKind.Echo : VoiceSignalKind.Speech;
   }
-  return coverage >= ECHO_COVERAGE_THRESHOLD ? VoiceSignalKind.Echo : VoiceSignalKind.Speech;
+  if (coverage >= ECHO_COVERAGE_THRESHOLD) {
+    return VoiceSignalKind.Echo;
+  }
+  if (coverage >= PARTIAL_COVERAGE_THRESHOLD) {
+    return VoiceSignalKind.Ignore;
+  }
+  return VoiceSignalKind.Speech;
 }

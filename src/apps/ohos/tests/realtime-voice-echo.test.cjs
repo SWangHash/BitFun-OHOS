@@ -49,6 +49,11 @@ test('allows an interruption that reuses a couple of spoken words', () => {
   assert.equal(classifyVoiceSignal('不要排序，先解释', SPOKEN), 'speech');
 });
 
+test('drops a partially matching snapshot instead of acting on it', () => {
+  // 3 of 5 tokens come from the answer: neither a clear echo nor a clear request.
+  assert.equal(classifyVoiceSignal('我先把天气', SPOKEN), 'ignore');
+});
+
 test('ignores snapshots with no comparable tokens', () => {
   assert.equal(classifyVoiceSignal('', SPOKEN), 'ignore');
   assert.equal(classifyVoiceSignal('  。', SPOKEN), 'ignore');

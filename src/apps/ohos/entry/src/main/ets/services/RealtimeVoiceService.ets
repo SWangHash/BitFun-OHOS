@@ -48,6 +48,12 @@ const TTS_ONLINE_ENGINE = 0;
 const TTS_OFFLINE_ENGINE = 1;
 /** `CreateEngineParams.person`: 0 is the female voice, 1 the male voice. */
 const TTS_PERSON = 0;
+/**
+ * Silence window after playback ends. The recognizer can still deliver the tail
+ * of the answer once synthesis finished; treating that tail as a request starts
+ * a task from the assistant's own words and the call begins talking to itself.
+ */
+const SPEECH_COOLDOWN_MS = 1200;
 
 interface RealtimeStartRequest {
   language?: string;
@@ -94,6 +100,8 @@ export class RealtimeVoiceService {
   /** Request id of the utterance in flight; callbacks for older ids are ignored. */
   private ttsRequestId: string = '';
   private ttsPollTimer?: number;
+  /** Recognition results before this timestamp belong to the previous answer. */
+  private speechCooldownUntil: number = 0;
   private ttsUtteranceCounter: number = 0;
   private ttsWaitStartedAt: number = 0;
   private idCounter: number = 0;
@@ -311,7 +319,13 @@ export class RealtimeVoiceService {
     hilog.info(REALTIME_DOMAIN, REALTIME_TAG,
       'recognition onResult: isFinal=%{public}d isLast=%{public}d rawText=%{public}s',
       isFinal ? 1 : 0, engineFinished ? 1 : 0, result.result);
-    if (snapshot.length > 0 && this.ttsSpeaking) {
+    const coolingDown: boolean = Date.now() < this.speechCooldownUntil;
+    if (snapshot.length > 0 && coolingDown) {
+      // The engine was still draining the previous answer. Acting on it would
+      // start a task from our own words, so the tail is dropped outright.
+      hilog.info(REALTIME_DOMAIN, REALTIME_TAG,
+        'dropped post-playback tail: rawText=%{public}s', result.result);
+    } else if (snapshot.length > 0 && this.ttsSpeaking) {
       // Playback is audible and capture keeps running so the user can interrupt.
       // The echo guard separates the assistant hearing itself from a real
       // barge-in; only the latter stops the answer.
@@ -322,7 +336,9 @@ export class RealtimeVoiceService {
       } else if (signal === VoiceSignalKind.Speech) {
         hilog.info(REALTIME_DOMAIN, REALTIME_TAG,
           'barge-in detected, stopping playback: rawText=%{public}s', result.result);
-        this.stopSpeech(true);
+        // A real interruption must not arm the cooldown, or the rest of the
+        // sentence the user is currently speaking would be dropped.
+        this.stopSpeech(true, false);
         // The frame that proved the interruption is not transcribed: a marginal
         // match must not leak into the new task description. Recognition revises
         // the clause on the following result.
@@ -521,6 +537,11 @@ export class RealtimeVoiceService {
     this.ttsSpeaking = false;
     this.ttsCurrentText = '';
     this.ttsRequestId = '';
+    // Playback ended on its own: hold recognition for the length of the tail
+    // still inside the engine, then resume listening.
+    this.speechCooldownUntil = Date.now() + SPEECH_COOLDOWN_MS;
+    this.utteranceActive = false;
+    this.clauseCommitted = '';
     this.emit('assistant_audio_completed', '', -1);
   }
 
@@ -552,13 +573,23 @@ export class RealtimeVoiceService {
     }, TTS_POLL_INTERVAL_MS);
   }
 
-  private stopSpeech(emitCompletion: boolean): void {
+  /**
+   * Stop playback. `armCooldown` keeps the trailing recognition of the answer
+   * out of the next request; a barge-in passes `false` so the sentence the user
+   * is already speaking survives.
+   */
+  private stopSpeech(emitCompletion: boolean, armCooldown: boolean = true): void {
     this.clearTtsPollTimer();
     const engine: textToSpeech.TextToSpeechEngine | undefined = this.ttsEngine;
     const wasSpeaking: boolean = this.ttsSpeaking;
     this.ttsSpeaking = false;
     this.ttsCurrentText = '';
     this.ttsRequestId = '';
+    if (armCooldown) {
+      this.speechCooldownUntil = Date.now() + SPEECH_COOLDOWN_MS;
+      this.utteranceActive = false;
+      this.clauseCommitted = '';
+    }
     if (engine) {
       try {
         engine.stop();

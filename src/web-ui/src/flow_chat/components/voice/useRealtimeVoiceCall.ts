@@ -22,6 +22,7 @@ import { createLogger } from '@/shared/utils/logger';
 import { RealtimePcmPlayer } from './realtimeVoiceAudio';
 import { applyRealtimeAsrSnapshot } from './realtimeVoiceTranscript';
 import { systemVoiceBins } from './realtimeVoiceLevel';
+import { isLikelySpokenEcho, voiceTextKey } from './realtimeVoiceEcho';
 import {
   runBitFunVoiceTask,
   runBoundVoiceTask,
@@ -57,6 +58,12 @@ const TASK_STOP_TIMEOUT_MS = 35_000;
 const MISSING_AUDIO_RETRY_DELAY_MS = 1_500;
 const MAX_BUFFERED_STARTUP_EVENTS = 256;
 const SPOKEN_PROGRESS_RETRY_DELAY_MS = 400;
+/**
+ * A client-side provider derives tasks from speech, so an echo that slips past
+ * the host guard would start the same task again. The controller keeps its own
+ * short memory of what it spoke and what it already acted on.
+ */
+const TASK_TEXT_SUPPRESS_MS = 15_000;
 
 export type RealtimeVoiceCallPhase = 'idle' | 'connecting' | 'live' | 'ending' | 'error';
 
@@ -265,6 +272,10 @@ export function useRealtimeVoiceCallController(disabled = false): RealtimeVoiceC
   const userLevelRef = useRef(0);
   const assistantSpeakingRef = useRef(false);
   const systemTaskSeqRef = useRef(0);
+  /** Last text handed to the provider for playback, used to reject its echo. */
+  const lastSpokenRef = useRef('');
+  /** Recently started task keys, so a repeated transcript is not run twice. */
+  const recentTaskTextRef = useRef<Array<{ key: string; at: number }>>([]);
 
   useEffect(() => {
     mutedRef.current = muted;
@@ -327,6 +338,9 @@ export function useRealtimeVoiceCallController(disabled = false): RealtimeVoiceC
   const enqueueSpokenTaskText = useCallback((sessionId: string, text: string): Promise<void> => {
     const spokenText = text.trim();
     if (!spokenText) return Promise.resolve();
+    // Remember what the provider is about to say; its own playback can come back
+    // as a transcript and must not become the next task.
+    lastSpokenRef.current = spokenText;
     const epoch = spokenProgressEpochRef.current;
     const send = async () => {
       if (
@@ -806,7 +820,17 @@ export function useRealtimeVoiceCallController(disabled = false): RealtimeVoiceC
           setUserTranscript(previous => applyRealtimeAsrSnapshot(previous, event.text!));
         }
         break;
-      case 'user_transcript_completed':
+      case 'user_transcript_completed': {
+        // Second line of defense against self-echo: the host already filters
+        // what it hears while speaking, but a misjudged tail here would start a
+        // task from the assistant's own words and the call would talk to itself.
+        if (systemVoiceRef.current && event.text
+          && isLikelySpokenEcho(event.text, lastSpokenRef.current)) {
+          log.info('Ignored a transcript that repeats the spoken answer', {
+            length: event.text.length,
+          });
+          break;
+        }
         if (event.text) ledgerRef.current?.user(event.text);
         if (event.text) setUserTranscript(event.text);
         setStatus(t('voiceCall.call.status.thinking'));
@@ -815,6 +839,15 @@ export function useRealtimeVoiceCallController(disabled = false): RealtimeVoiceC
         // delegated Agent answers conversational input on the same path.
         if (systemVoiceRef.current && event.text) {
           const task = event.text;
+          const key = voiceTextKey(task);
+          const now = Date.now();
+          recentTaskTextRef.current = recentTaskTextRef.current
+            .filter(entry => now - entry.at < TASK_TEXT_SUPPRESS_MS);
+          if (key && recentTaskTextRef.current.some(entry => entry.key === key)) {
+            log.info('Ignored a repeated transcript', { length: task.length });
+            break;
+          }
+          if (key) recentTaskTextRef.current.push({ key, at: now });
           void (async () => {
             // Speaking again while a task runs is a correction, not an
             // addition: interrupting to say something new cancels the task the
@@ -837,6 +870,7 @@ export function useRealtimeVoiceCallController(disabled = false): RealtimeVoiceC
           })();
         }
         break;
+      }
       case 'user_audio_level':
         userLevelRef.current = typeof event.audioLevel === 'number' ? event.audioLevel : 0;
         break;
@@ -1012,6 +1046,8 @@ export function useRealtimeVoiceCallController(disabled = false): RealtimeVoiceC
     providerErrorRef.current = false;
     userLevelRef.current = 0;
     assistantSpeakingRef.current = false;
+    lastSpokenRef.current = '';
+    recentTaskTextRef.current = [];
     const activeTask = activeTaskRef.current;
     setPhase('connecting');
     setMuted(false);
