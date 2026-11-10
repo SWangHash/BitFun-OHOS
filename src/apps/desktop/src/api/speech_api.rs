@@ -53,6 +53,21 @@ use tauri::{AppHandle, Emitter};
 #[cfg(target_env = "ohos")]
 const OHOS_REALTIME_PROVIDER: &str = "ohos-system";
 
+/// Whether the HarmonyOS realtime call is available.
+///
+/// The system voice needs no hosted credential, so a fresh profile is callable
+/// without visiting settings first. A profile that was never saved still carries
+/// the shared default provider (`volcengine`), which is how a fresh install is
+/// recognized: only a saved `ohos-system` profile with `enabled = false` turns
+/// the entry point off.
+#[cfg(target_env = "ohos")]
+fn ohos_realtime_enabled(config: &bitfun_core::service::config::VoiceCallConfig) -> bool {
+    if config.provider != OHOS_REALTIME_PROVIDER {
+        return true;
+    }
+    config.enabled
+}
+
 #[cfg(target_env = "ohos")]
 #[tauri::command]
 pub async fn speech_list_models() -> Result<SpeechListModelsResponse, String> {
@@ -373,7 +388,7 @@ pub async fn speech_start_realtime_session(
         .await
         .map_err(|error| format!("Failed to load realtime voice configuration: {error}"))?;
     let voice_call = global_config.app.voice_call;
-    if !voice_call.enabled {
+    if !ohos_realtime_enabled(&voice_call) {
         return Err("Realtime voice calling is disabled in settings".to_string());
     }
 
@@ -622,7 +637,7 @@ pub async fn speech_get_realtime_config(
         .map_err(|error| format!("Failed to load realtime voice settings: {error}"))?;
     let config = global_config.app.voice_call;
     Ok(SpeechRealtimeConfig {
-        enabled: config.enabled,
+        enabled: ohos_realtime_enabled(&config),
         provider: OHOS_REALTIME_PROVIDER.to_string(),
         api_key: String::new(),
         voice: config.voice,
