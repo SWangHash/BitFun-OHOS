@@ -986,6 +986,12 @@ async fn presentation(
             workspace_path,
             icon_svg,
         } => {
+            if !system_install::supported() {
+                return Err(
+                    "Adding a MiniApp as a system app is not supported on this platform."
+                        .to_string(),
+                );
+            }
             let workspace_path = local_workspace(app, workspace_path).await?;
             let _guard = host.launches.lock().await;
             let record = record(app, &app_id, workspace_path).await?;

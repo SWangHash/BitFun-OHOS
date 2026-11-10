@@ -75,7 +75,7 @@ import { pickLocalizedString, pickLocalizedTags } from '../utils/pickLocalizedSt
 import { buildMiniAppLibraryItems, selectMiniAppLibraryItems, type MiniAppLibraryCatalog, type MiniAppLibraryItem } from './miniAppLibraryItems';
 import { buildReleaseHistory } from './miniAppReleaseHistory';
 import './MiniAppLibraryView.scss';
-import { hasLocalMiniAppPresentation, miniAppPresentationAPI } from '@/infrastructure/api/service-api/MiniAppPresentationAPI';
+import { hasLocalMiniAppPresentation, miniAppPresentationAPI, supportsSystemMiniAppInstallation } from '@/infrastructure/api/service-api/MiniAppPresentationAPI';
 import { useMiniAppPresentationStore } from '../miniAppPresentationStore';
 import { useMiniAppLaunch } from '../hooks/useMiniAppLaunch';
 import { MiniAppLaunchActions } from '../components/MiniAppLaunchActions';
@@ -133,7 +133,8 @@ const MiniAppLibraryContent: React.FC<MiniAppLibraryViewProps> = ({
   const miniAppActivities = useMiniAppActivity();
   const { me } = useAccountIdentity();
   const launch = useMiniAppLaunch();
-  const systemInstallation = useMiniAppSystemInstallation(launch.supported);
+  const systemInstallSupported = launch.supported && supportsSystemMiniAppInstallation();
+  const systemInstallation = useMiniAppSystemInstallation(systemInstallSupported);
   const presentationSnapshot = useMiniAppPresentationStore(state => state.snapshot);
 
   const [query, setQuery] = useState('');
@@ -259,7 +260,7 @@ const MiniAppLibraryContent: React.FC<MiniAppLibraryViewProps> = ({
   };
 
   const handleAddToSystem = async (app: MiniAppMeta) => {
-    if (!launch.supported || !surfaceScope.isCurrent()) return;
+    if (!systemInstallSupported || !surfaceScope.isCurrent()) return;
     const instance = useMiniAppPresentationStore.getState().snapshot?.instances.find(item => item.appId === app.id);
     await systemInstallation.install(app, instance ? instance.workspacePath : workspacePath);
   };
@@ -724,7 +725,7 @@ const MiniAppLibraryContent: React.FC<MiniAppLibraryViewProps> = ({
                   onLaunch={() => handleOpenApp(app.id)}
                   onAddToSystem={() => handleAddToSystem(app)}
                   onDelete={() => setPendingDeleteId(app.id)}
-                  systemAppSupported={launch.supported}
+                  systemAppSupported={systemInstallSupported}
                   busy={launch.busyAppIds.includes(app.id)}
                   launchDisabled={workspaceUnsupported}
                   launchDisabledReason={workspaceUnsupported ? t('market.detail.remoteWorkspaceUnsupported') : undefined}
@@ -1026,7 +1027,7 @@ const MiniAppLibraryContent: React.FC<MiniAppLibraryViewProps> = ({
         launchActions={selectedApp ? renderLaunchActions(selectedApp.id, Boolean(workspace && isRemoteWorkspace(workspace) && requiresWorkspace(selectedApp.permissions)), 'menu') : undefined}
         systemAppActions={selectedApp ? <MiniAppSystemAppActions key={selectedApp.id} app={selectedApp}
           workspacePath={selectedInstance ? selectedInstance.workspacePath : workspacePath}
-          supported={launch.supported} /> : undefined}
+          supported={systemInstallSupported} /> : undefined}
         onDelete={setPendingDeleteId}
         onStop={handleStopRunning}
       />

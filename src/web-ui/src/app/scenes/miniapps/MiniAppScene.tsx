@@ -25,7 +25,7 @@ import MiniAppDraftPreview from './customization/MiniAppDraftPreview';
 import { useMiniAppCustomizeHotspot } from './customization/useMiniAppCustomizeHotspot';
 import MiniAppRunner from './components/MiniAppRunner';
 import './MiniAppScene.scss';
-import { hasLocalMiniAppPresentation, miniAppPresentationAPI } from '@/infrastructure/api/service-api/MiniAppPresentationAPI';
+import { hasLocalMiniAppPresentation, miniAppPresentationAPI, supportsSystemMiniAppInstallation } from '@/infrastructure/api/service-api/MiniAppPresentationAPI';
 import { ensureMiniAppTab, useMiniAppPresentationStore } from './miniAppPresentationStore';
 import { isRemoteWorkspace } from '@/shared/types';
 import { MiniAppSystemAppActions } from './components/MiniAppSystemAppActions';
@@ -59,6 +59,7 @@ const MiniAppScene: React.FC<MiniAppSceneProps> = ({ appId }) => {
   const initialTicket = useMiniAppPresentationStore.getState().tabs[appId];
   const initialPath = useRef(initialTicket ? initialTicket.instance.workspacePath : workspacePath || null).current;
   const presentationSupported = hasLocalMiniAppPresentation() && (Boolean(initialTicket) || !(workspace && isRemoteWorkspace(workspace)));
+  const systemInstallSupported = presentationSupported && supportsSystemMiniAppInstallation();
   const viewId = useMiniAppPresentationStore(state => state.tabs[appId]?.view.viewId);
   const hostEpoch = useMiniAppPresentationStore(state => state.snapshot?.hostEpoch);
   const { closeScene } = useSceneManager();
@@ -229,7 +230,7 @@ const MiniAppScene: React.FC<MiniAppSceneProps> = ({ appId }) => {
               onClick={() => setWindowConfirm(true)} aria-label={t('presentation.openWindow')}
               icon={<Icon glyph={SquareArrowOutUpRight} size="sm" />} />
           </MiniAppActionTooltip>
-          {app && <MiniAppSystemAppActions compact key={app.id} app={app} workspacePath={initialPath} supported={presentationSupported} />}
+          {app && <MiniAppSystemAppActions compact key={app.id} app={app} workspacePath={initialPath} supported={systemInstallSupported} />}
         </div>
       </SceneChromeContribution>
       {presentationNotice && <div role="status">{presentationNotice}</div>}

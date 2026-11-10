@@ -3,6 +3,17 @@
 use super::launcher::{read_record, LaunchRecord};
 use std::path::{Path, PathBuf};
 
+/// OS-level launcher export exists only where the host can write an
+/// `.app`, `.lnk`, or `.desktop` entry. HarmonyOS has no equivalent, so status
+/// and removal answer "nothing installed" instead of failing.
+pub(super) fn supported() -> bool {
+    cfg!(any(
+        target_os = "macos",
+        target_os = "windows",
+        target_os = "linux"
+    ))
+}
+
 pub(super) fn applications_directory() -> Result<PathBuf, String> {
     #[cfg(target_os = "macos")]
     return dirs::home_dir()
@@ -69,6 +80,9 @@ pub(super) fn status(
     app_id: &str,
     channel: super::ipc::HostChannel,
 ) -> Result<Vec<PathBuf>, String> {
+    if !supported() {
+        return Ok(Vec::new());
+    }
     installed_in(
         &applications_directory()?,
         &records(data_dir, app_id, channel)?,
@@ -80,6 +94,9 @@ pub(super) fn uninstall(
     app_id: &str,
     channel: super::ipc::HostChannel,
 ) -> Result<(), String> {
+    if !supported() {
+        return Ok(());
+    }
     uninstall_in(
         &applications_directory()?,
         &records(data_dir, app_id, channel)?,

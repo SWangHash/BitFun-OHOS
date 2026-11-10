@@ -87,8 +87,8 @@ export default function MiniAppInstalledCard({
         open={menuOpen}
         onClose={() => setMenuOpen(false)}
         aria-label={t('presentation.moreActions')}
-        title={systemAppSupported ? undefined : t('presentation.unsupported')}
-        aria-description={systemAppSupported ? undefined : t('presentation.unsupported')}
+        title={systemAppSupported ? undefined : t('presentation.systemInstallUnsupported')}
+        aria-description={systemAppSupported ? undefined : t('presentation.systemInstallUnsupported')}
         items={[
           { id: 'navigation', label: t(pinned ? 'navigation.remove' : 'navigation.add'), icon: <Icon name="pin" size="sm" />,
             onSelect: () => setPinned(app.id, !pinned) },

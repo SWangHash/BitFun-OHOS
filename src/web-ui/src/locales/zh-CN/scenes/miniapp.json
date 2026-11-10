@@ -399,6 +399,7 @@
     "updated": "已更新「{{name}}」的系统应用：{{path}}",
     "updateFailed": "更新「{{name}}」的系统应用失败：{{error}}",
     "unsupported": "独立窗口和系统图标需要本机 Desktop 工作区。",
+    "systemInstallUnsupported": "此平台不支持把 MiniApp 添加为系统应用。",
     "transferWarning": "此操作会在目标位置重新打开应用，保留已保存的数据和已接受的后台任务。请先保存页面中尚未保存的内容；目标就绪后才会关闭原视图。",
     "transferring": "正在打开目标视图，就绪后将关闭当前视图。",
     "runningWindows": "独立运行的应用",

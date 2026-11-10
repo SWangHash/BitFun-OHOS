@@ -28,7 +28,10 @@ test('the Rust adapter asks ArkTS to create the window', () => {
 
 test('the window page is registered and serves the shell document', () => {
   assert.ok(pages.src.includes('pages/MiniAppWindow'));
-  assert.match(page, /@Entry/);
+  // The window name arrives through the LocalStorage passed to loadContent, so
+  // the page must bind that shared instance instead of a fresh one.
+  assert.match(page, /@Entry\(\{ useSharedStorage: true \}\)/);
+  assert.match(page, /@LocalStorageProp\('bitfunMiniAppWindowName'\)/);
   assert.match(page, /MiniAppWindowService/);
   assert.match(page, /\$rawfile\('miniapp-window\/shell\.html'\)/);
   assert.match(page, /javaScriptProxy\(/);

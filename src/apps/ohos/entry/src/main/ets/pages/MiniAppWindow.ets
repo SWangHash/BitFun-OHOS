@@ -9,7 +9,7 @@
 import { webview } from '@kit.ArkWeb';
 import { MiniAppWindowBridge, MiniAppWindowService } from '../services/MiniAppWindowService';
 
-@Entry
+@Entry({ useSharedStorage: true })
 @Component
 struct MiniAppWindow {
   @LocalStorageProp('bitfunMiniAppWindowName') windowName: string = '';

@@ -1,6 +1,6 @@
 import { api } from './ApiClient';
 import { getActiveSurfaceScope, LOCAL_SURFACE_ID } from '@/infrastructure/peer-device/deviceSurface';
-import { isTauriRuntime } from '@/infrastructure/runtime';
+import { isOpenHarmonyRuntime, isTauriRuntime } from '@/infrastructure/runtime';
 
 export type MiniAppViewKind = 'window' | 'tab';
 export interface MiniAppView { viewId: string; kind: MiniAppViewKind }
@@ -22,6 +22,16 @@ export interface MiniAppViewTicket { instance: MiniAppInstance; view: MiniAppVie
 
 export function hasLocalMiniAppPresentation(): boolean {
   return isTauriRuntime() && getActiveSurfaceScope().surfaceId === LOCAL_SURFACE_ID;
+}
+
+/**
+ * Independent windows and OS-level launcher export are separate host
+ * capabilities. HarmonyOS presents MiniApps in WindowStage sub-windows but has
+ * no `.app` / `.lnk` / `.desktop` launcher to export into, so the "add as a
+ * system app" entry must stay hidden there instead of failing on invoke.
+ */
+export function supportsSystemMiniAppInstallation(): boolean {
+  return hasLocalMiniAppPresentation() && !isOpenHarmonyRuntime();
 }
 
 async function invoke<T>(request: Record<string, unknown>): Promise<T> {

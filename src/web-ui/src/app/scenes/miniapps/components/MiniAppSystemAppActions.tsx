@@ -70,6 +70,9 @@ export function MiniAppSystemAppActions({ app, workspacePath, supported, compact
   };
 
   if (compact) {
+    // A surface that cannot export an OS launcher has no action to pack into a
+    // menu; keep the title-bar overflow menu for actual commands only.
+    if (!supported) return null;
     const label = t('presentation.moreActions');
     return <>
       <MiniAppActionTooltip content={label}>
@@ -88,7 +91,7 @@ export function MiniAppSystemAppActions({ app, workspacePath, supported, compact
     {t('presentation.retryInstallation')}
   </Button>;
   return <>
-    <Tooltip content={t('presentation.unsupported')} disabled={supported}>
+    <Tooltip content={t('presentation.systemInstallUnsupported')} disabled={supported}>
       <Button variant="outline" size="sm" disabled={!supported || loading || busy} onClick={() => void mutate(false)}>
         {paths.length ? t('presentation.updateInstallation') : t('presentation.install')}
       </Button>

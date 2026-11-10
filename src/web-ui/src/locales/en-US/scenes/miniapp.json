@@ -399,6 +399,7 @@
     "updated": "The system app for \"{{name}}\" was updated: {{path}}",
     "updateFailed": "Could not update the system app for \"{{name}}\": {{error}}",
     "unsupported": "Independent windows and system icons require a local Desktop workspace.",
+    "systemInstallUnsupported": "This platform cannot add a MiniApp as a system app.",
     "transferWarning": "This reopens the app in the destination. Saved data and accepted background work are kept. Save any unsaved page state before continuing; the original view closes only after the destination is ready.",
     "transferring": "Opening the destination; the current view will close when it is ready.",
     "runningWindows": "Independent apps",
