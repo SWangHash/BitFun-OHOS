@@ -167,15 +167,16 @@ impl ProjectConfig {
     }
 }
 
-/// Default behavior for the window close button (X): exit the application.
+/// Default behavior for the window close button (X) on Windows / Linux /
+/// HarmonyOS PC: exit the application.
 ///
-/// Every desktop host (Windows, Linux, macOS, HarmonyOS PC) runs the same
-/// decision, so clicking the title-bar close button ends the process by default.
-/// Users who want the process to keep running can pick `minimize_to_tray` (or
-/// `ask`) in Settings > Application > Window behavior; that option hides the
-/// window into the tray / Dock on every host. The choice is persisted as an
+/// Clicking the title-bar close button is expected to end the application, which
+/// is also what an unmapped window manager shortcut does. Users who want the
+/// process to keep running can pick `minimize_to_tray` (or `ask`) in
+/// Settings > Application > Window behavior; that choice is persisted as an
 /// explicit value, so changing this default never rewrites an existing
-/// preference.
+/// preference. macOS keeps its own close handling (hide into the Dock) and does
+/// not read this value.
 fn default_close_button_behavior() -> String {
     "quit".to_string()
 }
@@ -262,8 +263,8 @@ pub struct AppConfig {
     /// Marketplace used by the serving host for Skill discovery and installation.
     #[serde(default)]
     pub skill_market: SkillMarketConfig,
-    /// What happens when the window close button is clicked. Every desktop host
-    /// honors this, including macOS and HarmonyOS PC.
+    /// What happens when the window close button is clicked on Windows / Linux /
+    /// HarmonyOS PC (macOS keeps its hide-to-dock behavior and ignores this).
     /// Allowed values: "quit" | "minimize_to_tray" | "ask".
     /// New installs default to "quit": closing the window exits the process.
     #[serde(default = "default_close_button_behavior")]
