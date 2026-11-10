@@ -490,6 +490,10 @@ const DeviceControlSettingsPage: React.FC = () => {
     ? t('browserControl.connected')
     : t('browserControl.notConnected');
 
+  // Use the executing host's browser inventory, including when a desktop
+  // controller is displaying settings from an OHOS peer.
+  const browserConnectsOnDemand = browserOptions.some(option => option.value === 'haitai');
+
   const browserIssueDescription = browserConnectionIssue === 'launch_failed'
     ? t('browserControl.connectionIssues.launch_failed')
     : browserConnectionIssue === 'control_unavailable'
@@ -533,7 +537,11 @@ const DeviceControlSettingsPage: React.FC = () => {
       if (!IS_TAURI_DESKTOP) {
         setComputerUseEnabled(computerUseCfg ?? false);
       }
-      setPreferredBrowser(browserControlPreferredBrowser || DEFAULT_BROWSER_CONTROL_BROWSER);
+      // The executing host normalizes an absent/legacy preference (notably
+      // OHOS's built-in default). A slower config read cannot replace it.
+      if (!IS_TAURI_DESKTOP) {
+        setPreferredBrowser(browserControlPreferredBrowser || DEFAULT_BROWSER_CONTROL_BROWSER);
+      }
       setBrowserAutoConnectOnStartup(browserControlAutoConnect === true);
       hasLoadedPageDataRef.current = true;
     } catch (error) {
@@ -792,7 +800,7 @@ const DeviceControlSettingsPage: React.FC = () => {
                       >
                         {t('browserControl.disconnect')}
                       </Button>
-                    ) : (
+                    ) : !browserConnectsOnDemand ? (
                       <Button
                         className="bitfun-runtime-settings__row-action-btn"
                         size="sm"
@@ -806,7 +814,7 @@ const DeviceControlSettingsPage: React.FC = () => {
                           ? 'browserControl.enableDefaultCdp'
                           : 'browserControl.connect')}
                       </Button>
-                    )}
+                    ) : null}
                   </div>
                 </ConfigPageRow>
               </>

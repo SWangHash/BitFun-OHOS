@@ -77,6 +77,12 @@ remembered per session on that device: entering a session restores the pane stat
 it was left with, and a session that never opened the pane stays collapsed, so
 changing sessions cannot inherit a neighbour's pane or hide a moved page. The legacy sessionPaneLayoutStore path re-exports the shell owner and
 retains old preference keys/legacy layout projection.
+Split sizing reads the existing viewport-ratio preference and falls back to the
+legacy pixel width when no valid ratio exists. Only explicit divider changes save
+the ratio and fallback width; responsive clamping never overwrites them. Overlay
+width remains independent. Canvas visibility and conversation presentation are
+separate signals: a collapsed canvas still processes the presented session's
+pending browser reveal, then respects a later manual collapse.
 The `session.auxiliary` Appearance address stays on the shell wrapper for skins.
 
 SceneTopBar owns both tab regions and the short separator. SplitView supplies the

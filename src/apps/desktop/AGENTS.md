@@ -102,6 +102,25 @@ the OHOS side instead of dropping it:
 - Re-run `cargo tauri ohos build --debug` (or the OHOS-target check) after a
   merge that touches these files.
 
+## HarmonyOS host integration
+
+OHOS Rust command adapters live in `src/api/ohos`; ArkUI window and WebView
+implementation belongs to [`src/apps/ohos`](../ohos/AGENTS.md). Preserve that
+project's vendored ability module and command bridges when merging upstream.
+Tauri window metadata does not imply support for desktop window/WebView plugin
+APIs on OHOS. Browser commands resolve the ArkTS-owned page by native label.
+
+For an OHOS HAP, build the final desktop frontend before compiling Rust, then
+stage that exact native library into the assembly project. The native library
+embeds `build.frontendDist`; copying newer files into HAP resources does not
+update it. Follow the OHOS guide's build-order and installed-resource checks.
+
+An AppState initialization failure can occur before Tauri creates the main
+WebView. Inspect early-startup logs and trace phases before diagnosing a blank
+window as a frontend rendering bug. Non-Windows `show_fatal_startup_error`
+currently writes to stderr; it is not evidence of a visible OHOS error dialog.
+Preserve persisted records and follow the OHOS recovery guidance.
+
 ## Commands
 
 Use these for the desktop development loop. Verification commands are kept in

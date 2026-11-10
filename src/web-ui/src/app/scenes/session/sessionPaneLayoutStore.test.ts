@@ -8,6 +8,29 @@ function preferences(values: Record<string, string> = {}) {
 }
 
 describe('workbench pane layout compatibility', () => {
+  it('reads the old ratio without rewriting preferences and saves only explicit divider changes', () => {
+    const storage = preferences({ [STORAGE_KEYS.RIGHT_PANEL_RATIO]: '0.4', [STORAGE_KEYS.RIGHT_PANEL_LAST_WIDTH]: '400' });
+    const store = createSessionPaneLayoutStore(storage);
+    expect(store.getState().preferredRightPaneRatio).toBe(0.4);
+    expect(storage.setItem).not.toHaveBeenCalled();
+    // The same pixel width at a new viewport is a different user preference.
+    store.getState().resizeRightPane(400, 2000);
+    expect(store.getState().preferredRightPaneRatio).toBe(0.2);
+    expect(createSessionPaneLayoutStore(storage).getState().preferredRightPaneRatio).toBe(0.2);
+    store.getState().resizeOverlay(700);
+    expect(store.getState().preferredRightPaneRatio).toBe(0.2);
+  });
+
+  it.each(['invalid', 'Infinity', '0', '-0.2', '1.4'])('keeps invalid legacy ratios intact: %s', value => {
+    const storage = preferences({ [STORAGE_KEYS.RIGHT_PANEL_RATIO]: value });
+    const store = createSessionPaneLayoutStore(storage);
+    expect(store.getState().preferredRightPaneRatio).toBeNull();
+    store.getState().resizeRightPane(Number.NaN);
+    expect(storage.setItem).not.toHaveBeenCalled();
+    store.getState().resizeRightPane(640, 0);
+    expect(store.getState().preferredRightPaneRatio).toBeNull();
+    expect(storage.getItem(STORAGE_KEYS.RIGHT_PANEL_RATIO)).toBe(value);
+  });
   it('reveals background output only when its owning session is activated', () => {
     const store = createSessionPaneLayoutStore(preferences());
     const pane = store.getState();

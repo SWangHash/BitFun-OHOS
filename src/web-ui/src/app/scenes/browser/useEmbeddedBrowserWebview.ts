@@ -271,7 +271,7 @@ export function useEmbeddedBrowserWebview(options: UseEmbeddedBrowserWebviewOpti
   } = options;
   // A page created by the browser automation host is already owned elsewhere,
   // so it keeps the same retention semantics as a session-owned target.
-  const targetId = retainedTargetId ?? (adoptExisting ? adoptedWebviewLabel : undefined);
+  const targetId = adoptExisting ? adoptedWebviewLabel : retainedTargetId;
   const isTauri = useMemo(() => isTauriEnvironment(), []);
   const startUrl = initialUrl ?? defaultUrl;
 

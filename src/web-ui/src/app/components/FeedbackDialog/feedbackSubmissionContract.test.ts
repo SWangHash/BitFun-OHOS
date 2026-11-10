@@ -7,12 +7,15 @@ const readSource = (relativePath: string): string =>
   readFileSync(fileURLToPath(new URL(relativePath, import.meta.url)), 'utf8').replace(/\r\n?/g, '\n');
 
 describe('OpenHarmony feedback submission contract', () => {
-  it('keeps other platforms on the external GitCode route', () => {
+  it('keeps OHOS native feedback and the configured external route with a GitCode fallback', () => {
     const footer = readSource('../NavPanel/components/PersistentFooterActions.tsx');
 
     expect(footer).toContain("systemInfo.platform === 'openharmony'");
     expect(footer).toContain('setShowFeedback(true)');
     expect(footer).toContain("systemAPI.openExternal('https://gitcode.com/OpenBitFun/bitfun_ade/issues')");
+    expect(footer).toContain('buildPublicFeedbackFormUrl(import.meta.env.VITE_BITFUN_FEEDBACK_FORM_URL');
+    expect(footer).toContain('systemAPI.openExternal(url)');
+    expect(footer.indexOf('setShowFeedback(true)')).toBeLessThan(footer.indexOf('buildPublicFeedbackFormUrl(import.meta.env.VITE_BITFUN_FEEDBACK_FORM_URL'));
   });
 
   it('shows unread attention only for conversations that can be opened and acknowledged', () => {
@@ -136,6 +139,8 @@ describe('OpenHarmony feedback submission contract', () => {
     expect(styles).toContain('height: auto;');
     expect(completeStyles).not.toContain('min-height:');
     expect(completeStyles).not.toContain('flex: 1;');
+    expect(completeStyles).toContain('color: var(--bitfun-color-status-success-content)');
+    expect(completeStyles).not.toContain('color: var(--bf-appearance-token-color-success)');
   });
 
   it('makes the active view and session-correlation hierarchy explicit', () => {

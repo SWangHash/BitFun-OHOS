@@ -35,6 +35,30 @@ Follow `src/web-ui/AGENTS.md` and the settings control sizing rules in
   Background responses must not repopulate a previous activation; section links
   take precedence over restored scroll positions.
 
+## Browser host defaults and model categories
+
+Browser selection comes from the executing host's normalized
+`browser_control_get_status.selectedBrowser`. An absent/legacy preference on
+OHOS resolves to its built-in browser; a slower configuration read must not
+replace that result with the controller's desktop default. A macOS/Windows
+controller viewing an OHOS peer must use the peer's advertised browser options
+and capabilities. Keep ArkWeb/Haitai on-demand connection behavior; desktop
+Chrome/Edge setup and consent flows must not become their prerequisites.
+
+New custom, template and subscription model configurations default to
+`general_chat`; edits retain existing categories. Save the chosen category and
+derive capabilities from it, without re-inferring category from the model name.
+This is shared behavior, not an OHOS-specific model policy.
+
+For host-default/configuration races, connection controls and model defaults:
+
+```bash
+pnpm --dir src/web-ui run test:run src/app/scenes/settings/pages/shared/RuntimeSettings.test.tsx src/app/scenes/settings/pages/ai/ModelSettingsPage.loading.test.tsx
+```
+
+These DOM tests include delayed reads and OHOS host options on a controller;
+they do not establish live Peer or native browser behavior.
+
 ## Focused verification
 
 ```bash

@@ -28,18 +28,13 @@ import {
 } from '@/shared/utils/version';
 import { createLogger } from '@/shared/utils/logger';
 import { systemAPI } from '@/infrastructure/api';
-import type { CheckForUpdatesResponse } from '@/infrastructure/api/service-api/SystemAPI';
 import { canShowAppUpdateEntry, isTauriRuntime } from '@/infrastructure/update/tauriEnv';
 import { isOpenHarmonyRuntime } from '@/infrastructure/runtime';
-import { UpdateAvailableDialog } from '@/infrastructure/update/UpdateAvailableDialog';
 import { useUpdateInstallStore } from '@/infrastructure/update/updateInstallStore';
 import { formatUpdateInstallError } from '@/infrastructure/update/updateErrorMessage';
-import { PrivacyStatementDialog } from '@/app/components/Privacy/PrivacyStatementDialog';
-import { usePrivacy } from '@/app/components/Privacy/PrivacyContext';
 import './AboutDialog.scss';
 
 const log = createLogger('AboutDialog');
-const USER_AGREEMENT_URL = 'https://agreement-drcn.hispace.dbankcloud.cn/index.html?lang=zh&agreementId=1959693293117791424';
 // The application icon badge keeps its black plate on light surfaces. Dark
 // surfaces use the transparent white mark instead, because the badge plate is
 // indistinguishable from the raised dark dialog surface.
@@ -62,28 +57,19 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({
   const { t } = useI18n('common');
   const appearanceMode: AppearanceMode = useAppearance().current?.mode ?? 'light';
   const [copiedItem, setCopiedItem] = useState<string | null>(null);
-  const [manualCheckBusy, setManualCheckBusy] = useState(false);
-  const [manualCheckStatus, setManualCheckStatus] = useState<'idle' | 'latest' | 'error'>('idle');
-  const [manualCheckErrorMessage, setManualCheckErrorMessage] = useState<string | null>(null);
-  const [manualOpen, setManualOpen] = useState(false);
-  const [manualData, setManualData] = useState<CheckForUpdatesResponse | null>(null);
   const [nativeVersion, setNativeVersion] = useState<string | null>(null);
-  const [privacyDialogOpen, setPrivacyDialogOpen] = useState(false);
-  const { status: privacyStatus } = usePrivacy();
   const updateStatus = useUpdateInstallStore(state => state.status);
   const updateProgress = useUpdateInstallStore(state => state.progress);
   const updateError = useUpdateInstallStore(state => state.error);
-  const startUpdateInstall = useUpdateInstallStore(state => state.startInstall);
   const requestInstall = useUpdateInstallStore(state => state.requestInstall);
   const updateVersion = useUpdateInstallStore(state => state.version);
-  const updateInitialized = useUpdateInstallStore(state => state.initialized);
 
   const aboutInfo = getAboutInfo();
   const { version, license } = aboutInfo;
   const nativeRuntime = isTauriRuntime();
   const openHarmonyRuntime = isOpenHarmonyRuntime();
-  // Windows and macOS update entries are temporarily disabled; HarmonyOS keeps
-  // the AppGallery check button. See `canShowAppUpdateEntry`.
+  // Keep the host update-availability gate for status presentation; the About
+  // dialog intentionally has no manual update-check entry.
   const updateChecksAvailable = canShowAppUpdateEntry();
   // The AppGallery product page resolves from the running build's bundle name
   // through AppGallery Kit, so the review entry point only exists on HarmonyOS.
@@ -116,13 +102,6 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({
   }
 
   useEffect(() => {
-    if (isOpen) {
-      setManualCheckStatus('idle');
-      setManualCheckErrorMessage(null);
-    }
-  }, [isOpen]);
-
-  useEffect(() => {
     if (!isOpen || !nativeRuntime) return;
     // OHOS has no staged in-app update flow; the AppGallery owns updates.
     if (canShowAppUpdateEntry() && !openHarmonyRuntime) {
@@ -141,77 +120,11 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({
     };
   }, [isOpen, nativeRuntime, openHarmonyRuntime]);
 
-  const handleCheckForUpdates = useCallback(async () => {
-    if (!canShowAppUpdateEntry()) return;
-
-    setManualCheckStatus('idle');
-    setManualCheckErrorMessage(null);
-    setManualCheckBusy(true);
-    try {
-      // Windows/macOS update entries are temporarily disabled. The staged
-      // desktop check stays implemented in `systemAPI.checkForUpdates` and the
-      // update store, but it is intentionally unreachable from the UI: restore
-      // this branch together with `canShowAppUpdateEntry()` in tauriEnv.ts.
-      //
-      // } else {
-      //   const res = await systemAPI.checkForUpdates();
-      //   if (!res.updateAvailable) {
-      //     setManualCheckStatus('latest');
-      //   } else {
-      //     setManualData(res);
-      //     setManualOpen(true);
-      //   }
-      // }
-      //
-      // OHOS: the AppGallery check shows the system update dialog when an
-      // update exists; the in-app install flow stays desktop-only.
-      const ohosRes = await systemAPI.checkForUpdatesOhos();
-      if (ohosRes.error) {
-        setManualCheckErrorMessage(String(ohosRes.error));
-        setManualCheckStatus('error');
-      } else if (!ohosRes.updateAvailable) {
-        setManualCheckStatus('latest');
-      }
-      // updateAvailable === true: native dialog already shown
-    } catch (error) {
-      log.error('check_for_updates failed', error);
-      const message = error instanceof Error ? error.message : String(error);
-      setManualCheckErrorMessage(formatUpdateInstallError(message, t));
-      setManualCheckStatus('error');
-    } finally {
-      setManualCheckBusy(false);
-    }
-  }, [t]);
-
   const handleAppMarketReview = useCallback(() => {
     systemAPI.openAppMarketPage().catch(error => {
       log.error('Failed to open the app market product page', error);
     });
   }, []);
-
-  const openPrivacyStatement = useCallback(() => {
-    if (privacyStatus?.enabled && privacyStatus.policy) {
-      setPrivacyDialogOpen(true);
-      return;
-    }
-    void systemAPI.openExternal(USER_AGREEMENT_URL);
-  }, [privacyStatus]);
-
-  const closeAfterPrivacyModeChange = useCallback(() => {
-    setPrivacyDialogOpen(false);
-    onClose();
-  }, [onClose]);
-
-  const onManualLater = useCallback(() => {
-    setManualOpen(false);
-    setManualData(null);
-  }, []);
-
-  const onManualInstall = useCallback(() => {
-    setManualOpen(false);
-    setManualData(null);
-    void startUpdateInstall();
-  }, [startUpdateInstall]);
 
   const onRestart = useCallback(() => {
     onClose();
@@ -228,35 +141,8 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({
     }
   };
 
-  const updateState = `${manualCheckBusy ? 'checking' : ''} ${manualCheckStatus} ${updateStatus}`.trim();
-  const desktopUpdateBusy = !updateInitialized
-    || updateStatus === 'downloading'
-    || updateStatus === 'ready'
-    || updateStatus === 'installing';
-  // HarmonyOS delegates updates to AppGallery and intentionally never
-  // initializes the desktop download/install store, so its staged statuses must
-  // not be presented there even if another caller populated the store. The
-  // desktop entry points are disabled today, but they stay wired for the
-  // platform gate being widened again.
-  const desktopUpdateStatus = !openHarmonyRuntime;
-  const updateBusy = manualCheckBusy || desktopUpdateStatus && desktopUpdateBusy;
-
-  const privacyStatementButton = (
-    <Button
-      variant="outline"
-      size="sm"
-      leadingIcon={<Icon name="eye" size="sm" aria-hidden="true" />}
-      onClick={openPrivacyStatement}
-      data-testid="about-privacy-statement"
-    >
-      {privacyStatus?.enabled ? t('about.privacyStatement') : t('about.userAgreement')}
-      {privacyStatus?.enabled && privacyStatus.hasUnreadUpdate ? (
-        <span className="bitfun-about-dialog__privacy-updated">
-          {t('privacy.updated')}
-        </span>
-      ) : null}
-    </Button>
-  );
+  const showUpdateStatus = updateChecksAvailable && !openHarmonyRuntime
+    && ['downloading', 'ready', 'installing', 'error'].includes(updateStatus);
 
   return (
     <>
@@ -425,58 +311,19 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({
                   </FieldRow>
                 </FieldGroup>
 
-                {updateChecksAvailable ? (
+                {showUpdateStatus ? (
                   <div
                     className="bitfun-about-dialog__update-card"
                     data-bitfun-component="about-dialog"
                     data-bitfun-part="updateCard"
-                    data-bitfun-state={updateState}
+                    data-bitfun-state={updateStatus}
                   >
-                    <div
-                      className="bitfun-about-dialog__update-card-actions"
-                      data-bitfun-component="about-dialog"
-                      data-bitfun-part="updateActions"
-                    >
-                      {manualCheckStatus === 'latest' && updateStatus === 'idle' ? (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          leadingIcon={<Icon name="check-circle" size="sm" aria-hidden="true" />}
-                          onClick={() => void handleCheckForUpdates()}
-                          data-testid="about-check-updates"
-                        >
-                          {t('update.noUpdate')}
-                        </Button>
-                      ) : (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          leadingIcon={<Icon name="refresh" size="sm" aria-hidden="true" />}
-                          loading={manualCheckBusy}
-                          disabled={updateBusy}
-                          onClick={() => void handleCheckForUpdates()}
-                          data-testid="about-check-updates"
-                        >
-                          {manualCheckBusy ? t('update.checking') : t('update.checkForUpdates')}
-                        </Button>
-                      )}
-                      {privacyStatementButton}
-                    </div>
-
                     <div
                       className="bitfun-about-dialog__update-feedback"
                       data-bitfun-component="about-dialog"
                       data-bitfun-part="updateFeedback"
                     >
-                      {manualCheckStatus === 'error' && manualCheckErrorMessage ? (
-                        <Alert
-                          tone="error"
-                          message={manualCheckErrorMessage}
-                          showIcon
-                          className="bitfun-about-dialog__update-alert"
-                        />
-                      ) : null}
-                      {desktopUpdateStatus && updateStatus === 'downloading' ? (
+                      {updateStatus === 'downloading' ? (
                         <div className="bitfun-about-dialog__download-status" role="status">
                           <div
                             className="bitfun-about-dialog__download-bar"
@@ -512,7 +359,7 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({
                           </p>
                         </div>
                       ) : null}
-                      {desktopUpdateStatus && (updateStatus === 'ready' || updateStatus === 'installing') ? (
+                      {(updateStatus === 'ready' || updateStatus === 'installing') ? (
                         <div className="bitfun-about-dialog__update-installed">
                           <div className="bitfun-about-dialog__update-status bitfun-about-dialog__update-status--success">
                             <Icon name="check-circle" size="sm" className="bitfun-about-dialog__update-status-icon" aria-hidden="true" />
@@ -523,7 +370,7 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({
                           </Button>
                         </div>
                       ) : null}
-                      {desktopUpdateStatus && updateStatus === 'error' && updateError ? (
+                      {updateStatus === 'error' && updateError ? (
                         <Alert
                           tone="error"
                           message={formatUpdateInstallError(updateError, t)}
@@ -533,15 +380,7 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({
                       ) : null}
                     </div>
                   </div>
-                ) : (
-                  <div
-                    className="bitfun-about-dialog__update-card-actions bitfun-about-dialog__update-card-actions--standalone"
-                    data-bitfun-component="about-dialog"
-                    data-bitfun-part="updateActions"
-                  >
-                    {privacyStatementButton}
-                  </div>
-                )}
+                ) : null}
               </section>
             </div>
 
@@ -590,18 +429,6 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({
         </DialogBody>
       </Dialog>
 
-      <UpdateAvailableDialog
-        isOpen={manualOpen}
-        variant="manual"
-        data={manualData}
-        onLater={onManualLater}
-        onInstall={onManualInstall}
-      />
-      <PrivacyStatementDialog
-        isOpen={privacyDialogOpen}
-        onClose={() => setPrivacyDialogOpen(false)}
-        onModeChangeComplete={closeAfterPrivacyModeChange}
-      />
     </>
   );
 };

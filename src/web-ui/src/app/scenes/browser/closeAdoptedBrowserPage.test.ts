@@ -50,6 +50,28 @@ describe('adopted browser page ownership', () => {
     ]);
   });
 
+  it('closes manually opened session pages and reopens without a retired target identity', async () => {
+    switchAgentCanvasScope('session-manual');
+    const store = useAgentCanvasStore.getState();
+    store.addTab({ type: 'browser', title: 'Manual', data: { url: 'https://example.com/form' } }, 'active', 'primary');
+    const tab = useAgentCanvasStore.getState().primaryGroup.tabs[0];
+    const label = tab.content.data.targetId;
+    expect(label).toBeTruthy();
+    store.closeTab(tab.id, 'primary');
+    await settle();
+    expect(mocks.invoke).toHaveBeenCalledExactlyOnceWith('browser_webview_close', { request: { label } });
+    const history = useAgentCanvasStore.getState().closedTabs[0].tab.content;
+    expect(history.data.targetId).toBeUndefined();
+    expect(history.data.url).toBe('https://example.com/form');
+  });
+
+  it('uses the exact adopted label and drops the canvas target when reopening a closed page', () => {
+    const content = page();
+    content.data.targetId = 'embedded-browser-panel-view-generated';
+    expect(closedBrowserContent(content).data.targetId).toBeUndefined();
+    expect(closedBrowserContent(content).data.webviewLabel).toBeUndefined();
+  });
+
   it('preserves native pages while switching scopes or transferring a tab', async () => {
     switchAgentCanvasScope('session-a');
     const store = useAgentCanvasStore.getState();

@@ -217,8 +217,25 @@ describe('Browser and desktop control settings', () => {
 
     await render();
 
-    expect(container.querySelector('select')?.value).toBe('builtin');
-    expect(container.querySelector('option')?.textContent).toBe('BitFun Built-in ArkWeb');
+    expect(selectFor('browserControl.preferredBrowser')?.value).toBe('builtin');
+    expect(selectFor('browserControl.preferredBrowser')?.querySelector('option')?.textContent).toBe('BitFun Built-in ArkWeb');
+  });
+
+  it('keeps the normalized host browser when the legacy config read finishes later', async () => {
+    status.selectedBrowser = 'builtin';
+    let resolvePreference!: (value: string) => void;
+    mocks.getConfig.mockImplementation((path: string) => path === 'ai.browser_control_preferred_browser'
+      ? new Promise<string>(resolve => { resolvePreference = resolve; }) : Promise.resolve(null));
+    const original = mocks.invoke.getMockImplementation()!;
+    mocks.invoke.mockImplementation(async (command, ...args) => command === 'browser_control_list_browsers'
+      ? { options: [
+        { value: 'default', label: 'Default', installed: true },
+        { value: 'builtin', label: 'Built-in', installed: true },
+      ] } : original(command, ...args));
+    await render();
+    await act(async () => resolvePreference('default'));
+    expect(selectFor('browserControl.preferredBrowser')?.value).toBe('builtin');
+    expect(mocks.setConfig).not.toHaveBeenCalled();
   });
 
   it('keeps one-time guarded-CDP setup separate from ordinary connection', async () => {
@@ -306,20 +323,38 @@ describe('Browser and desktop control settings', () => {
       return invoke(command, ...args);
     });
     await render();
-    expect(container.querySelector('select')?.disabled).toBe(true);
+    expect(selectFor('browserControl.preferredBrowser')?.disabled).toBe(true);
     await act(async () => button('browserControl.disconnect').click());
-    expect(container.querySelector('select')?.disabled).toBe(false);
-    expect(container.querySelector('select')?.value).toBe('builtin');
+    expect(selectFor('browserControl.preferredBrowser')?.disabled).toBe(false);
+    expect(selectFor('browserControl.preferredBrowser')?.value).toBe('builtin');
     expect(container.textContent).toContain('browserControl.notConnected');
     expect(container.textContent).toContain('browserControl.connectOnUse');
     expect(container.textContent).not.toContain('browserControl.connected');
+    expect(button('browserControl.connect')).toBeUndefined();
     await act(async () => {
-      const select = container.querySelector('select')!;
+      const select = selectFor('browserControl.preferredBrowser')!;
       select.value = 'haitai';
       select.dispatchEvent(new Event('change', { bubbles: true }));
     });
     expect(mocks.setConfig).toHaveBeenCalledWith('ai.browser_control_preferred_browser', 'haitai');
+    expect(mocks.invoke.mock.calls.some(([command]) => command === 'browser_control_launch'
+      || command === 'browser_control_enable_default_cdp')).toBe(false);
     expect(mocks.invoke.mock.calls.filter(([command]) => command === 'browser_control_disconnect')).toHaveLength(2);
+  });
+
+  it('keeps Haitai on-demand connection when a macOS controller displays OHOS host options', async () => {
+    status = { ...readyStatus, browserKind: 'Haitai Browser', selectedBrowser: 'haitai', defaultCdpSupported: false };
+    const invoke = mocks.invoke.getMockImplementation()!;
+    mocks.invoke.mockImplementation(async (command, ...args) => command === 'browser_control_list_browsers'
+      ? { options: [
+        { value: 'builtin', label: 'Built-in', installed: true },
+        { value: 'haitai', label: 'Haitai', installed: true },
+      ] } : invoke(command, ...args));
+    await render();
+    expect(selectFor('browserControl.preferredBrowser')?.value).toBe('haitai');
+    expect(button('browserControl.connect')).toBeUndefined();
+    expect(container.textContent).toContain('browserControl.connectOnUse');
+    expect(container.textContent).not.toContain('browserControl.defaultCdp');
   });
 
   it('keeps the primary state binary and explains a failed connection separately', async () => {

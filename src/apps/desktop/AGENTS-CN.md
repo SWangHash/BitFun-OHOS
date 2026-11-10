@@ -81,6 +81,21 @@ OHOS 产品目标由本目录与 `src/apps/ohos` 维护，上游仓库不包含�
 - 触碰这些文件的合并完成后，重新执行 `cargo tauri ohos build --debug`（或 OHOS
   目标检查）。
 
+## 鸿蒙宿主集成
+
+OHOS Rust 命令适配位于 `src/api/ohos`；ArkUI 窗口和 WebView 实现属于
+[`src/apps/ohos`](../ohos/AGENTS.md)。合并上游时保留该项目内维护的 ability 模块和命令桥。
+Tauri 窗口元数据存在，不代表鸿蒙支持桌面 window/WebView 插件接口；浏览器命令通过原生
+label 定位 ArkTS 管理的页面。
+
+构建 OHOS HAP 时，先完成最终桌面前端构建，再编译 Rust，最后把这次编译的原生库放入实际
+组装项目。原生库内嵌 `build.frontendDist`；仅向 HAP 资源目录复制新文件不会更新它。
+构建顺序与安装后资源版本核验见鸿蒙指南。
+
+AppState 初始化可能在 Tauri 创建主 WebView 之前失败。先检查 early-startup 日志和启动
+trace 阶段，再判断黑屏是否属于前端渲染问题。非 Windows 的 `show_fatal_startup_error`
+当前只写 stderr，不能据此认为鸿蒙已经显示错误弹窗。保留持久化记录，按鸿蒙指南恢复数据。
+
 ## 命令
 
 以下命令用于桌面开发循环；验证命令只在下方“验证”章节维护。

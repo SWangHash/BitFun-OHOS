@@ -1,8 +1,13 @@
-import { supportsNativeWindowControls } from './environment';
+import { isOpenHarmonyRuntime, supportsNativeWindowControls } from './environment';
 
 type Subscriber = { changed: (visible: boolean) => void; error: (error: unknown) => void };
 type Observation = { visible: boolean; subscribers: Set<Subscriber>; dispose: () => void };
 let observation: Observation | undefined;
+
+// ArkUI owns the OHOS window. Tauri still exposes currentWindow metadata there,
+// but its window plugin rejects visibility queries on mobile targets. ArkWeb
+// delivers the host lifecycle through document.visibilityState instead.
+const supportsNativeVisibility = () => supportsNativeWindowControls() && !isOpenHarmonyRuntime();
 
 function startObservation(state: Observation): () => void {
   let disposed = false;
@@ -22,11 +27,11 @@ function startObservation(state: Observation): () => void {
   const onDocumentVisibility = () => {
     if (!documentVisible()) publish(false);
     if (refreshNative) refreshNative();
-    else if (!supportsNativeWindowControls()) publish(documentVisible());
+    else if (!supportsNativeVisibility()) publish(documentVisible());
   };
   document.addEventListener('visibilitychange', onDocumentVisibility);
 
-  if (supportsNativeWindowControls()) {
+  if (supportsNativeVisibility()) {
     void (async () => {
       // Window state belongs to this controller even when product commands use a peer.
       const { getCurrentWindow } = await import('@tauri-apps/api/window');
@@ -85,7 +90,7 @@ export function observeCurrentWindowVisibility(
   const existing = observation;
   const state = existing ?? {
     // Keep native child views hidden until the initial host snapshot is known.
-    visible: !supportsNativeWindowControls() && document.visibilityState !== 'hidden',
+    visible: !supportsNativeVisibility() && document.visibilityState !== 'hidden',
     subscribers: new Set<Subscriber>(),
     dispose: () => {},
   };

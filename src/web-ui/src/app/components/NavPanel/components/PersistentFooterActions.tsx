@@ -6,7 +6,9 @@ import { createOverlayPortal,
   IconButton,
   Menu,
   MenuItem,
+  MenuPopover,
   MenuSeparator,
+  type MenuItemProps,
   Tooltip,
   Dialog,
   DialogClose,
@@ -51,7 +53,32 @@ import { getVersionInfo } from '@/shared/utils/version';
 
 const RemoteConnectDialog = lazyWithRecovery(() => import('../../RemoteConnectDialog'));
 const FeedbackDialog = lazyWithRecovery(() => import('../../FeedbackDialog'));
+const PrivacyStatementDialog = lazyWithRecovery(() => import('../../Privacy/PrivacyStatementDialog').then(
+  module => ({ default: module.PrivacyStatementDialog }),
+));
 const CHANGELOG_URL = 'https://www.bitfun.work/Changelog.html';
+const USER_GUIDE_URL = 'https://www.bitfun.work/docs.html';
+const USER_AGREEMENT_URL = 'https://agreement-drcn.hispace.dbankcloud.cn/index.html?lang=zh&agreementId=1959693293117791424';
+
+const HelpMenuEntry = React.forwardRef<HTMLButtonElement, MenuItemProps & { 'data-menu-id'?: string }>(
+  function HelpMenuEntry(props, ref) {
+    const { t } = useI18n('common');
+    return (
+      <MenuItem
+        {...props}
+        ref={ref}
+        data-testid={props['data-menu-id']}
+        aria-label={props.shortcut && props['data-menu-id'] === 'nav-footer-feedback-item'
+          ? t('feedback.inbox.entryAttention')
+          : props.shortcut && props['data-menu-id'] === 'nav-footer-privacy-item'
+            ? t('privacy.entryUpdated')
+            : props['aria-label']}
+      />
+    );
+  },
+);
+
+const HELP_MENU_PARTS = { item: HelpMenuEntry };
 
 const PersistentFooterActions: React.FC = () => {
   const { t } = useI18n('common');
@@ -70,9 +97,11 @@ const PersistentFooterActions: React.FC = () => {
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuClosing, setMenuClosing] = useState(false);
   const [appearanceSubmenuOpen, setAppearanceSubmenuOpen] = useState(false);
+  const [helpSubmenuOpen, setHelpSubmenuOpen] = useState(false);
   const [deviceOverviewOpen, setDeviceOverviewOpen] = useState(false);
   const menuTriggerRef = useRef<HTMLButtonElement>(null);
   const menuPopoverRef = useRef<HTMLDivElement>(null);
+  const helpMenuTriggerRef = useRef<HTMLButtonElement>(null);
   const menuLayout = useAnchoredPopoverPosition({
     open: menuOpen,
     anchorRef: menuTriggerRef,
@@ -84,6 +113,7 @@ const PersistentFooterActions: React.FC = () => {
   const hasAppUpdate = useHasAppUpdate();
   const updateVersion = useUpdateInstallStore(state => state.downloadVersion ?? state.availableUpdate?.latestVersion);
   const [showFeedback, setShowFeedback] = useState(false);
+  const [privacyDialogOpen, setPrivacyDialogOpen] = useState(false);
   const [showRemoteConnect, setShowRemoteConnect] = useState(false);
   const [remoteInitialGroup, setRemoteInitialGroup] = useState<'network' | 'bot' | 'account' | undefined>(undefined);
   const [showRemoteDisclaimer, setShowRemoteDisclaimer] = useState(false);
@@ -126,6 +156,7 @@ const PersistentFooterActions: React.FC = () => {
 
   const closeMenu = useCallback(() => {
     setAppearanceSubmenuOpen(false);
+    setHelpSubmenuOpen(false);
     setMenuClosing(true);
     setTimeout(() => {
       setMenuOpen(false);
@@ -139,6 +170,7 @@ const PersistentFooterActions: React.FC = () => {
     } else {
       setDeviceOverviewOpen(false);
       setAppearanceSubmenuOpen(false);
+      setHelpSubmenuOpen(false);
       setMenuOpen(true);
     }
   };
@@ -202,16 +234,16 @@ const PersistentFooterActions: React.FC = () => {
     });
   }, [accountIdentity.me, accountIdentity.status, closeMenu, feedbackPlatformEnabled, t]);
 
-  const handleOpenChangelog = useCallback(() => {
+  const handleOpenHelpPage = useCallback((url: string, title: string) => {
     closeMenu();
     if (activeTabId === 'session' || activeTabId?.startsWith('session:')) {
       window.dispatchEvent(new CustomEvent('agent-create-tab', {
         detail: {
           type: 'browser',
-          title: t('header.changelog'),
-          data: { url: CHANGELOG_URL },
+          title,
+          data: { url },
           checkDuplicate: true,
-          duplicateCheckKey: `browser-panel:${CHANGELOG_URL}`,
+          duplicateCheckKey: `browser-panel:${url}`,
           replaceExisting: false,
         },
       }));
@@ -219,8 +251,23 @@ const PersistentFooterActions: React.FC = () => {
     }
 
     useSceneStore.getState().openScene('browser');
-    requestBrowserNavigation(CHANGELOG_URL);
-  }, [activeTabId, closeMenu, t]);
+    requestBrowserNavigation(url);
+  }, [activeTabId, closeMenu]);
+
+  const openPrivacyStatement = useCallback(() => {
+    closeMenu();
+    if (privacyStatus?.enabled && privacyStatus.policy) {
+      setPrivacyDialogOpen(true);
+      return;
+    }
+    void systemAPI.openExternal(USER_AGREEMENT_URL).catch(() => {
+      notificationService.error(t('nav.customization.openFailed', { name: t('about.userAgreement') }));
+    });
+  }, [closeMenu, privacyStatus, t]);
+
+  const closeAfterPrivacyModeChange = useCallback(() => {
+    setPrivacyDialogOpen(false);
+  }, []);
 
   const handleFloatingMode = () => {
     closeMenu();
@@ -330,6 +377,8 @@ const PersistentFooterActions: React.FC = () => {
                     event.preventDefault();
                     if (appearanceSubmenuOpen) {
                       setAppearanceSubmenuOpen(false);
+                    } else if (helpSubmenuOpen) {
+                      setHelpSubmenuOpen(false);
                     } else {
                       closeMenu();
                       menuTriggerRef.current?.focus();
@@ -351,32 +400,87 @@ const PersistentFooterActions: React.FC = () => {
                   <NotificationButton menuItem onActivate={closeMenu} />
                   <AppearanceQuickSwitchMenuItem
                     open={appearanceSubmenuOpen}
-                    onOpenChange={setAppearanceSubmenuOpen}
+                    onOpenChange={(open) => {
+                      setHelpSubmenuOpen(false);
+                      setAppearanceSubmenuOpen(open);
+                    }}
                     onCloseParentMenu={closeMenu}
                     onOpenAppearanceSettings={handleOpenAppearanceSettings}
                   />
                   <MenuSeparator />
                   <UpdateMenuItems onCloseMenu={closeMenu} />
                   <MenuItem
-                    leading={<Icon name="files" size="sm" aria-hidden="true" />}
-                    onClick={handleOpenChangelog}
-                    data-testid="nav-footer-changelog-item"
-                  >
-                    {t('header.changelog')}
-                  </MenuItem>
-                  <MenuItem
-                    leading={<Icon name="waitlist-message" size="sm" aria-hidden="true" />}
-                    metadata={hasFeedbackAttention ? (
+                    ref={helpMenuTriggerRef}
+                    leading={<Icon name="message-circle-question" size="sm" aria-hidden="true" />}
+                    metadata={hasPrivacyUpdate ? t('privacy.updated') : hasFeedbackAttention ? (
                       <span className="bitfun-nav-panel__footer-menu-unread" aria-hidden="true" />
                     ) : undefined}
-                    onClick={() => void handleFeedback()}
-                    aria-label={hasFeedbackAttention
-                      ? t('feedback.inbox.entryAttention')
-                      : t('header.feedback')}
-                    data-testid="nav-footer-feedback-item"
+                    shortcut={<Icon name="chevron-right" size="sm" aria-hidden="true" />}
+                    aria-haspopup="menu"
+                    aria-expanded={helpSubmenuOpen}
+                    aria-label={hasMoreMenuAttention ? t('nav.settingsMenu.helpAttention') : undefined}
+                    onClick={() => {
+                      setAppearanceSubmenuOpen(false);
+                      setHelpSubmenuOpen(open => !open);
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key !== 'ArrowRight') return;
+                      event.preventDefault();
+                      event.stopPropagation();
+                      setAppearanceSubmenuOpen(false);
+                      setHelpSubmenuOpen(true);
+                    }}
+                    data-testid="nav-settings-help-item"
                   >
-                    {t('header.feedback')}
+                    {t('nav.settingsMenu.help')}
                   </MenuItem>
+                  <MenuPopover
+                    open={helpSubmenuOpen}
+                    onClose={() => setHelpSubmenuOpen(false)}
+                    anchorRef={helpMenuTriggerRef}
+                    placement="right"
+                    inlineSize="content"
+                    aria-label={t('nav.settingsMenu.help')}
+                    data-testid="nav-settings-help-menu"
+                    parts={HELP_MENU_PARTS}
+                    onKeyDown={(event) => {
+                      if (event.key !== 'ArrowLeft' && event.key !== 'Escape') return;
+                      event.preventDefault();
+                      event.stopPropagation();
+                      setHelpSubmenuOpen(false);
+                      helpMenuTriggerRef.current?.focus();
+                    }}
+                    items={[
+                      {
+                        id: 'nav-footer-user-guide-item',
+                        label: t('nav.settingsMenu.userGuide'),
+                        icon: <Icon name="book-open" size="sm" aria-hidden="true" />,
+                        onSelect: () => handleOpenHelpPage(USER_GUIDE_URL, t('nav.settingsMenu.userGuide')),
+                      },
+                      {
+                        id: 'nav-footer-changelog-item',
+                        label: t('header.changelog'),
+                        icon: <Icon name="files" size="sm" aria-hidden="true" />,
+                        onSelect: () => handleOpenHelpPage(CHANGELOG_URL, t('header.changelog')),
+                      },
+                      {
+                        id: 'nav-footer-feedback-item',
+                        label: t('header.feedback'),
+                        icon: <Icon name="waitlist-message" size="sm" aria-hidden="true" />,
+                        shortcut: hasFeedbackAttention
+                          ? <span className="bitfun-nav-panel__footer-menu-unread" aria-hidden="true" />
+                          : undefined,
+                        onSelect: () => void handleFeedback(),
+                      },
+                      {
+                        id: 'nav-footer-privacy-item',
+                        label: privacyStatus?.enabled ? t('about.privacyStatement') : t('about.userAgreement'),
+                        icon: <Icon name="eye" size="sm" aria-hidden="true" />,
+                        shortcut: hasPrivacyUpdate ? t('privacy.updated') : undefined,
+                        onSelect: openPrivacyStatement,
+                      },
+                    ]}
+                  />
                   <MenuSeparator />
                   <MenuItem
                     leading={<Icon name="gear" size="sm" aria-hidden="true" />}
@@ -388,10 +492,6 @@ const PersistentFooterActions: React.FC = () => {
                   <MenuItem
                     leading={<Icon name="info" size="sm" aria-hidden="true" />}
                     onClick={handleShowAbout}
-                    metadata={hasPrivacyUpdate ? t('privacy.updated') : undefined}
-                    aria-label={hasPrivacyUpdate
-                      ? t('privacy.aboutEntryUpdated')
-                      : t('nav.settingsMenu.about')}
                     data-testid="nav-settings-about-item"
                   >
                     {t('nav.settingsMenu.about')}
@@ -416,6 +516,15 @@ const PersistentFooterActions: React.FC = () => {
             isOpen={showRemoteConnect}
             onClose={() => setShowRemoteConnect(false)}
             initialGroup={remoteInitialGroup}
+          />
+        </Suspense>
+      </RetainedMountBoundary>
+      <RetainedMountBoundary present={privacyDialogOpen}>
+        <Suspense fallback={null}>
+          <PrivacyStatementDialog
+            isOpen={privacyDialogOpen}
+            onClose={() => setPrivacyDialogOpen(false)}
+            onModeChangeComplete={closeAfterPrivacyModeChange}
           />
         </Suspense>
       </RetainedMountBoundary>

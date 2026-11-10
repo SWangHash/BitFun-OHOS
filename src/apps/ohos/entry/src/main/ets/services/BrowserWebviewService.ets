@@ -144,6 +144,7 @@ export class BrowserWebviewService {
     // The page-load callbacks close over `label` (stable for the webview's
     // lifetime) and forward to the Rust-side emitter so the web-ui's listener
     // can react exactly like the desktop `.on_page_load` path.
+    let loadFailed: boolean = false;
     const initData: WebviewInitData = {
       webTag: label,
       // When HTML content is provided (local file), leave url empty so
@@ -166,10 +167,15 @@ export class BrowserWebviewService {
         return false;
       },
       onPageBegin: (url: string): void => {
+        loadFailed = false;
         RustModule.emitBrowserPageLoad(label, 'started', url);
       },
       onPageEnd: (url: string): void => {
-        RustModule.emitBrowserPageLoad(label, 'finished', url);
+        if (!loadFailed) RustModule.emitBrowserPageLoad(label, 'finished', url);
+      },
+      onPageError: (url: string, error: string): void => {
+        loadFailed = true;
+        RustModule.emitBrowserPageError(label, url, error);
       },
     };
     const ret = controller.addWebview(initData);

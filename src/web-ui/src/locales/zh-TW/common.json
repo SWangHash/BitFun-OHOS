@@ -74,6 +74,7 @@
     "editorialChange": "文字修訂，不影響現有同意",
     "updated": "已更新",
     "aboutEntryUpdated": "關於，隱私聲明有更新",
+    "entryUpdated": "隱私聲明有更新",
     "fullMode": "完整模式",
     "fullModeDescription": "反饋及相關資料收集目前已啟用。",
     "notAcceptedMode": "目前未同意",
@@ -1015,6 +1016,9 @@
     "multimodalTools": "多模態工具",
     "notifications": "通知",
     "settingsMenu": {
+      "help": "說明",
+      "helpAttention": "說明，有未讀提醒",
+      "userGuide": "使用者指南",
       "floatingWindow": "懸浮窗",
       "theme": "主題",
       "themeConfiguration": "主題配置",

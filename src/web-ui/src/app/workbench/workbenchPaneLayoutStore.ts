@@ -1,7 +1,8 @@
 import { createStore } from 'zustand/vanilla';
 import { useStore } from 'zustand';
 import { surfaceScopedKey } from '@/infrastructure/peer-device/deviceSurface';
-import { RIGHT_PANEL_CONFIG, STORAGE_KEYS } from '../layout/panelConfig';
+import { storage as preferenceStorage } from '@/shared/utils/storageAdapter';
+import { panelRatioFromWidth, RIGHT_PANEL_CONFIG, STORAGE_KEYS } from '../layout/panelConfig';
 import type { WorkbenchPane } from './scenePaneModel';
 
 export type SessionPaneMode = 'chat-only' | 'split' | 'content-only';
@@ -29,6 +30,8 @@ interface WorkbenchPaneLayoutState {
   resizeOverlay: (width: number) => void;
   /** A physical slot preference, independent of which content occupies it. */
   preferredRightPaneWidth: number;
+  /** Viewport share selected by the user; null keeps the legacy pixel fallback. */
+  preferredRightPaneRatio: number | null;
   activate: (surfaceId: string, sessionId: string | null) => void;
   showContent: () => void;
   showContentForSession: (surfaceId: string, sessionId: string) => void;
@@ -40,7 +43,7 @@ interface WorkbenchPaneLayoutState {
   toggleContent: () => void;
   toggleMaximized: () => void;
   swapPanes: () => void;
-  resizeRightPane: (width: number) => void;
+  resizeRightPane: (width: number, referenceWidth?: number) => void;
   applyLegacyLayout: (layout: Partial<LegacySessionPaneLayout>) => void;
   /**
    * Drop every per-session pane memory on every surface. Geometry preferences
@@ -70,8 +73,7 @@ export function projectLegacySessionPaneLayout(state: WorkbenchPaneLayoutState):
 }
 
 function localPreferenceStorage(): PreferenceStorage | undefined {
-  try { return typeof window === 'undefined' ? undefined : window.localStorage; }
-  catch { return undefined; }
+  return typeof window === 'undefined' ? undefined : preferenceStorage;
 }
 
 /**
@@ -87,6 +89,7 @@ export function createWorkbenchPaneLayoutStore(storage = localPreferenceStorage(
     try { storage?.setItem(key, value); } catch { /* Layout remains usable without storage. */ }
   };
   const savedWidth = Number(read(STORAGE_KEYS.RIGHT_PANEL_LAST_WIDTH));
+  const savedRatio = Number(read(STORAGE_KEYS.RIGHT_PANEL_RATIO));
   const savedOverlayWidth = Number(read(OVERLAY_WIDTH_KEY));
   const defaultWidth = typeof window !== 'undefined'
     ? Math.max(540, Math.min(800, Math.floor(window.innerWidth * 0.35)))
@@ -124,6 +127,8 @@ export function createWorkbenchPaneLayoutStore(storage = localPreferenceStorage(
       },
       preferredRightPaneWidth: Number.isFinite(savedWidth) && savedWidth > 0
         ? normalizeWidth(savedWidth) : defaultWidth,
+      preferredRightPaneRatio: Number.isFinite(savedRatio) && savedRatio > 0 && savedRatio <= 1
+        ? savedRatio : null,
       activate: (surfaceId, sessionId) => {
         const activeKey = scopeKey(surfaceId, sessionId);
         if (get().activeKey === activeKey) return;
@@ -158,12 +163,16 @@ export function createWorkbenchPaneLayoutStore(storage = localPreferenceStorage(
         write(CONTENT_SIDE_KEY, contentSide);
         set({ contentSide });
       },
-      resizeRightPane: width => {
+      resizeRightPane: (width, referenceWidth = typeof window === 'undefined' ? 0 : window.innerWidth) => {
         if (!Number.isFinite(width) || width <= 0) return;
         const preferredRightPaneWidth = normalizeWidth(width);
-        if (get().preferredRightPaneWidth === preferredRightPaneWidth) return;
+        const preferredRightPaneRatio = panelRatioFromWidth(preferredRightPaneWidth, referenceWidth)
+          ?? get().preferredRightPaneRatio;
+        if (get().preferredRightPaneWidth === preferredRightPaneWidth
+          && get().preferredRightPaneRatio === preferredRightPaneRatio) return;
         write(STORAGE_KEYS.RIGHT_PANEL_LAST_WIDTH, String(preferredRightPaneWidth));
-        set({ preferredRightPaneWidth });
+        if (preferredRightPaneRatio !== null) write(STORAGE_KEYS.RIGHT_PANEL_RATIO, String(preferredRightPaneRatio));
+        set({ preferredRightPaneWidth, preferredRightPaneRatio });
       },
       applyLegacyLayout: layout => {
         const state = get();
@@ -197,9 +206,10 @@ export function useWorkbenchPaneLayout() {
   const mode = useStore(workbenchPaneLayoutStore, selectWorkbenchPaneMode);
   const contentSide = useStore(workbenchPaneLayoutStore, state => state.contentSide);
   const preferredRightPaneWidth = useStore(workbenchPaneLayoutStore, state => state.preferredRightPaneWidth);
+  const preferredRightPaneRatio = useStore(workbenchPaneLayoutStore, state => state.preferredRightPaneRatio);
   const displayMode = useStore(workbenchPaneLayoutStore, state => state.displayMode);
   const preferredOverlayWidth = useStore(workbenchPaneLayoutStore, state => state.preferredOverlayWidth);
   const { showContent, hideContent, toggleContent, toggleMaximized, swapPanes, resizeRightPane, resizeOverlay } = workbenchPaneLayoutStore.getState();
-  return { mode, contentSide, displayMode, preferredOverlayWidth, preferredRightPaneWidth,
+  return { mode, contentSide, displayMode, preferredOverlayWidth, preferredRightPaneWidth, preferredRightPaneRatio,
     showContent, hideContent, toggleContent, toggleMaximized, swapPanes, resizeRightPane, resizeOverlay };
 }

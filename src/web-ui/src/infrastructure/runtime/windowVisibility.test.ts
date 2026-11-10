@@ -4,12 +4,16 @@ import { observeCurrentWindowVisibility } from './windowVisibility';
 
 const mocks = vi.hoisted(() => ({
   native: true,
+  ohos: false,
   isVisible: vi.fn(async () => true),
   isMinimized: vi.fn(async () => false),
   onResized: vi.fn(),
   onFocusChanged: vi.fn(),
 }));
-vi.mock('./environment', () => ({ supportsNativeWindowControls: () => mocks.native }));
+vi.mock('./environment', () => ({
+  supportsNativeWindowControls: () => mocks.native,
+  isOpenHarmonyRuntime: () => mocks.ohos,
+}));
 vi.mock('@tauri-apps/api/window', () => ({ getCurrentWindow: () => mocks }));
 let resize: () => void;
 let focus: () => void;
@@ -20,6 +24,7 @@ const error = vi.fn();
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.native = true;
+  mocks.ohos = false;
   mocks.isVisible.mockResolvedValue(true);
   mocks.isMinimized.mockResolvedValue(false);
   stopResize = vi.fn();
@@ -110,6 +115,36 @@ it('uses document visibility on web without invoking native APIs', async () => {
   document.dispatchEvent(new Event('visibilitychange'));
   expect(changed).toHaveBeenLastCalledWith(true);
   expect(mocks.onResized).not.toHaveBeenCalled();
+});
+
+it('uses the ArkWeb lifecycle on OHOS even when Tauri window metadata exists', async () => {
+  mocks.ohos = true;
+  mocks.isVisible.mockRejectedValue(new Error('Window API not available on mobile'));
+  const changed = observe();
+  expect(changed).toHaveBeenLastCalledWith(true);
+  const visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden');
+  document.dispatchEvent(new Event('visibilitychange'));
+  expect(changed).toHaveBeenLastCalledWith(false);
+  visibility.mockReturnValue('visible');
+  document.dispatchEvent(new Event('visibilitychange'));
+  expect(changed).toHaveBeenLastCalledWith(true);
+  await settle();
+  expect(mocks.onResized).not.toHaveBeenCalled();
+  expect(mocks.onFocusChanged).not.toHaveBeenCalled();
+  expect(mocks.isVisible).not.toHaveBeenCalled();
+  expect(mocks.isMinimized).not.toHaveBeenCalled();
+  expect(error).not.toHaveBeenCalled();
+});
+
+it('keeps an OHOS page hidden when the host starts in the background', () => {
+  mocks.ohos = true;
+  const visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden');
+  const changed = observe();
+  expect(changed).toHaveBeenLastCalledWith(false);
+  visibility.mockReturnValue('visible');
+  document.dispatchEvent(new Event('visibilitychange'));
+  expect(changed).toHaveBeenLastCalledWith(true);
+  expect(mocks.isVisible).not.toHaveBeenCalled();
 });
 
 it('keeps native hidden state through document visibility changes and recovers from read failure', async () => {

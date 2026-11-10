@@ -20,9 +20,14 @@ const mocks = vi.hoisted(() => ({
   },
 }));
 
-vi.mock('@/infrastructure/runtime', () => ({
+vi.mock('@/infrastructure/runtime', async importOriginal => ({
+  ...await importOriginal<typeof import('@/infrastructure/runtime')>(),
   isOpenHarmonyRuntime: () => mocks.isOpenHarmony,
   isTauriRuntime: () => true,
+}));
+
+vi.mock('@/infrastructure/appearance', () => ({
+  useAppearance: () => ({ current: { mode: 'light' } }),
 }));
 
 vi.mock('@/infrastructure/update/tauriEnv', () => ({
@@ -85,16 +90,11 @@ afterEach(async () => {
   container.remove();
 });
 
-it('keeps the HarmonyOS AppGallery check enabled without desktop updater initialization', async () => {
-  const button = document.querySelector<HTMLButtonElement>('[data-testid="about-check-updates"]');
-  expect(button).not.toBeNull();
-  expect(button?.disabled).toBe(false);
-  expect(mocks.initialize).not.toHaveBeenCalled();
-
-  await act(async () => button?.click());
-
-  expect(mocks.checkForUpdatesOhos).toHaveBeenCalledOnce();
-  expect(button?.textContent).toContain('update.noUpdate');
+it.each([true, false])('omits manual update checks from About on OHOS=%s', async isOpenHarmony => {
+  mocks.isOpenHarmony = isOpenHarmony;
+  await act(async () => root.render(<AboutDialog isOpen onClose={() => undefined} />));
+  expect(document.querySelector('[data-testid="about-check-updates"]')).toBeNull();
+  expect(mocks.checkForUpdatesOhos).not.toHaveBeenCalled();
 });
 
 it('never presents a staged desktop updater error on HarmonyOS', async () => {

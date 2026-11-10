@@ -8,14 +8,17 @@ const readSource = (relativePath: string): string =>
 describe('OpenHarmony privacy policy management contract', () => {
   it('offers managed full, not-accepted, and read-only detail modes', () => {
     const dialog = readSource('./PrivacyStatementDialog.tsx');
+    const footer = readSource('../NavPanel/components/PersistentFooterActions.tsx');
     const about = readSource('../AboutDialog/AboutDialog.tsx');
 
     expect(dialog).toContain("variant?: 'about' | 'readonly'");
     expect(dialog).toContain("t('privacy.withdraw')");
     expect(dialog).toContain("t('privacy.enableFull')");
     expect(dialog).toContain("variant === 'about'");
-    expect(about).toContain('setPrivacyDialogOpen(true)');
-    expect(about).toContain('privacyStatus.hasUnreadUpdate');
+    expect(footer).toContain('setPrivacyDialogOpen(true)');
+    expect(footer).toContain('privacyStatus.hasUnreadUpdate');
+    expect(footer).toContain("id: 'nav-footer-privacy-item'");
+    expect(about).not.toContain('about-privacy-statement');
   });
 
   it('keeps collection disabled when withdrawal persistence or full-mode application fails', () => {
@@ -37,13 +40,13 @@ describe('OpenHarmony privacy policy management contract', () => {
 
   it('returns to the main page after a managed consent mode change succeeds', () => {
     const dialog = readSource('./PrivacyStatementDialog.tsx');
-    const about = readSource('../AboutDialog/AboutDialog.tsx');
+    const footer = readSource('../NavPanel/components/PersistentFooterActions.tsx');
 
     expect(dialog).toContain('onModeChangeComplete?: () => void');
     expect(dialog.match(/onModeChangeComplete\?\.\(\)/g)).toHaveLength(3);
-    expect(about).toContain('const closeAfterPrivacyModeChange = useCallback');
-    expect(about).toContain('setPrivacyDialogOpen(false);\n    onClose();');
-    expect(about).toContain('onModeChangeComplete={closeAfterPrivacyModeChange}');
+    expect(footer).toContain('const closeAfterPrivacyModeChange = useCallback');
+    expect(footer).toContain('setPrivacyDialogOpen(false);');
+    expect(footer).toContain('onModeChangeComplete={closeAfterPrivacyModeChange}');
   });
 
   it('uses only the policy timestamp for editorial update state', () => {
@@ -69,7 +72,8 @@ describe('OpenHarmony privacy policy management contract', () => {
     expect(footer).toContain('privacyStatus.hasUnreadUpdate');
     expect(footer).toContain('hasFeedbackAttention || hasPrivacyUpdate');
     expect(footer).toContain('bitfun-nav-panel__footer-more-unread');
-    expect(footer).toContain("t('privacy.aboutEntryUpdated')");
+    expect(footer).toContain("t('privacy.entryUpdated')");
+    expect(footer).toContain("t('nav.settingsMenu.helpAttention')");
     expect(styles).toContain('.bitfun-nav-panel__footer-more-unread');
   });
 });
