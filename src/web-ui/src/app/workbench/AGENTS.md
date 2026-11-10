@@ -7,6 +7,20 @@ mount-dependent open queues, or a dependency on the active workspace during save
 Use explicit pane selections and the shared navigation transaction; do not derive
 selection from command focus/history changes or place the canvas in a fixed pane.
 
+Pane sizing and session reveal are shared product behavior, including on OHOS.
+Read the saved viewport ratio, retain the legacy pixel fallback, and persist
+only explicit divider changes. Responsive clamping, maximize/restore and hidden
+panes must not overwrite that preference; overlay width remains independent.
+Use the shared storage adapter, whose fallback handles unavailable ArkWeb storage.
+
+Keep session presentation separate from canvas visibility. A collapsed canvas
+must still receive `isSessionSceneActive` from the presented conversation so it
+can consume a pending background browser reveal when the user returns. Preparing
+that page must not switch sessions or steal focus; after the reveal, preserve a
+user's manual collapse. Keep ownership scoped by device/session. The ArkWeb
+native-page implementation belongs to the
+[browser scene](../scenes/browser/AGENTS.md) and OHOS host, not the layout store.
+
 Focused verification from the repository root:
 
 ```bash
@@ -51,3 +65,13 @@ pnpm --dir src/web-ui run test:run src/app/workbench/ContentResourceView.shortcu
 Independent resources register editor find while active and focused, even when
 no session canvas is mounted. The command delegates to the focused edit target;
 document buffers and native browser-shortcut suppression retain their owners.
+
+For viewport-ratio compatibility and a collapsed canvas revealing a background
+browser on session return:
+
+```bash
+pnpm --dir src/web-ui run test:run src/app/workbench/WorkbenchLayout.test.tsx src/app/workbench/workbenchBrowserReveal.test.tsx src/app/scenes/session/sessionPaneLayoutStore.test.ts
+```
+
+These fixtures exercise the production pane, canvas and navigation stores with
+local and simulated Peer identities; they do not establish native or remote rendering.

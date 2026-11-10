@@ -36,6 +36,26 @@ observation/targeting helpers, used by both built-in and external browser client
   `activate` request. Launch paths follow the same rule (`open -g` on macOS), and
   only a browser-owned consent prompt or a user-visible launch may activate.
 
+## HarmonyOS browser compatibility
+
+The shared `navigate` contract is also the first-operation contract on OHOS:
+create/reuse the conversation's exact ArkWeb page when needed, then apply the
+requested navigation and optional observation. Keep legacy `open_builtin` and
+`connect` payloads working. Resolve recoverable target state before rejecting a
+stale connection; do not require a visible browser panel for background readiness.
+
+ArkWeb and Haitai do not require Chrome/Edge executables or desktop Computer Use
+providers. Their absence is not evidence that an OHOS host has no GUI or browser.
+Desktop headless-launch and guarded-CDP setup are separate capabilities; keep
+browser/profile consent in Settings and honor the executing host's advertised
+support. Concrete ArkUI/WebView behavior stays behind the registered host port;
+see the [OHOS host guide](../../../../../../../apps/ohos/AGENTS.md).
+
+When synchronizing upstream tool descriptions or schemas, verify the matching
+OHOS dispatch branch, reconnect path and legacy callers against the same
+contract. A retained commit or successful command response is not evidence of
+rendered content or equivalent behavior.
+
 ## Focused verification
 
 ```bash

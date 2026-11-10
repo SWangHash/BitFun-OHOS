@@ -46,7 +46,10 @@ import { useHasAppUpdate } from '@/infrastructure/update/useHasAppUpdate';
 import { UpdateDownloadIndicator } from '@/infrastructure/update/UpdateDownloadIndicator';
 import { UpdateMenuItems } from '@/infrastructure/update/UpdateMenuItems';
 import { useUpdateInstallStore } from '@/infrastructure/update/updateInstallStore';
+import { useAccountIdentity } from '@/infrastructure/account-identity';
+import { buildPublicFeedbackFormUrl } from '@/infrastructure/feedback/publicFeedbackForm';
 import { notificationService } from '@/shared/notification-system';
+import { getVersionInfo } from '@/shared/utils/version';
 
 const RemoteConnectDialog = lazyWithRecovery(() => import('../../RemoteConnectDialog'));
 const FeedbackDialog = lazyWithRecovery(() => import('../../FeedbackDialog'));
@@ -90,6 +93,7 @@ const PersistentFooterActions: React.FC = () => {
     privacyStatus?.enabled && privacyStatus.hasUnreadUpdate,
   );
   const hasMoreMenuAttention = hasFeedbackAttention || hasPrivacyUpdate;
+  const accountIdentity = useAccountIdentity();
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuClosing, setMenuClosing] = useState(false);
   const [appearanceSubmenuOpen, setAppearanceSubmenuOpen] = useState(false);

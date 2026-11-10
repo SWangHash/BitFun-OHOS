@@ -103,6 +103,7 @@ cargo test -p bitfun-services-core --no-default-features --features local-storag
 cargo test -p bitfun-services-core --no-default-features --features local-storage --lib session::metadata
 cargo test -p bitfun-services-core --no-default-features --features local-storage --lib session::page::tests
 cargo test -p bitfun-services-core --no-default-features --features local-storage --lib session::offline_import
+cargo test -p bitfun-services-core --no-default-features --features local-storage --lib persistence::tests
 cargo test -p bitfun-services-core --no-default-features --features local-storage --test session_write_lock_contracts
 cargo test -p bitfun-services-core --no-default-features --features local-storage --test exclusive_file_lease_contracts
 cargo test -p bitfun-services-core --no-default-features --features memory-store --lib memory_store::tests::
@@ -148,6 +149,16 @@ cargo test --locked -p bitfun-services-core --no-default-features --features wor
 ```
 
 ## Offline-compatible storage formats
+
+`PersistenceService` owns generic JSON IO, not workspace recovery policy. Sync
+temporary-file contents before replacement, sync backup contents before pruning
+older backups, and sync the affected directory entries on Unix (including OHOS).
+Rename alone does not establish durability. Keep Windows directory-sync behavior
+platform-gated; do not add an OHOS-only data format or empty-record fallback.
+Unreadable/invalid JSON remains an error and stays intact. Recovery callers must
+stop writers, preserve the original, and validate a backup using the owning
+schema. The `persistence::tests` command above covers legacy payload round trips,
+backup preservation and failed writes; it does not simulate device power loss.
 
 `session-recovery` owns offline migration-damaged session scanning, verified
 full-session backup, resumable repair and rollback. It reuses workspace identity

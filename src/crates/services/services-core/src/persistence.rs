@@ -98,10 +98,17 @@ impl PersistenceService {
             .await
             .map_err(|e| format!("Failed to write temp file: {}", e))?;
 
+        // A rename publishes the new inode, but does not flush its contents.
+        // Persist the bytes first so an interrupted host cannot leave a
+        // correctly sized registry containing only zeroes after replacement.
+        sync_file(&temp_path).await?;
         fs::rename(&temp_path, &file_path).await.map_err(|e| {
             let _ = std::fs::remove_file(&temp_path);
             format!("Failed to rename temp file: {}", e)
         })?;
+        if let Some(parent) = file_path.parent() {
+            sync_directory(parent).await?;
+        }
 
         Ok(())
     }
@@ -159,6 +166,8 @@ impl PersistenceService {
         fs::copy(file_path, &backup_path)
             .await
             .map_err(|e| format!("Failed to create backup: {}", e))?;
+        sync_file(&backup_path).await?;
+        sync_directory(&backup_dir).await?;
 
         self.cleanup_old_backups(&backup_dir, file_name, max_backups)
             .await?;
@@ -204,5 +213,128 @@ impl PersistenceService {
         }
 
         Ok(())
+    }
+}
+
+async fn sync_file(path: &Path) -> Result<(), String> {
+    let file = fs::OpenOptions::new()
+        .write(true)
+        .open(path)
+        .await
+        .map_err(|e| format!("Failed to open file for sync {}: {}", path.display(), e))?;
+    file.sync_all()
+        .await
+        .map_err(|e| format!("Failed to sync file {}: {}", path.display(), e))
+}
+
+async fn sync_directory(path: &Path) -> Result<(), String> {
+    // Unix needs the directory entry flushed as well as the file contents.
+    // Windows does not support opening directories with File::open.
+    #[cfg(unix)]
+    {
+        let directory = fs::File::open(path).await.map_err(|e| {
+            format!(
+                "Failed to open directory for sync {}: {}",
+                path.display(),
+                e
+            )
+        })?;
+        directory
+            .sync_all()
+            .await
+            .map_err(|e| format!("Failed to sync directory {}: {}", path.display(), e))?;
+    }
+    #[cfg(not(unix))]
+    let _ = path;
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::{json, Value};
+
+    #[tokio::test]
+    async fn legacy_payload_round_trip_keeps_records_and_backup() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("workspace_data.json");
+        // A pre-envelope record, including fields this IO owner does not know.
+        let legacy =
+            json!({"workspaces": {"remote": {"root_path": "/work/project", "unknown": true}}});
+        fs::write(&path, serde_json::to_vec(&legacy).unwrap())
+            .await
+            .unwrap();
+        let service = PersistenceService::from_base_dir(dir.path().to_owned());
+        let mut loaded: Value = service.load_json("workspace_data").await.unwrap().unwrap();
+        assert_eq!(loaded, legacy);
+        loaded["opened_workspace_ids"] = json!(["remote"]);
+        service
+            .save_json("workspace_data", &loaded, StorageOptions::default())
+            .await
+            .unwrap();
+        let reopened = PersistenceService::from_base_dir(dir.path().to_owned());
+        assert_eq!(
+            reopened.load_json::<Value>("workspace_data").await.unwrap(),
+            Some(loaded)
+        );
+        let mut backups = fs::read_dir(dir.path().join("backups")).await.unwrap();
+        let backup = backups.next_entry().await.unwrap().unwrap().path();
+        assert_eq!(
+            serde_json::from_slice::<Value>(&fs::read(backup).await.unwrap()).unwrap(),
+            legacy
+        );
+        assert!(!dir.path().join("workspace_data.json.tmp").exists());
+    }
+
+    #[tokio::test]
+    async fn corrupt_registry_remains_an_error_and_is_never_reset() {
+        let dir = tempfile::tempdir().unwrap();
+        let service = PersistenceService::from_base_dir(dir.path().to_owned());
+        let path = dir.path().join("workspace_data.json");
+        let corrupt = vec![0; 1956];
+        fs::write(&path, &corrupt).await.unwrap();
+        let error = service
+            .load_json::<Value>("workspace_data")
+            .await
+            .unwrap_err();
+        assert!(error.contains("Deserialization failed"));
+        assert_eq!(fs::read(path).await.unwrap(), corrupt);
+        assert!(!dir.path().join("backups").exists());
+        assert_eq!(service.load_json::<Value>("missing").await.unwrap(), None);
+    }
+
+    #[tokio::test]
+    async fn failed_replacement_preserves_the_target_and_backup() {
+        let dir = tempfile::tempdir().unwrap();
+        let service = PersistenceService::from_base_dir(dir.path().to_owned());
+        let original = json!({"workspaces": {"existing": {}}});
+        let path = dir.path().join("workspace_data.json");
+        fs::write(&path, serde_json::to_vec(&original).unwrap())
+            .await
+            .unwrap();
+        // Simulate a filesystem failure before new contents can be published.
+        fs::create_dir(dir.path().join("workspace_data.json.tmp"))
+            .await
+            .unwrap();
+        assert!(service
+            .save_json("workspace_data", &json!({}), StorageOptions::default())
+            .await
+            .is_err());
+        assert_eq!(
+            service.load_json::<Value>("workspace_data").await.unwrap(),
+            Some(original.clone())
+        );
+        let backup = fs::read_dir(dir.path().join("backups"))
+            .await
+            .unwrap()
+            .next_entry()
+            .await
+            .unwrap()
+            .unwrap()
+            .path();
+        assert_eq!(
+            serde_json::from_slice::<Value>(&fs::read(backup).await.unwrap()).unwrap(),
+            original
+        );
     }
 }

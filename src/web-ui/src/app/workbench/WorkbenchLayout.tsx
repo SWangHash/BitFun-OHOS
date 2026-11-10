@@ -10,14 +10,14 @@ import { useSceneStore } from '../stores/sceneStore';
 import { dropSceneTab, isSceneTabDrag } from './sceneTabTransfer';
 import { dropSessionTabOnWorkbench, isSessionTabDrag } from './canvasTabTransfer';
 import { observeTabDragLifecycle } from './tabDragLifecycle';
-import { selectedScene, type WorkbenchPane } from './scenePaneModel';
+import { selectedScene, selectedSessionTab, tabPane, type WorkbenchPane } from './scenePaneModel';
 import { SceneTopBar } from '../components/SceneTopBar';
 import { CanvasToolbarHost, CanvasToolbarProvider } from '../components/panels/content-canvas/CanvasToolbar';
 import AuxPane from '../scenes/session/AuxPane';
 import { useWorkbenchPaneLayout } from './workbenchPaneLayoutStore';
 import { WorkbenchResizeContext } from './workbenchResize';
 import { useWindowResizeLayout } from '../layout/windowResizeScheduler';
-import { PANEL_COMMON_CONFIG, RIGHT_PANEL_CONFIG } from '../layout/panelConfig';
+import { panelWidthFromRatio, PANEL_COMMON_CONFIG, RIGHT_PANEL_CONFIG } from '../layout/panelConfig';
 import './WorkbenchLayout.scss';
 
 type WorkbenchLayoutProps = React.ComponentProps<typeof SceneTopBar> & {
@@ -34,6 +34,13 @@ export default function WorkbenchLayout({ workspacePath, navigationResizing = fa
   const [resizing, setResizing] = useState(false);
   const [settling, setSettling] = useState(false);
   const windowMeasurementSuspended = useWindowResizeLayout(state => state.measurementSuspended);
+  const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth);
+  useEffect(() => {
+    const measure = () => setViewportWidth(window.innerWidth);
+    window.addEventListener('resize', measure);
+    measure();
+    return () => window.removeEventListener('resize', measure);
+  }, []);
   const resizeState = useMemo(() => ({
     resizing,
     measurementSuspended: resizing || navigationResizing || settling || windowMeasurementSuspended,
@@ -45,6 +52,12 @@ export default function WorkbenchLayout({ workspacePath, navigationResizing = fa
   const selections = useSceneStore(state => state.paneSelections);
   const hasSecondaryScenes = useSceneStore(state => state.openTabs.some(tab => tab.pane === 'secondary'));
   const canvasPane = useSceneStore(state => state.canvasPane);
+  const session = useSceneStore(selectedSessionTab);
+  // A collapsed canvas must still observe its presented session, otherwise a
+  // pending background browser can never reveal the pane that would make it active.
+  const sessionVisible = Boolean(session && (tabPane(session) === 'primary' ? !panelMaximized : panelOpen));
+  const rightPaneWidth = pane.preferredRightPaneRatio === null ? pane.preferredRightPaneWidth
+    : panelWidthFromRatio(pane.preferredRightPaneRatio, viewportWidth) ?? pane.preferredRightPaneWidth;
   const canvasActive = selections[canvasPane].kind === 'canvas';
   const canvasVisible = canvasActive && (canvasPane === 'primary' ? !panelMaximized : panelOpen);
   const leadingPane: WorkbenchPane = pane.contentSide === 'left' && panelOpen && !panelMaximized ? 'secondary' : 'primary';
@@ -137,11 +150,12 @@ export default function WorkbenchLayout({ workspacePath, navigationResizing = fa
       <SplitView header={header}
         mode={pane.mode === 'chat-only' ? 'primary' : pane.mode === 'content-only' ? 'secondary' : 'split'}
         layout={pane.displayMode} secondarySide={pane.contentSide}
-        rightSize={pane.displayMode === 'overlay' ? pane.preferredOverlayWidth : pane.preferredRightPaneWidth}
+        rightSize={pane.displayMode === 'overlay' ? pane.preferredOverlayWidth : rightPaneWidth}
         minLeftSize={PANEL_COMMON_CONFIG.MIN_CENTER_WIDTH}
         minRightSize={RIGHT_PANEL_CONFIG.COMPACT_WIDTH} maxRightSize={RIGHT_PANEL_CONFIG.MAX_WIDTH}
         defaultRightSize={RIGHT_PANEL_CONFIG.COMFORTABLE_DEFAULT}
-        onRightSizeChange={pane.displayMode === 'overlay' ? pane.resizeOverlay : pane.resizeRightPane}
+        onRightSizeChange={pane.displayMode === 'overlay' ? pane.resizeOverlay
+          : width => pane.resizeRightPane(width, viewportWidth)}
         onResizeStateChange={setResizing} dividerLabel={t('canvas.resizePanes')}
         dividerActions={<Tooltip content={t('canvas.swapPanes')} placement="top">
           <IconButton size="sm" aria-label={t('canvas.swapPanes')}
@@ -154,6 +168,7 @@ export default function WorkbenchLayout({ workspacePath, navigationResizing = fa
           {/* Keep the skin address while the canvas moves between stable surface slots. */}
           <div className="bitfun-workbench-layout__auxiliary" data-bitfun-scene="session" data-bitfun-part="auxiliary">
             <AuxPane workspacePath={workspacePath} externalToolbar isSceneActive={canvasVisible}
+              isSessionSceneActive={sessionVisible}
               terminalResizeSuspended={resizeState.measurementSuspended}
               resizeSuspended={resizeState.measurementSuspended} />
           </div>

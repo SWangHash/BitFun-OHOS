@@ -537,7 +537,11 @@ const DeviceControlSettingsPage: React.FC = () => {
       if (!IS_TAURI_DESKTOP) {
         setComputerUseEnabled(computerUseCfg ?? false);
       }
-      setPreferredBrowser(browserControlPreferredBrowser || DEFAULT_BROWSER_CONTROL_BROWSER);
+      // The executing host normalizes an absent/legacy preference (notably
+      // OHOS's built-in default). A slower config read cannot replace it.
+      if (!IS_TAURI_DESKTOP) {
+        setPreferredBrowser(browserControlPreferredBrowser || DEFAULT_BROWSER_CONTROL_BROWSER);
+      }
       setBrowserAutoConnectOnStartup(browserControlAutoConnect === true);
       hasLoadedPageDataRef.current = true;
     } catch (error) {

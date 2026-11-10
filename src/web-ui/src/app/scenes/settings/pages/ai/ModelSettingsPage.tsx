@@ -81,7 +81,7 @@ import {
 import { resolveProviderTemplates } from '@/infrastructure/config/services/builtinProviderCatalog';
 import { useConfigSeed } from '@/infrastructure/config/hooks/useConfigSeed';
 import { ConfigConflictError, configManager } from '@/infrastructure/config/services/ConfigManager';
-import { getCapabilitiesByCategory, getEffectiveModelCapabilities, resolveModelCategory } from '@/infrastructure/config/services/modelCategory';
+import { getCapabilitiesByCategory, getEffectiveModelCapabilities } from '@/infrastructure/config/services/modelCategory';
 import { getModelTags, getModelUserTags, preserveModelAnnotations } from '@/infrastructure/config/services/modelTags';
 import {
   allocateModelConfigId,
@@ -1142,8 +1142,8 @@ const ModelSettingsPage: React.FC = () => {
         return createModelDraft(modelName, draftBaseConfig, {
           configId: pinnedRowId,
           contextWindow: catalogModel?.limits?.context,
-          // New selections start as multimodal; existing model edits retain their category.
-          category: pinnedRowId ? (baseConfig?.category ?? 'general_chat') : 'multimodal',
+          // New selections start as text generation; existing model edits retain their category.
+          category: pinnedRowId ? (baseConfig?.category ?? 'general_chat') : 'general_chat',
         });
       })
     );
@@ -1481,8 +1481,8 @@ const ModelSettingsPage: React.FC = () => {
         model_name: '',
         enabled: true,
         context_window: 300000,
-        category: 'multimodal',
-        capabilities: getCapabilitiesByCategory('multimodal'),
+        category: 'general_chat',
+        capabilities: getCapabilitiesByCategory('general_chat'),
         recommended_for: [],
         metadata: {},
         inline_think_in_text: true,
@@ -1906,8 +1906,8 @@ const ModelSettingsPage: React.FC = () => {
       provider: template.format,
       enabled: true,
       context_window: 300000,
-      category: 'multimodal',
-      capabilities: getCapabilitiesByCategory('multimodal'),
+      category: 'general_chat',
+      capabilities: getCapabilitiesByCategory('general_chat'),
       recommended_for: [],
       metadata: {},
       inline_think_in_text: true,
@@ -1936,8 +1936,8 @@ const ModelSettingsPage: React.FC = () => {
       provider: 'openai',
       enabled: true,
       context_window: 300000,
-      category: 'multimodal',
-      capabilities: getCapabilitiesByCategory('multimodal'),
+      category: 'general_chat',
+      capabilities: getCapabilitiesByCategory('general_chat'),
       recommended_for: [],
       metadata: {},
       inline_think_in_text: true,
@@ -2211,18 +2211,8 @@ const ModelSettingsPage: React.FC = () => {
           enabled: providerConfig.enabled ?? true,
           context_window: draft.contextWindow,
           max_tokens: draft.maxTokens,
-          category: resolveModelCategory(
-            draft.modelName,
-            draft.category,
-            format
-          ),
-          capabilities: getCapabilitiesByCategory(
-            resolveModelCategory(
-              draft.modelName,
-              draft.category,
-              format
-            )
-          ),
+          category: draft.category,
+          capabilities: getCapabilitiesByCategory(draft.category),
           recommended_for: providerConfig.recommended_for || [],
           metadata: {
             ...(providerConfig.metadata || {}),

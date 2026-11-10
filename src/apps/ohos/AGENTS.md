@@ -3,25 +3,82 @@
 This directory owns the ArkTS host and platform bridges. Follow the root
 `AGENTS.md` for shared product behavior and Windows/WSL build boundaries.
 
+## Build order and artifact identity
+
+Build both frontends before compiling the Rust host: run
+`pnpm run prepare:mobile-web`, then build the desktop frontend with
+`BITFUN_WEB_FONT_PROFILE=ohos-system pnpm run build:web`. The desktop output is
+the repository-root `dist`, matching Desktop's `build.frontendDist`. Tauri embeds
+those assets in the native library, so building Web UI after Rust and copying
+`dist` into a HAP can still leave the running `tauri://localhost/` page on old
+code. Skipping `beforeBuildCommand` is valid only when the final frontend output
+already exists before native compilation.
+
+`src/apps/desktop/gen/ohos` and this ArkTS project are separate assembly projects.
+When compiling through the generated project and packaging here, stage that
+build's `libbitfun_desktop_lib.so` into this project's `entry/libs/arm64-v8a`
+before Hvigor assembly. Compare the source and staged library checksums; retain
+this project's vendored ability module and host bridges. Keep signing material
+local. After installation, verify the main page's loaded entry-module hash or
+frontend revision against the final `dist`; successful assembly/install alone
+does not prove that the application runs the new frontend.
+
 ## Remote Connect web resources
 
 The desktop frontend lives in `resources/resfile/dist`; the browser remote
-controller lives separately in `resources/resfile/mobile-web/dist`. The
-`remote-web` Hvigor plugin stages and verifies both existing frontend outputs for
-pipeline and staged local HAP assembly. Before PreBuild it replaces both resource
-directories from the repository's `dist` and `src/mobile-web/dist`, so packaging
-does not depend on an external script's resource-copy layout. Never serve the
-desktop frontend as the LAN pairing page or replace it with the controller bundle.
+controller lives separately in `resources/resfile/mobile-web/dist`. Local Hvigor
+staging plugins are no longer registered. Stage both existing frontend outputs
+explicitly before assembly; never serve the desktop frontend as the LAN pairing
+page or replace it with the controller bundle.
 
 Run `pnpm run prepare:mobile-web` before native HarmonyOS compilation: Tauri
 validates that resource directory before Hvigor runs. The packaging pipeline
-also builds it before compiling Rust. Build the desktop frontend before HAP
-assembly as well. The Hvigor plugin only stages these outputs; it does not build
-either frontend or require changes to the external packaging script.
+also builds it before compiling Rust. Build the desktop frontend before native
+compilation, following the order above. The resource staging script copies the
+outputs and removes stale assets; it does not build either frontend:
+
+```bash
+node scripts/ohos-remote-web-resources.mjs --project src/apps/ohos
+```
 
 Run `node --test scripts/ohos-remote-web-resources.test.mjs` for resource isolation,
 stale asset replacement, and final HAP integrity. Use a HarmonyOS build to verify
-the Hvigor task integration and the native resource lookup.
+the assembled resources and native resource lookup.
+
+The HAP verifier compares the two copied resource trees. It does not inspect
+Rust-embedded assets. For a completed local HAP, run it against the actual
+assembly project and package:
+
+```bash
+node scripts/ohos-remote-web-resources.mjs --project src/apps/ohos --verify-hap src/apps/ohos/entry/build/default/outputs/default/entry-default-signed.hap
+```
+
+## Startup failures and device verification
+
+A black window can precede main-WebView creation. Check
+`logs/<run>/early-startup.log` and `native-startup-trace.jsonl` under the resolved
+product user root before changing splash timers or browser visibility. An
+AppState/workspace-registry deserialization error can stop startup before React
+exists. Preserve unreadable `data/workspace_data.json` and its backups; stop data
+writers and validate a recovery candidate before restoring it. Never delete the
+registry, clear application data, or substitute an empty catalog to make startup
+pass. JSON durability belongs to the shared
+[`PersistenceService` owner](../../crates/services/services-core/AGENTS.md), not
+an OHOS-only parser or reset path. A zero-filled file establishes corruption,
+but does not establish which interruption caused it.
+
+ArkUI owns the window, launch mirror and native caption buttons. Mirror release
+is not proof that the main page loaded; preserve the launch/decor handoff and
+closability fallback in `EntryAbility` and `DefaultXComponent`. Run
+`node --test src/apps/ohos/tests/window-chrome.test.cjs` after changing that handoff,
+then verify startup on a device.
+
+For read-only ArkWeb inspection with Puppeteer, connect using
+`defaultViewport: null`. Its default viewport emulation can change the app's
+layout and invalidate native resize measurements. Clear a previously applied
+`Emulation` device-metrics override before measuring. Verify resize/maximize/
+restore with native window operations, and distinguish device evidence from
+mocked bridge tests and simulated remote state.
 
 ## Agent companion pet window
 
@@ -170,7 +227,19 @@ contract.
 
 `BrowserWebviewService.ets` opts embedded browser views into DOM Storage before
 their first navigation so web apps can use `localStorage` and `sessionStorage`.
-`DefaultWebview.ets` applies that setting; other callers retain the ArkWeb default.
+The vendored `oh-rs-ability/src/main/ets/webview/DefaultWebview.ets` applies that
+setting and defaults DOM Storage to enabled for the trusted main frontend as
+well. ArkWeb's disabled default can expose `localStorage` as null and lose
+preferences on restart. Shared Web UI code still uses its storage adapter when
+storage is unavailable; do not replace it with direct storage access.
+
+ArkUI child WebViews are owned by `RustWebviewNodeController` and are absent from
+Tauri's desktop WebView inventory. Keep manual, help-menu and Agent-created pages
+on the `browser_webview_*` command bridge; see the
+[browser scene contracts](../../web-ui/src/app/scenes/browser/AGENTS.md). Bounds
+and visibility updates must preserve the loaded document (`contentLoaded`),
+including form values and automation state. An `onLoadIntercept` return value of
+`true` blocks navigation; normal embedded-page navigation returns `false`.
 
 This bridge is OHOS product code that upstream does not carry. Keep
 `BrowserWebviewService.ets`, `DefaultWebview.ets`, and the `browser_webview_*`

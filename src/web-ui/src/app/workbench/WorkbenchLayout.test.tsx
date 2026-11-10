@@ -234,6 +234,41 @@ describe('workbench pane layout integration', () => {
     }
   });
 
+  it('restores the viewport ratio through resize, clamping, hide and fullscreen without overwriting it', () => {
+    let viewport = 1000;
+    vi.spyOn(window, 'innerWidth', 'get').mockImplementation(() => viewport);
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function () {
+      return { width: this.getAttribute('data-bitfun-part') === 'divider' ? 1 : viewport - 100 } as DOMRect;
+    });
+    const pane = sessionPaneLayoutStore.getState();
+    pane.showContent();
+    pane.resizeRightPane(400, 1000);
+    act(() => root.render(<WorkbenchLayout><SessionScene /></WorkbenchLayout>));
+    const size = () => Number.parseFloat(split().style.getPropertyValue('--_split-view-right-size'));
+    expect(size()).toBe(400);
+    const resize = (width: number) => act(() => {
+      viewport = width;
+      window.dispatchEvent(new Event('resize'));
+    });
+    resize(2000);
+    expect(size()).toBe(800);
+    resize(400);
+    expect(size()).toBeLessThan(160);
+    expect(localStorage.getItem('bitfun:rightPanelRatio')).toBe('0.4');
+    resize(1000);
+    expect(size()).toBe(400);
+    act(() => pane.hideContent());
+    resize(2000);
+    act(() => pane.showContent());
+    expect(size()).toBe(800);
+    act(() => pane.maximizeContent());
+    resize(1000);
+    act(() => pane.restoreSplit());
+    expect(size()).toBe(400);
+    expect(sessionPaneLayoutStore.getState().preferredRightPaneWidth).toBe(400);
+    expect(localStorage.getItem('bitfun:rightPanelLastWidth')).toBe('400');
+  });
+
   it.each(['split', 'overlay'] as const)('moves the existing canvas opposite a conversation in %s mode without remounting it', async layout => {
     const panes = sessionPaneLayoutStore.getState();
     panes.setDisplayMode(layout);

@@ -132,6 +132,25 @@ describe('ModelSettingsPage loading and provider actions', () => {
   };
   const connectionBadge = () => container.querySelector<HTMLElement>(`[data-testid="settings-model-test-status"][data-config-id="${model.id}"]`);
 
+  it.each(['custom', 'zhipu'])('saves a new %s model as text generation without inferring its category from the name', async provider => {
+    const update = vi.spyOn(configManager, 'updateConfig').mockImplementation(
+      async <T,>(_path: string, transform: (current: T) => T) => transform([] as T),
+    );
+    await openNewProvider(provider);
+    await inputValue(editor()!.querySelector<HTMLInputElement>('[data-testid="settings-model-provider-name-input"]')!, 'Fixture provider');
+    await inputValue(editor()!.querySelector<HTMLInputElement>('[data-testid="settings-model-base-url-input"]')!, 'https://example.test/v1');
+    await inputValue(editor()!.querySelector<HTMLInputElement>('[data-testid="settings-model-api-key-input"]')!, 'fixture-key');
+    await act(async () => editor()!.querySelector<HTMLButtonElement>('[data-testid="settings-model-add-custom-btn"]')!.click());
+    const name = editor()!.querySelector<HTMLInputElement>('[data-testid="settings-model-manual-name-input"]')!;
+    await inputValue(name, 'gpt-4o');
+    await act(async () => name.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })));
+    await act(async () => editor()!.querySelector<HTMLButtonElement>('[data-testid="settings-model-save-btn"]')!.click());
+    expect(update).toHaveBeenCalledOnce();
+    const saved = await update.mock.results[0].value as AIModelConfig[];
+    expect(saved).toHaveLength(1);
+    expect(saved[0]).toMatchObject({ model_name: 'gpt-4o', category: 'general_chat', capabilities: ['text_chat', 'function_calling'] });
+  });
+
   it.each([
     'ai.model_routing', 'ai.model_routing.protocol', 'ai.model_routing.timeout_ms', 'ai.model_routing.router_model_id',
   ])('clears a cached failed model badge after Router settings change at %s without starting a probe', async path => {
