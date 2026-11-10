@@ -54,6 +54,18 @@ const TTS_PERSON = 0;
  * a task from the assistant's own words and the call begins talking to itself.
  */
 const SPEECH_COOLDOWN_MS = 1200;
+/**
+ * Pause that separates two clauses of the same sentence. The platform
+ * recognizer revises one clause at a time, so a gap means the previous clause is
+ * finished and must be kept in the transcript.
+ */
+const CLAUSE_GAP_MS = 600;
+/**
+ * Silence after which the current sentence is submitted. This is the primary
+ * end-of-utterance signal: long-session recognition does not guarantee a final
+ * result, and without it a spoken sentence would never reach the Agent.
+ */
+const SENTENCE_END_SILENCE_MS = 1200;
 
 interface RealtimeStartRequest {
   language?: string;
@@ -102,6 +114,10 @@ export class RealtimeVoiceService {
   private ttsPollTimer?: number;
   /** Recognition results before this timestamp belong to the previous answer. */
   private speechCooldownUntil: number = 0;
+  /** Latest clause snapshot, promoted into `clauseCommitted` when a new clause starts. */
+  private lastSnapshot: string = '';
+  private lastResultAt: number = 0;
+  private sentenceTimer?: number;
   private ttsUtteranceCounter: number = 0;
   private ttsWaitStartedAt: number = 0;
   private idCounter: number = 0;
@@ -118,6 +134,8 @@ export class RealtimeVoiceService {
     this.language = this.resolveLanguage(request.language);
     this.sessionId = this.newSessionId();
     this.clauseCommitted = '';
+    this.lastSnapshot = '';
+    this.lastResultAt = 0;
     this.utteranceActive = false;
     this.frameCounter = 0;
     this.pendingAudio = new Uint8Array(0);
@@ -295,6 +313,15 @@ export class RealtimeVoiceService {
         hilog.info(REALTIME_DOMAIN, REALTIME_TAG,
           'recognition onComplete: session=%{public}s message=%{public}s',
           sessionId, eventMessage);
+        if (sessionId !== this.sessionId) {
+          return;
+        }
+        // The engine really stopped here (unlike `isLast` on a result): submit
+        // whatever was heard, then reopen so the call keeps listening.
+        this.commitUtterance();
+        if (this.listening) {
+          void this.restartRecognition();
+        }
       },
       onError: (sessionId: string, errorCode: number, errorMessage: string): void => {
         if (sessionId !== this.sessionId) {
@@ -315,10 +342,10 @@ export class RealtimeVoiceService {
   private handleResult(result: speechRecognizer.SpeechRecognitionResult): void {
     const snapshot: string = normalizeRecognizedText(result.result);
     const isFinal: boolean = result.isFinal;
-    const engineFinished: boolean = result.isLast;
+    const engineClosed: boolean = result.isLast;
     hilog.info(REALTIME_DOMAIN, REALTIME_TAG,
       'recognition onResult: isFinal=%{public}d isLast=%{public}d rawText=%{public}s',
-      isFinal ? 1 : 0, engineFinished ? 1 : 0, result.result);
+      isFinal ? 1 : 0, engineClosed ? 1 : 0, result.result);
     const coolingDown: boolean = Date.now() < this.speechCooldownUntil;
     if (snapshot.length > 0 && coolingDown) {
       // The engine was still draining the previous answer. Acting on it would
@@ -343,28 +370,84 @@ export class RealtimeVoiceService {
         // match must not leak into the new task description. Recognition revises
         // the clause on the following result.
         this.utteranceActive = true;
+        this.clauseCommitted = '';
+        this.lastSnapshot = '';
         this.emit('user_speech_started', '', -1);
       }
     } else if (snapshot.length > 0) {
+      const now: number = Date.now();
       if (!this.utteranceActive) {
         this.utteranceActive = true;
-        this.emit('user_speech_started', '', -1);
-      }
-      const transcript: string = buildTranscript(this.clauseCommitted, snapshot);
-      if (isFinal) {
         this.clauseCommitted = '';
-        this.utteranceActive = false;
-        this.emit('user_transcript_completed', transcript, -1);
+        this.lastSnapshot = '';
+        this.emit('user_speech_started', '', -1);
+      } else if (this.lastSnapshot.length > 0 && now - this.lastResultAt >= CLAUSE_GAP_MS) {
+        // The engine moved on to a new clause after a pause. Keep the finished
+        // clause in the transcript so the next snapshot extends it instead of
+        // replacing it; that replacement is what made speech look chopped up.
+        this.clauseCommitted = buildTranscript(this.clauseCommitted, this.lastSnapshot);
+      }
+      this.lastSnapshot = snapshot;
+      this.lastResultAt = now;
+      this.emit('user_transcript_delta', buildTranscript(this.clauseCommitted, snapshot), -1);
+      if (isFinal) {
+        this.commitUtterance();
       } else {
-        this.emit('user_transcript_delta', transcript, -1);
+        this.scheduleSentenceEnd();
       }
     }
-    if (engineFinished) {
-      this.utteranceActive = false;
-      this.clauseCommitted = '';
-      if (this.listening) {
-        void this.restartRecognition();
+    if (engineClosed) {
+      // `isLast` reports the end of the engine's session, not the end of a
+      // sentence, so restarting here dropped audio on every utterance. Commit
+      // the pending sentence instead and let `onComplete` decide whether the
+      // engine really stopped.
+      this.commitUtterance();
+    }
+  }
+
+  /**
+   * Commit the sentence being spoken as one request.
+   *
+   * The engine does not reliably mark the end of an utterance: `isFinal` may
+   * never arrive in long-session mode, and `isLast` only reports that the engine
+   * stopped. A silence window is therefore the primary signal, so a spoken
+   * sentence is submitted even when no final result is delivered.
+   */
+  private commitUtterance(): void {
+    this.clearSentenceTimer();
+    if (!this.utteranceActive) {
+      return;
+    }
+    const transcript: string = normalizeRecognizedText(
+      buildTranscript(this.clauseCommitted, this.lastSnapshot)
+    );
+    this.clauseCommitted = '';
+    this.lastSnapshot = '';
+    this.utteranceActive = false;
+    if (transcript.length === 0) {
+      return;
+    }
+    hilog.info(REALTIME_DOMAIN, REALTIME_TAG,
+      'committed utterance: chars=%{public}d', transcript.length);
+    this.emit('user_transcript_completed', transcript, -1);
+  }
+
+  private scheduleSentenceEnd(): void {
+    this.clearSentenceTimer();
+    const sessionId: string = this.sessionId;
+    this.sentenceTimer = setTimeout(() => {
+      this.sentenceTimer = undefined;
+      if (this.sessionId !== sessionId) {
+        return;
       }
+      this.commitUtterance();
+    }, SENTENCE_END_SILENCE_MS);
+  }
+
+  private clearSentenceTimer(): void {
+    if (this.sentenceTimer !== undefined) {
+      clearTimeout(this.sentenceTimer);
+      this.sentenceTimer = undefined;
     }
   }
 
@@ -534,6 +617,7 @@ export class RealtimeVoiceService {
       return;
     }
     this.clearTtsPollTimer();
+    this.clearSentenceTimer();
     this.ttsSpeaking = false;
     this.ttsCurrentText = '';
     this.ttsRequestId = '';
@@ -542,6 +626,7 @@ export class RealtimeVoiceService {
     this.speechCooldownUntil = Date.now() + SPEECH_COOLDOWN_MS;
     this.utteranceActive = false;
     this.clauseCommitted = '';
+    this.lastSnapshot = '';
     this.emit('assistant_audio_completed', '', -1);
   }
 
@@ -580,6 +665,7 @@ export class RealtimeVoiceService {
    */
   private stopSpeech(emitCompletion: boolean, armCooldown: boolean = true): void {
     this.clearTtsPollTimer();
+    this.clearSentenceTimer();
     const engine: textToSpeech.TextToSpeechEngine | undefined = this.ttsEngine;
     const wasSpeaking: boolean = this.ttsSpeaking;
     this.ttsSpeaking = false;
@@ -589,6 +675,7 @@ export class RealtimeVoiceService {
       this.speechCooldownUntil = Date.now() + SPEECH_COOLDOWN_MS;
       this.utteranceActive = false;
       this.clauseCommitted = '';
+      this.lastSnapshot = '';
     }
     if (engine) {
       try {
@@ -612,10 +699,13 @@ export class RealtimeVoiceService {
     const sessionId: string = this.sessionId;
     this.listening = false;
     this.reading = false;
+    this.clearSentenceTimer();
     this.stopSpeech(false);
     await this.releaseRecognition();
     this.releaseTtsEngine();
     this.clauseCommitted = '';
+    this.lastSnapshot = '';
+    this.lastResultAt = 0;
     this.utteranceActive = false;
     this.recognitionReady = false;
     this.pendingAudio = new Uint8Array(0);

@@ -227,9 +227,13 @@ Rules that are easy to break:
   tokens against the text being spoken, and only a snapshot that is mostly new
   text counts as a barge-in. Every new echo heuristic needs a case in
   `src/apps/ohos/tests/realtime-voice-echo.test.cjs`.
-- A `isLast` result means the engine itself finished. Reopen recognition instead
-  of ending the call, and keep `captureGeneration` in step: a stale loop still
-  blocked in `read()` must not drain the replacement capturer.
+- End of utterance is a silence window, not a result flag. `isLast` on a result
+  does not mean the sentence ended — treating it that way reopened the engine
+  after every clause, which dropped audio (chopped transcript) and never
+  submitted anything. `commitUtterance()` decides on a 1.2s pause, with
+  `isFinal` as an early signal, and `onComplete` is the only place that reopens
+  recognition. A clause is promoted into `clauseCommitted` after a 600ms gap so
+  the display extends instead of replacing the previous clause.
 - The call needs no hosted-provider credential. `speech_save_realtime_config`
   stores `provider: ohos-system` with an empty key, and the web-ui hides the
   credential fields for that provider.
