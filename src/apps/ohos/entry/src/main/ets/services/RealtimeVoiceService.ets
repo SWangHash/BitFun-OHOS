@@ -40,6 +40,14 @@ const ENGINE_MAX_AUDIO_DURATION = 8 * 60 * 60 * 1000;
 const LEVEL_INTERVAL_FRAMES = 2;
 const TTS_POLL_INTERVAL_MS = 250;
 const TTS_MAX_WAIT_MS = 120000;
+/**
+ * `CreateEngineParams.online` selects the engine build: 0 is the online engine,
+ * 1 is the on-device one (the value is inverted from the field name).
+ */
+const TTS_ONLINE_ENGINE = 0;
+const TTS_OFFLINE_ENGINE = 1;
+/** `CreateEngineParams.person`: 0 is the female voice, 1 the male voice. */
+const TTS_PERSON = 0;
 
 interface RealtimeStartRequest {
   language?: string;
@@ -83,6 +91,8 @@ export class RealtimeVoiceService {
   private ttsSpeaking: boolean = false;
   /** Text currently being synthesized, used to reject self-echo transcripts. */
   private ttsCurrentText: string = '';
+  /** Request id of the utterance in flight; callbacks for older ids are ignored. */
+  private ttsRequestId: string = '';
   private ttsPollTimer?: number;
   private ttsUtteranceCounter: number = 0;
   private ttsWaitStartedAt: number = 0;
@@ -136,6 +146,7 @@ export class RealtimeVoiceService {
       }
       this.ttsUtteranceCounter += 1;
       const utteranceId: string = `realtime-${this.sessionId}-${this.ttsUtteranceCounter}`;
+      this.ttsRequestId = utteranceId;
       this.ttsSpeaking = true;
       this.ttsCurrentText = text;
       this.ttsWaitStartedAt = Date.now();
@@ -144,7 +155,7 @@ export class RealtimeVoiceService {
         'realtime speech: session=%{public}s utterance=%{public}s chars=%{public}d',
         this.sessionId, utteranceId, text.length);
       engine.speak(text, { requestId: utteranceId });
-      this.watchSpeechCompletion(engine, sessionId);
+      this.watchSpeechCompletion(engine, sessionId, utteranceId);
     } catch (err) {
       this.ttsSpeaking = false;
       const message: string = this.toError(err).message;
@@ -305,10 +316,10 @@ export class RealtimeVoiceService {
       // The echo guard separates the assistant hearing itself from a real
       // barge-in; only the latter stops the answer.
       const signal: VoiceSignalKind = classifyVoiceSignal(snapshot, this.ttsCurrentText);
-      if (signal === 'echo') {
+      if (signal === VoiceSignalKind.Echo) {
         hilog.info(REALTIME_DOMAIN, REALTIME_TAG,
           'dropped synthesized echo: rawText=%{public}s', result.result);
-      } else if (signal === 'speech') {
+      } else if (signal === VoiceSignalKind.Speech) {
         hilog.info(REALTIME_DOMAIN, REALTIME_TAG,
           'barge-in detected, stopping playback: rawText=%{public}s', result.result);
         this.stopSpeech(true);
@@ -458,24 +469,71 @@ export class RealtimeVoiceService {
     }
     let engine: textToSpeech.TextToSpeechEngine;
     try {
-      engine = await textToSpeech.createEngine({ language: this.language, online: 1 });
+      engine = await textToSpeech.createEngine({
+        language: this.language,
+        person: TTS_PERSON,
+        online: TTS_ONLINE_ENGINE
+      });
     } catch (err) {
       hilog.warn(REALTIME_DOMAIN, REALTIME_TAG,
-        'online speech synthesis unavailable, falling back to on-device voice: %{public}s',
+        'online speech synthesis unavailable, falling back to the on-device engine: %{public}s',
         this.toError(err).message);
-      engine = await textToSpeech.createEngine({ language: this.language, online: 0 });
+      engine = await textToSpeech.createEngine({
+        language: this.language,
+        person: TTS_PERSON,
+        online: TTS_OFFLINE_ENGINE
+      });
     }
+    // Completion callbacks only arrive for an engine with a listener.
+    engine.setListener(this.buildSpeakListener());
     this.ttsEngine = engine;
     return engine;
   }
 
+  private buildSpeakListener(): textToSpeech.SpeakListener {
+    return {
+      onStart: (requestId: string, response: textToSpeech.StartResponse): void => {
+        hilog.info(REALTIME_DOMAIN, REALTIME_TAG, 'speech started: %{public}s', requestId);
+      },
+      onComplete: (requestId: string, response: textToSpeech.CompleteResponse): void => {
+        hilog.info(REALTIME_DOMAIN, REALTIME_TAG, 'speech completed: %{public}s', requestId);
+        this.finishSpeaking(requestId);
+      },
+      onStop: (requestId: string, response: textToSpeech.StopResponse): void => {
+        // Our own stop() already reported the interruption to the web-ui.
+        hilog.info(REALTIME_DOMAIN, REALTIME_TAG, 'speech stopped: %{public}s', requestId);
+      },
+      onError: (requestId: string, errorCode: number, errorMessage: string): void => {
+        hilog.error(REALTIME_DOMAIN, REALTIME_TAG,
+          'speech failed: id=%{public}s code=%{public}d message=%{public}s',
+          requestId, errorCode, errorMessage);
+        this.finishSpeaking(requestId);
+      }
+    };
+  }
+
+  /** Report the end of one utterance exactly once, whichever signal arrives first. */
+  private finishSpeaking(requestId: string): void {
+    if (!this.ttsSpeaking || requestId !== this.ttsRequestId) {
+      return;
+    }
+    this.clearTtsPollTimer();
+    this.ttsSpeaking = false;
+    this.ttsCurrentText = '';
+    this.ttsRequestId = '';
+    this.emit('assistant_audio_completed', '', -1);
+  }
+
   /**
-   * `speak` resolves as soon as the utterance is queued. Completion is polled
-   * through `isBusy()` so the call does not depend on version-specific engine
-   * state codes; the web-ui turns `assistant_audio_completed` back into its
-   * listening state.
+   * Completion is driven by the engine listener; the poll is only a fallback for
+   * a dropped callback. Both paths go through `finishSpeaking`, so a late
+   * callback cannot emit a second completion.
    */
-  private watchSpeechCompletion(engine: textToSpeech.TextToSpeechEngine, sessionId: string): void {
+  private watchSpeechCompletion(
+    engine: textToSpeech.TextToSpeechEngine,
+    sessionId: string,
+    requestId: string
+  ): void {
     this.clearTtsPollTimer();
     this.ttsPollTimer = setInterval(() => {
       if (this.sessionId !== sessionId) {
@@ -489,10 +547,7 @@ export class RealtimeVoiceService {
         busy = false;
       }
       if (!busy || Date.now() - this.ttsWaitStartedAt > TTS_MAX_WAIT_MS) {
-        this.clearTtsPollTimer();
-        this.ttsSpeaking = false;
-        this.ttsCurrentText = '';
-        this.emit('assistant_audio_completed', '', -1);
+        this.finishSpeaking(requestId);
       }
     }, TTS_POLL_INTERVAL_MS);
   }
@@ -503,6 +558,7 @@ export class RealtimeVoiceService {
     const wasSpeaking: boolean = this.ttsSpeaking;
     this.ttsSpeaking = false;
     this.ttsCurrentText = '';
+    this.ttsRequestId = '';
     if (engine) {
       try {
         engine.stop();

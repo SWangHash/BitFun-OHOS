@@ -13,7 +13,21 @@
  * like "停". Tokenizing per script keeps both honest.
  */
 
-export type VoiceSignalKind = 'echo' | 'ignore' | 'speech';
+/**
+ * Barge-in signal for one recognition snapshot.
+ *
+ * An enum rather than a string-literal type alias: the call site imports this
+ * as a value and compares against it, and ArkTS rejects a type-only export that
+ * is imported through a normal import.
+ */
+export enum VoiceSignalKind {
+  /** The assistant is hearing its own playback. */
+  Echo = 'echo',
+  /** Too little text to decide; dropping it is safer than interrupting. */
+  Ignore = 'ignore',
+  /** The user is interrupting. */
+  Speech = 'speech',
+}
 
 /**
  * Share of the snapshot's tokens that must appear in the spoken text for it to
@@ -133,15 +147,15 @@ function tokenCoverage(candidate: string[], reference: string[]): number {
 export function classifyVoiceSignal(snapshot: string, spokenText: string): VoiceSignalKind {
   const candidate: string[] = tokenize(normalizeForEcho(snapshot));
   if (candidate.length === 0) {
-    return 'ignore';
+    return VoiceSignalKind.Ignore;
   }
   const reference: string[] = tokenize(normalizeForEcho(spokenText));
   if (reference.length === 0) {
-    return 'speech';
+    return VoiceSignalKind.Speech;
   }
   const coverage: number = tokenCoverage(candidate, reference);
   if (candidate.length === 1) {
-    return coverage >= 1 ? 'echo' : 'speech';
+    return coverage >= 1 ? VoiceSignalKind.Echo : VoiceSignalKind.Speech;
   }
-  return coverage >= ECHO_COVERAGE_THRESHOLD ? 'echo' : 'speech';
+  return coverage >= ECHO_COVERAGE_THRESHOLD ? VoiceSignalKind.Echo : VoiceSignalKind.Speech;
 }
