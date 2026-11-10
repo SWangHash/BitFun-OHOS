@@ -15,7 +15,11 @@
 //!   existing frontend gating passes; download/delete/verify reject.
 //! - non-ohos version: unchanged — drives `state.speech_service` (sherpa-onnx).
 //!
-//! Realtime voice calling is desktop-only and is not cfg-gated here.
+//! Realtime voice calling resolves a different provider per platform. Desktop
+//! connects to the hosted Volcengine realtime session; HarmonyOS drives the
+//! system `speechRecognizer` + `textToSpeech` through the ArkTS bridge
+//! (`RealtimeVoiceService.ets`) and reports the same `speech://realtime-event`
+//! payloads, so the web-ui controller keeps one contract.
 
 use crate::api::AppState;
 #[cfg(target_env = "ohos")]
@@ -27,17 +31,27 @@ use bitfun_core_types::speech::{
     SpeechAppendRealtimeAudioRequest, SpeechCancelInputSessionRequest,
     SpeechCancelModelDownloadRequest, SpeechDeleteModelRequest, SpeechDownloadModelRequest,
     SpeechFinishInputSessionRequest, SpeechGetRealtimeConfigRequest, SpeechInputSession,
-    SpeechListModelsResponse, SpeechModelProgressEvent, SpeechModelStatus, SpeechRealtimeConfig,
-    SpeechRealtimeEvent, SpeechRealtimeSession, SpeechRealtimeSessionRequest,
-    SpeechRealtimeSpeakRequest, SpeechRealtimeToolResultRequest, SpeechSaveRealtimeConfigRequest,
-    SpeechStartInputSessionRequest, SpeechStartRealtimeSessionRequest, SpeechTranscriptionResult,
-    SpeechVerifyModelRequest,
+    SpeechListModelsResponse, SpeechModelStatus, SpeechRealtimeConfig, SpeechRealtimeSession,
+    SpeechRealtimeSessionRequest, SpeechRealtimeSpeakRequest, SpeechRealtimeToolResultRequest,
+    SpeechSaveRealtimeConfigRequest, SpeechStartInputSessionRequest,
+    SpeechStartRealtimeSessionRequest, SpeechTranscriptionResult, SpeechVerifyModelRequest,
 };
+#[cfg(not(target_env = "ohos"))]
+use bitfun_core_types::speech::{SpeechModelProgressEvent, SpeechRealtimeEvent};
+#[cfg(not(target_env = "ohos"))]
 use bitfun_events::SPEECH_REALTIME_EVENT;
 #[cfg(not(target_env = "ohos"))]
 use bitfun_events::{SPEECH_MODEL_PROGRESS_EVENT, SPEECH_MODEL_STATUS_CHANGED_EVENT};
+#[cfg(not(target_env = "ohos"))]
 use bitfun_services_integrations::speech::VolcengineRealtimeSpeechConfig;
-use tauri::{AppHandle, Emitter, State};
+use tauri::State;
+#[cfg(not(target_env = "ohos"))]
+use tauri::{AppHandle, Emitter};
+
+/// Provider id the web-ui uses to select the HarmonyOS system voice paths.
+/// It matches the synthetic system-recognizer model status reported on OHOS.
+#[cfg(target_env = "ohos")]
+const OHOS_REALTIME_PROVIDER: &str = "ohos-system";
 
 #[cfg(target_env = "ohos")]
 #[tauri::command]
@@ -298,6 +312,7 @@ pub async fn speech_cancel_input_session(
         .map_err(|error| format!("Failed to cancel speech input session: {error}"))
 }
 
+#[cfg(not(target_env = "ohos"))]
 #[tauri::command]
 pub async fn speech_start_realtime_session(
     state: State<'_, AppState>,
@@ -341,6 +356,50 @@ pub async fn speech_start_realtime_session(
         .map_err(|error| format!("Failed to start realtime speech session: {error}"))
 }
 
+/// Starts the HarmonyOS client-side realtime voice call.
+///
+/// The ArkTS `RealtimeVoiceService` owns microphone capture, recognition, and
+/// synthesis. No hosted-provider credential is read or forwarded: the call runs
+/// entirely on the device, so only the persisted `enabled` switch gates it.
+#[cfg(target_env = "ohos")]
+#[tauri::command]
+pub async fn speech_start_realtime_session(
+    state: State<'_, AppState>,
+    request: SpeechStartRealtimeSessionRequest,
+) -> Result<SpeechRealtimeSession, String> {
+    let global_config: bitfun_core::service::config::GlobalConfig = state
+        .config_service
+        .get_config(None)
+        .await
+        .map_err(|error| format!("Failed to load realtime voice configuration: {error}"))?;
+    let voice_call = global_config.app.voice_call;
+    if !voice_call.enabled {
+        return Err("Realtime voice calling is disabled in settings".to_string());
+    }
+
+    let payload = serde_json::json!({ "language": request.language });
+    let response = ohos_speech_call("ohos_realtime_start", &payload.to_string())
+        .await
+        .map_err(|error| format!("Failed to start realtime voice call: {error}"))?;
+    let session_id = serde_json::from_str::<serde_json::Value>(&response)
+        .ok()
+        .and_then(|value| {
+            value
+                .get("sessionId")
+                .and_then(|session| session.as_str())
+                .map(str::to_string)
+        })
+        .filter(|session| !session.is_empty())
+        .ok_or_else(|| "HarmonyOS realtime voice did not report a session id".to_string())?;
+
+    Ok(SpeechRealtimeSession {
+        session_id,
+        input_sample_rate: 16_000,
+        output_sample_rate: 24_000,
+    })
+}
+
+#[cfg(not(target_env = "ohos"))]
 #[tauri::command]
 pub async fn speech_append_realtime_audio(
     state: State<'_, AppState>,
@@ -353,6 +412,7 @@ pub async fn speech_append_realtime_audio(
         .map_err(|error| format!("Failed to append realtime speech audio: {error}"))
 }
 
+#[cfg(not(target_env = "ohos"))]
 #[tauri::command]
 pub async fn speech_commit_realtime_audio(
     state: State<'_, AppState>,
@@ -365,6 +425,7 @@ pub async fn speech_commit_realtime_audio(
         .map_err(|error| format!("Failed to commit realtime speech audio: {error}"))
 }
 
+#[cfg(not(target_env = "ohos"))]
 #[tauri::command]
 pub async fn speech_send_realtime_tool_result(
     state: State<'_, AppState>,
@@ -377,6 +438,7 @@ pub async fn speech_send_realtime_tool_result(
         .map_err(|error| format!("Failed to send realtime speech tool result: {error}"))
 }
 
+#[cfg(not(target_env = "ohos"))]
 #[tauri::command]
 pub async fn speech_speak_realtime_text(
     state: State<'_, AppState>,
@@ -389,6 +451,7 @@ pub async fn speech_speak_realtime_text(
         .map_err(|error| format!("Failed to speak realtime progress: {error}"))
 }
 
+#[cfg(not(target_env = "ohos"))]
 #[tauri::command]
 pub async fn speech_cancel_realtime_response(
     state: State<'_, AppState>,
@@ -401,6 +464,7 @@ pub async fn speech_cancel_realtime_response(
         .map_err(|error| format!("Failed to cancel realtime speech response: {error}"))
 }
 
+#[cfg(not(target_env = "ohos"))]
 #[tauri::command]
 pub async fn speech_close_realtime_session(
     state: State<'_, AppState>,
@@ -413,6 +477,67 @@ pub async fn speech_close_realtime_session(
         .map_err(|error| format!("Failed to close realtime speech session: {error}"))
 }
 
+// HarmonyOS keeps audio inside the device: the ArkTS service captures and
+// recognizes on its own, so the frontend never uploads PCM and there is no
+// provider round trip to answer with a tool result.
+
+#[cfg(target_env = "ohos")]
+#[tauri::command]
+pub async fn speech_append_realtime_audio(
+    _request: SpeechAppendRealtimeAudioRequest,
+) -> Result<(), String> {
+    Ok(())
+}
+
+#[cfg(target_env = "ohos")]
+#[tauri::command]
+pub async fn speech_commit_realtime_audio(
+    _request: SpeechRealtimeSessionRequest,
+) -> Result<(), String> {
+    Ok(())
+}
+
+#[cfg(target_env = "ohos")]
+#[tauri::command]
+pub async fn speech_send_realtime_tool_result(
+    _request: SpeechRealtimeToolResultRequest,
+) -> Result<(), String> {
+    Ok(())
+}
+
+#[cfg(target_env = "ohos")]
+#[tauri::command]
+pub async fn speech_speak_realtime_text(request: SpeechRealtimeSpeakRequest) -> Result<(), String> {
+    let payload = serde_json::json!({ "text": request.text });
+    ohos_speech_call("ohos_realtime_speak", &payload.to_string())
+        .await
+        .map_err(|error| format!("Failed to speak realtime text: {error}"))?;
+    Ok(())
+}
+
+#[cfg(target_env = "ohos")]
+#[tauri::command]
+pub async fn speech_cancel_realtime_response(
+    _request: SpeechRealtimeSessionRequest,
+) -> Result<(), String> {
+    ohos_speech_call("ohos_realtime_stop_speech", "")
+        .await
+        .map_err(|error| format!("Failed to stop realtime speech playback: {error}"))?;
+    Ok(())
+}
+
+#[cfg(target_env = "ohos")]
+#[tauri::command]
+pub async fn speech_close_realtime_session(
+    _request: SpeechRealtimeSessionRequest,
+) -> Result<(), String> {
+    ohos_speech_call("ohos_realtime_stop", "")
+        .await
+        .map_err(|error| format!("Failed to close realtime voice call: {error}"))?;
+    Ok(())
+}
+
+#[cfg(not(target_env = "ohos"))]
 #[tauri::command]
 pub async fn speech_get_realtime_config(
     state: State<'_, AppState>,
@@ -436,6 +561,7 @@ pub async fn speech_get_realtime_config(
     })
 }
 
+#[cfg(not(target_env = "ohos"))]
 #[tauri::command]
 pub async fn speech_save_realtime_config(
     state: State<'_, AppState>,
@@ -469,6 +595,69 @@ pub async fn speech_save_realtime_config(
         .set_config("app.voice_call", &config)
         .await
         .map_err(|error| format!("Failed to save controller realtime voice settings: {error}"))?;
+
+    Ok(SpeechRealtimeConfig {
+        enabled: config.enabled,
+        provider: config.provider,
+        api_key: config.api_key,
+        voice: config.voice,
+        speed: config.speed,
+        loudness: config.loudness,
+        microphone_device_id: config.microphone_device_id,
+    })
+}
+
+/// HarmonyOS reports the system voice profile: no hosted-provider credential is
+/// part of the call, so `provider` is normalized and the key is never read.
+#[cfg(target_env = "ohos")]
+#[tauri::command]
+pub async fn speech_get_realtime_config(
+    state: State<'_, AppState>,
+    _request: SpeechGetRealtimeConfigRequest,
+) -> Result<SpeechRealtimeConfig, String> {
+    let global_config: bitfun_core::service::config::GlobalConfig = state
+        .config_service
+        .get_config(None)
+        .await
+        .map_err(|error| format!("Failed to load realtime voice settings: {error}"))?;
+    let config = global_config.app.voice_call;
+    Ok(SpeechRealtimeConfig {
+        enabled: config.enabled,
+        provider: OHOS_REALTIME_PROVIDER.to_string(),
+        api_key: String::new(),
+        voice: config.voice,
+        speed: config.speed,
+        loudness: config.loudness,
+        microphone_device_id: config.microphone_device_id,
+    })
+}
+
+/// Enabling the HarmonyOS call needs no API key: recognition and synthesis are
+/// system capabilities. Provider-only fields are written empty so a later
+/// desktop profile cannot inherit a stale credential from this platform.
+#[cfg(target_env = "ohos")]
+#[tauri::command]
+pub async fn speech_save_realtime_config(
+    state: State<'_, AppState>,
+    request: SpeechSaveRealtimeConfigRequest,
+) -> Result<SpeechRealtimeConfig, String> {
+    if !(-50..=100).contains(&request.speed) || !(-50..=100).contains(&request.loudness) {
+        return Err("Realtime speech speed and loudness must be between -50 and 100".to_string());
+    }
+    let config = bitfun_core::service::config::VoiceCallConfig {
+        enabled: request.enabled,
+        provider: OHOS_REALTIME_PROVIDER.to_string(),
+        api_key: String::new(),
+        voice: String::new(),
+        speed: request.speed,
+        loudness: request.loudness,
+        microphone_device_id: request.microphone_device_id,
+    };
+    state
+        .config_service
+        .set_config("app.voice_call", &config)
+        .await
+        .map_err(|error| format!("Failed to save realtime voice settings: {error}"))?;
 
     Ok(SpeechRealtimeConfig {
         enabled: config.enabled,

@@ -192,6 +192,38 @@ pub fn emit_speech_transcription(session_id: String, text: String, is_final: boo
     });
 }
 
+/// Forwards one client-side realtime voice event to the web UI.
+///
+/// HarmonyOS owns audio capture, recognition, and speech synthesis through the
+/// system `speechRecognizer` / `textToSpeech`, so the host produces the same
+/// `speech://realtime-event` payloads a provider-hosted (desktop) session
+/// emits. The payload is forwarded verbatim as camelCase JSON: the web-ui
+/// `SpeechRealtimeEvent` contract stays the single event schema, and this
+/// bridge never validates fields it does not own.
+#[cfg(feature = "runtime-services")]
+#[napi]
+pub fn emit_realtime_voice_event(session_id: String, payload_json: String) {
+    let payload = match serde_json::from_str::<serde_json::Value>(&payload_json) {
+        Ok(serde_json::Value::Object(map)) => serde_json::Value::Object(map),
+        _ => {
+            log::warn!(
+                "Dropped realtime voice event with an invalid payload: session={session_id}"
+            );
+            return;
+        }
+    };
+    browser_page_load_runtime().block_on(async move {
+        if let Err(error) = emit_global_event(BackendEvent::Custom {
+            event_name: bitfun_events::SPEECH_REALTIME_EVENT.to_string(),
+            payload,
+        })
+        .await
+        {
+            log::warn!("Failed to emit realtime voice event: {error}");
+        }
+    });
+}
+
 /// Waits until the ArkTS side has registered `function_name` via
 /// `RustModule.registerArktsFunction`, polling the registry until the name
 /// appears or `timeout` elapses. Returns `true` once the function is callable
@@ -424,7 +456,10 @@ fn parse_clipboard_read_envelope(json: &str) -> Result<ClipboardReadEnvelope, St
         })
         .unwrap_or_default();
 
-    Ok(ClipboardReadEnvelope { paths: strings, errors })
+    Ok(ClipboardReadEnvelope {
+        paths: strings,
+        errors,
+    })
 }
 
 /// Invoke an ArkTS-registered speech bridge function by name.

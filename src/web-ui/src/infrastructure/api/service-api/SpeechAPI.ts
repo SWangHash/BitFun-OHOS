@@ -71,7 +71,12 @@ export interface SpeechRealtimeSession {
 
 export interface SpeechRealtimeConfig {
   enabled: boolean;
-  provider: 'volcengine';
+  /**
+   * `volcengine` is the hosted desktop provider. `ohos-system` is the HarmonyOS
+   * client-side provider: the system recognizer and synthesizer own the audio,
+   * so no API key or voice id applies.
+   */
+  provider: 'volcengine' | 'ohos-system';
   apiKey: string;
   voice: string;
   speed: number;
@@ -92,6 +97,7 @@ export type SpeechRealtimeEventKind =
   | 'assistant_audio_delta'
   | 'assistant_audio_completed'
   | 'function_call'
+  | 'user_audio_level'
   | 'closed'
   | 'error';
 
@@ -107,6 +113,8 @@ export interface SpeechRealtimeEvent {
   text?: string | null;
   audioBase64?: string | null;
   functionCalls?: SpeechRealtimeFunctionCall[];
+  /** Microphone loudness (0-255) for client-side providers that own capture. */
+  audioLevel?: number | null;
   providerSessionId?: string | null;
   statusCode?: number | null;
   message?: string | null;
@@ -166,11 +174,11 @@ export class SpeechAPI {
     catch (error) { throw createTauriCommandError('speech_cancel_input_session', error, { sessionId }); }
   }
 
-  async startRealtimeSession(clientContext?: string): Promise<SpeechRealtimeSession> {
+  async startRealtimeSession(clientContext?: string, language?: string): Promise<SpeechRealtimeSession> {
     try {
       return await api.invoke<SpeechRealtimeSession>(
         'speech_start_realtime_session',
-        { request: { clientContext } },
+        { request: { clientContext, language } },
         { timeout: 30000 },
       );
     } catch (error) {

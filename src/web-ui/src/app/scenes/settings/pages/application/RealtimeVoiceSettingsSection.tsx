@@ -61,7 +61,11 @@ export default function RealtimeVoiceSettingsSection() {
   const updateVoiceCall = useCallback((patch: Partial<SpeechRealtimeConfig>) => {
     if (!voiceCallConfigRef.current) return;
     const next = { ...voiceCallConfigRef.current, ...patch };
-    const valid = next.voice.trim() && (!next.enabled || next.apiKey.trim());
+    // The HarmonyOS system voice needs no hosted credentials: recognition and
+    // synthesis ship with the device, so enabling it has no required fields.
+    const valid = next.provider === 'ohos-system'
+      ? true
+      : Boolean(next.voice.trim() && (!next.enabled || next.apiKey.trim()));
     // Enabling requires credentials, but they remain editable while disabled.
     if (patch.enabled === true && !valid) {
       setVoiceCallSaveError(t('voiceCall.messages.required'));
@@ -79,10 +83,11 @@ export default function RealtimeVoiceSettingsSection() {
     // The queue also finishes if the user leaves the settings page.
     const operation = voiceCallSaveQueueRef.current.then(async () => {
       try {
+        const systemVoice = next.provider === 'ohos-system';
         const saved = await speechAPI.saveRealtimeConfig({
           enabled: next.enabled,
-          apiKey: next.apiKey.trim(),
-          voice: next.voice.trim(),
+          apiKey: systemVoice ? '' : next.apiKey.trim(),
+          voice: systemVoice ? '' : next.voice.trim(),
           speed: next.speed,
           loudness: next.loudness,
           microphoneDeviceId: next.microphoneDeviceId,
@@ -135,31 +140,39 @@ export default function RealtimeVoiceSettingsSection() {
               onChange={(event) => updateVoiceCall({ enabled: event.target.checked })}
             />
           </ConfigPageRow>
-          <ConfigPageRow
-            label={t('voiceCall.apiKey.label')}
-            description={t('voiceCall.apiKey.description')}
-            align="center"
-          >
-            <Input
-              type="password"
-              size="sm"
-              autoComplete="off"
-              value={voiceCallDraft.apiKey}
-              placeholder={t('voiceCall.apiKey.placeholder')}
-              onChange={(event) => updateVoiceCall({ apiKey: event.target.value })}
+          {voiceCallDraft.provider === 'ohos-system' ? (
+            <ConfigMessage
+              message={{ type: 'info', text: t('voiceCall.systemVoice.description') }}
             />
-          </ConfigPageRow>
-          <ConfigPageRow
-            label={t('voiceCall.voice.label')}
-            description={t('voiceCall.voice.description')}
-            align="center"
-          >
-            <Input
-              size="sm"
-              value={voiceCallDraft.voice}
-              onChange={(event) => updateVoiceCall({ voice: event.target.value })}
-            />
-          </ConfigPageRow>
+          ) : (
+            <>
+              <ConfigPageRow
+                label={t('voiceCall.apiKey.label')}
+                description={t('voiceCall.apiKey.description')}
+                align="center"
+              >
+                <Input
+                  type="password"
+                  size="sm"
+                  autoComplete="off"
+                  value={voiceCallDraft.apiKey}
+                  placeholder={t('voiceCall.apiKey.placeholder')}
+                  onChange={(event) => updateVoiceCall({ apiKey: event.target.value })}
+                />
+              </ConfigPageRow>
+              <ConfigPageRow
+                label={t('voiceCall.voice.label')}
+                description={t('voiceCall.voice.description')}
+                align="center"
+              >
+                <Input
+                  size="sm"
+                  value={voiceCallDraft.voice}
+                  onChange={(event) => updateVoiceCall({ voice: event.target.value })}
+                />
+              </ConfigPageRow>
+            </>
+          )}
           <ConfigMessage
             message={voiceCallSaveError ? { type: 'error', text: voiceCallSaveError } : null}
           />

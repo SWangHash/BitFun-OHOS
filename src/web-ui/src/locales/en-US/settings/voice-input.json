@@ -50,7 +50,7 @@
   },
   "voiceCall": {
     "title": "Realtime voice call",
-    "description": "The controlling device sends microphone audio to Volcengine for live processing, independently of local dictation",
+    "description": "The audio path depends on this platform: desktop sends microphone audio to Volcengine for live processing, while HarmonyOS uses the system speech recognizer and text-to-speech",
     "loading": "Loading realtime voice settings…",
     "enabled": {
       "label": "Enable the client voice assistant",
@@ -64,6 +64,9 @@
     "voice": {
       "label": "Voice ID",
       "description": "Uses the Jupiter female voice from the official demo by default."
+    },
+    "systemVoice": {
+      "description": "Uses HarmonyOS speech recognition and system text-to-speech; no API key is required. Recognition and playback stay on this device, and each utterance becomes a BitFun task whose progress and result are read aloud."
     },
     "status": {
       "label": "Connection setup",
@@ -98,6 +101,7 @@
       "hangUp": "Hang up",
       "settings": "Realtime voice settings",
       "configureFirst": "Configure a Volcengine realtime voice API key first.",
+      "enableFirst": "Enable realtime voice in Settings first.",
       "startFailed": "Failed to start the realtime voice call",
       "taskComplete": "The BitFun task is complete. I am preparing the result.",
       "taskFailed": "The BitFun task failed. I am preparing an explanation.",

@@ -209,6 +209,38 @@ Run `node --test src/apps/ohos/tests/speech-transcript.test.cjs` for the
 transcript rules. It covers text assembly only, not the speech engine, ArkTS
 compilation, or device behavior.
 
+## Realtime voice call
+
+HarmonyOS is a client-side realtime voice provider: `RealtimeVoiceService.ets`
+owns `AudioCapturer` + `speechRecognizer` for input and `textToSpeech` for
+output, and reports through `RustModule.emitRealtimeVoiceEvent` as
+`speech://realtime-event`. Those payloads use the same schema the host
+volcengine session emits, so the web-ui controller
+(`useRealtimeVoiceCall`) owns dialogue and task routing for both platforms. Do
+not move task routing, prompts, or Agent tool access into this service.
+
+Rules that are easy to break:
+
+- Synthesis is audible, and capture keeps feeding the recognizer so the user can
+  interrupt. `VoiceEchoGuard.ets` is what stops the assistant from transcribing
+  and cutting off its own answer: CJK characters and Latin words are compared as
+  tokens against the text being spoken, and only a snapshot that is mostly new
+  text counts as a barge-in. Every new echo heuristic needs a case in
+  `src/apps/ohos/tests/realtime-voice-echo.test.cjs`.
+- A `isLast` result means the engine itself finished. Reopen recognition instead
+  of ending the call, and keep `captureGeneration` in step: a stale loop still
+  blocked in `read()` must not drain the replacement capturer.
+- The call needs no hosted-provider credential. `speech_save_realtime_config`
+  stores `provider: ohos-system` with an empty key, and the web-ui hides the
+  credential fields for that provider.
+- There is no hosted model, so a completed transcript is delegated as one Agent
+  task. Bound MiniApp conversations keep their own routing through
+  `voiceTaskBridge` in the web-ui. Speaking again while a task runs stops that
+  task first — a spoken correction is not an addition.
+
+ArkTS compilation and device behavior are not covered by repository tests; a
+HarmonyOS build plus a 2in1 device run is the verification for this file.
+
 ## Scrollbars
 
 ArkWeb draws overlay scrollbars by default: the thumb floats above page

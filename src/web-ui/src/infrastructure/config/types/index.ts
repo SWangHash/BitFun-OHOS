@@ -203,7 +203,8 @@ export interface VoiceInputSettings {
 
 export interface VoiceCallSettings {
   enabled: boolean;
-  provider: 'volcengine';
+  /** `volcengine` on desktop; `ohos-system` uses the HarmonyOS system voice. */
+  provider: 'volcengine' | 'ohos-system';
   api_key: string;
   voice: string;
   speed: number;

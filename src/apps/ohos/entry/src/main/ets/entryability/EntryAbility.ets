@@ -30,6 +30,7 @@ import { AppUpdater, UpdateCheckResult } from '../utils/AppUpdater';
 import { CommonUtils } from '../utils/CommonUtils';
 import { runDeveco } from '../utils/DevecoStart';
 import { VoiceInputService } from '../services/VoiceInputService';
+import { RealtimeVoiceService } from '../services/RealtimeVoiceService';
 import { FeedbackCredentialStore } from '../utils/FeedbackCredentialStore';
 import { ScreenCaptureStore } from '../utils/ScreenCaptureStore';
 import { SecureCredentialStore } from '../utils/SecureCredentialStore';
@@ -182,6 +183,7 @@ export default class EntryAbility extends RustAbility implements StatusBarTrayHo
   private localModelKeepAlive: LocalModelKeepAliveService = new LocalModelKeepAliveService();
   private appUpdater: AppUpdater = new AppUpdater();
   private voiceInputService: VoiceInputService = new VoiceInputService();
+  private realtimeVoiceService: RealtimeVoiceService = new RealtimeVoiceService();
   private systemColorMode: 'light' | 'dark' = 'dark';
   public shareStatus: boolean = false;
   private mainWindowStage: window.WindowStage | undefined = undefined;
@@ -1549,6 +1551,7 @@ export default class EntryAbility extends RustAbility implements StatusBarTrayHo
       return systemMode;
     });
     this.voiceInputService.setContext(this.context);
+    this.realtimeVoiceService.setContext(this.context);
     // FileShareService needs the UIAbilityContext to call
     // `systemShare.ShareController.show()` on the discover path. Set once at
     // window-stage creation; the same singleton stays valid for the ability
@@ -1573,6 +1576,29 @@ export default class EntryAbility extends RustAbility implements StatusBarTrayHo
     });
     RustModule.registerArktsFunction('ohos_speech_cancel', async (err: Error, _arg: string): Promise<string> => {
       return await this.voiceInputService.cancel('');
+    });
+    // Client-level realtime voice call. HarmonyOS owns capture, recognition, and
+    // synthesis (see `RealtimeVoiceService.ets`); the host reports them through
+    // the same `speech://realtime-event` schema the desktop provider emits, so
+    // dialogue and task routing stay in the web-ui.
+    RustModule.registerArktsFunction('ohos_realtime_start', async (err: Error, arg: string): Promise<string> => {
+      try {
+        return await this.realtimeVoiceService.start(arg);
+      } catch (e) {
+        const detail: string = describeError(e);
+        hilog.error(0x0000, 'BitFunRealtimeVoice',
+          'ohos_realtime_start callback error: %{public}s', detail);
+        throw new Error(detail);
+      }
+    });
+    RustModule.registerArktsFunction('ohos_realtime_speak', async (err: Error, arg: string): Promise<string> => {
+      return await this.realtimeVoiceService.speak(arg);
+    });
+    RustModule.registerArktsFunction('ohos_realtime_stop_speech', async (err: Error, _arg: string): Promise<string> => {
+      return await this.realtimeVoiceService.stopSpeechNow('');
+    });
+    RustModule.registerArktsFunction('ohos_realtime_stop', async (err: Error, _arg: string): Promise<string> => {
+      return await this.realtimeVoiceService.stop('');
     });
     // Share a BitFun-generated/exported file with a nearby HarmonyOS device
     // through the system Share Kit. `arg` is a JSON `FileShareRequest`

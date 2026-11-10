@@ -21,6 +21,7 @@ import { notificationService } from '@/shared/notification-system';
 import { createLogger } from '@/shared/utils/logger';
 import { RealtimePcmPlayer } from './realtimeVoiceAudio';
 import { applyRealtimeAsrSnapshot } from './realtimeVoiceTranscript';
+import { systemVoiceBins } from './realtimeVoiceLevel';
 import {
   runBitFunVoiceTask,
   runBoundVoiceTask,
@@ -220,7 +221,7 @@ async function waitForTaskOutcome(task: ActiveVoiceTask): Promise<VoiceTaskOutco
 }
 
 export function useRealtimeVoiceCallController(disabled = false): RealtimeVoiceCallController {
-  const { t } = useTranslation('settings/voice-input');
+  const { t, i18n } = useTranslation('settings/voice-input');
   const [voiceCallConfig, setVoiceCallConfig] = useState<SpeechRealtimeConfig | null>(null);
   const [phase, setPhase] = useState<RealtimeVoiceCallPhase>('idle');
   const [muted, setMuted] = useState(false);
@@ -254,16 +255,40 @@ export function useRealtimeVoiceCallController(disabled = false): RealtimeVoiceC
   const startupEventsRef = useRef<SpeechRealtimeEvent[]>([]);
   const spokenProgressQueueRef = useRef<Promise<void>>(Promise.resolve());
   const spokenProgressEpochRef = useRef(0);
+  /**
+   * Set for client-side providers (HarmonyOS system voice). Those sessions own
+   * capture and synthesis on the device, so this controller must not open a
+   * second microphone, must not decode PCM, and must not ask a remote model to
+   * route the utterance: every completed transcript becomes one Agent task.
+   */
+  const systemVoiceRef = useRef(false);
+  const userLevelRef = useRef(0);
+  const assistantSpeakingRef = useRef(false);
+  const systemTaskSeqRef = useRef(0);
 
   useEffect(() => {
     mutedRef.current = muted;
   }, [muted]);
 
-  const readAudio = useCallback<VoiceParticleAudioReader>(() => ({
-    user: mutedRef.current ? null : recorderRef.current?.readFrequencyData?.() ?? null,
-    assistant: playerRef.current?.readFrequencyData() ?? null,
-    assistantSpeaking: playerRef.current?.isPlaying() ?? false,
-  }), []);
+  useEffect(() => {
+    systemVoiceRef.current = voiceCallConfig?.provider === 'ohos-system';
+  }, [voiceCallConfig]);
+
+  const readAudio = useCallback<VoiceParticleAudioReader>(() => {
+    if (systemVoiceRef.current) {
+      const level = mutedRef.current ? 0 : userLevelRef.current;
+      return {
+        user: level > 0 ? systemVoiceBins(level) : null,
+        assistant: null,
+        assistantSpeaking: assistantSpeakingRef.current,
+      };
+    }
+    return {
+      user: mutedRef.current ? null : recorderRef.current?.readFrequencyData?.() ?? null,
+      assistant: playerRef.current?.readFrequencyData() ?? null,
+      assistantSpeaking: playerRef.current?.isPlaying() ?? false,
+    };
+  }, []);
 
   const openSettings = useCallback(() => {
     useSettingsStore.getState().openDestination({
@@ -759,6 +784,8 @@ export function useRealtimeVoiceCallController(disabled = false): RealtimeVoiceC
         ledgerRef.current?.next();
         clearAssistantSpeechFallbackTimer();
         playerRef.current?.stop();
+        assistantSpeakingRef.current = false;
+        userLevelRef.current = 0;
         assistantTurnStartedRef.current = false;
         assistantTextRef.current = '';
         assistantAudioResponseActiveRef.current = false;
@@ -783,6 +810,35 @@ export function useRealtimeVoiceCallController(disabled = false): RealtimeVoiceC
         if (event.text) ledgerRef.current?.user(event.text);
         if (event.text) setUserTranscript(event.text);
         setStatus(t('voiceCall.call.status.thinking'));
+        // A client-side provider has no hosted model to decide between
+        // chatting and acting, so the recognized sentence is the task. The
+        // delegated Agent answers conversational input on the same path.
+        if (systemVoiceRef.current && event.text) {
+          const task = event.text;
+          void (async () => {
+            // Speaking again while a task runs is a correction, not an
+            // addition: interrupting to say something new cancels the task the
+            // user just cut off, then starts the new one.
+            if (activeTaskRef.current) {
+              systemTaskSeqRef.current += 1;
+              await handleFunctionCall(session.sessionId, {
+                callId: `system-voice-stop-${systemTaskSeqRef.current}`,
+                name: 'stop_bitfun_task',
+                arguments: '{}',
+              });
+              if (activeTaskRef.current) return;
+            }
+            systemTaskSeqRef.current += 1;
+            await handleFunctionCall(session.sessionId, {
+              callId: `system-voice-task-${systemTaskSeqRef.current}`,
+              name: 'run_bitfun_task',
+              arguments: JSON.stringify({ task, activate_workspace: true }),
+            });
+          })();
+        }
+        break;
+      case 'user_audio_level':
+        userLevelRef.current = typeof event.audioLevel === 'number' ? event.audioLevel : 0;
         break;
       case 'assistant_text_delta':
         if (!assistantTurnStartedRef.current) {
@@ -807,7 +863,9 @@ export function useRealtimeVoiceCallController(disabled = false): RealtimeVoiceC
           setAssistantTranscript(event.text);
         }
         ledgerRef.current?.assistant(assistantTextRef.current);
-        scheduleAssistantSpeechFallback(session.sessionId);
+        // A client-side provider synthesizes through the host and reports its
+        // own completion; asking for a retry here would speak twice.
+        if (!systemVoiceRef.current) scheduleAssistantSpeechFallback(session.sessionId);
         break;
       case 'assistant_response_completed':
         // output_text.done may precede a function call in the same response.
@@ -815,6 +873,7 @@ export function useRealtimeVoiceCallController(disabled = false): RealtimeVoiceC
         break;
       case 'assistant_audio_started':
         clearAssistantSpeechFallbackTimer();
+        assistantSpeakingRef.current = true;
         assistantAudioResponseActiveRef.current = true;
         assistantAudioBytesRef.current = 0;
         playerRef.current?.stop();
@@ -839,9 +898,10 @@ export function useRealtimeVoiceCallController(disabled = false): RealtimeVoiceC
         }
         break;
       case 'assistant_audio_completed':
+        assistantSpeakingRef.current = false;
         assistantAudioResponseActiveRef.current = false;
         assistantTurnStartedRef.current = false;
-        if (assistantAudioBytesRef.current === 0) {
+        if (assistantAudioBytesRef.current === 0 && !systemVoiceRef.current) {
           scheduleAssistantSpeechFallback(session.sessionId);
         }
         if (!taskPhase) setStatus(t('voiceCall.call.status.listening'));
@@ -907,6 +967,8 @@ export function useRealtimeVoiceCallController(disabled = false): RealtimeVoiceC
       setPhase('idle');
       setCallTarget(null);
       setMuted(false);
+      assistantSpeakingRef.current = false;
+      userLevelRef.current = 0;
       setUserTranscript('');
       setAssistantTranscript('');
       setTaskPhase(null);
@@ -921,7 +983,11 @@ export function useRealtimeVoiceCallController(disabled = false): RealtimeVoiceC
   const start = useCallback((target?: VoiceCallTarget) => {
     if (phase !== 'idle' || disabled) return;
     if (voiceCallConfig && !voiceCallConfig.enabled) {
-      notificationService.info(t('voiceCall.call.configureFirst'));
+      notificationService.info(t(
+        systemVoiceRef.current
+          ? 'voiceCall.call.enableFirst'
+          : 'voiceCall.call.configureFirst',
+      ));
       openSettings();
       return;
     }
@@ -944,6 +1010,8 @@ export function useRealtimeVoiceCallController(disabled = false): RealtimeVoiceC
     assistantAudioBytesRef.current = 0;
     assistantSpeechFallbackSentRef.current = false;
     providerErrorRef.current = false;
+    userLevelRef.current = 0;
+    assistantSpeakingRef.current = false;
     const activeTask = activeTaskRef.current;
     setPhase('connecting');
     setMuted(false);
@@ -965,21 +1033,23 @@ export function useRealtimeVoiceCallController(disabled = false): RealtimeVoiceC
     setStatus(t('voiceCall.call.status.connecting'));
     setNotice('');
 
-    let preparedPlayer: RealtimePcmPlayer;
-    try {
-      // Construct the output context inside the click gesture. WebKit may keep
-      // contexts created after the first network await suspended indefinitely.
-      preparedPlayer = RealtimePcmPlayer.create(DEFAULT_REALTIME_OUTPUT_SAMPLE_RATE);
-      playerRef.current = preparedPlayer;
-    } catch (error) {
-      bufferStartupEventsRef.current = false;
-      startupEventsRef.current = [];
-      callTargetRef.current = null;
-      log.error('Failed to prepare realtime audio output', { error });
-      setPhase('error');
-      setStatus(t('voiceCall.call.status.audioPlaybackFailed'));
-      notificationService.error(t('voiceCall.call.startFailed'));
-      return;
+    let preparedPlayer: RealtimePcmPlayer | null = null;
+    if (!systemVoiceRef.current) {
+      try {
+        // Construct the output context inside the click gesture. WebKit may keep
+        // contexts created after the first network await suspended indefinitely.
+        preparedPlayer = RealtimePcmPlayer.create(DEFAULT_REALTIME_OUTPUT_SAMPLE_RATE);
+        playerRef.current = preparedPlayer;
+      } catch (error) {
+        bufferStartupEventsRef.current = false;
+        startupEventsRef.current = [];
+        callTargetRef.current = null;
+        log.error('Failed to prepare realtime audio output', { error });
+        setPhase('error');
+        setStatus(t('voiceCall.call.status.audioPlaybackFailed'));
+        notificationService.error(t('voiceCall.call.startFailed'));
+        return;
+      }
     }
 
     void (async () => {
@@ -988,15 +1058,21 @@ export function useRealtimeVoiceCallController(disabled = false): RealtimeVoiceC
         const controllerConfig = await speechAPI.getRealtimeConfig();
         if (activeCallIdRef.current !== callId) return;
         surface.assertCurrent('start voice call');
+        // A client-side provider needs no hosted credential: the device owns
+        // recognition and synthesis, so only the enabled switch gates the call.
+        const systemVoice = controllerConfig.provider === 'ohos-system';
+        systemVoiceRef.current = systemVoice;
         setVoiceCallConfig(controllerConfig);
-        if (!controllerConfig.enabled || !controllerConfig.apiKey.trim()) {
+        if (!controllerConfig.enabled || (!systemVoice && !controllerConfig.apiKey.trim())) {
           bufferStartupEventsRef.current = false;
           startupEventsRef.current = [];
           await cleanupMedia();
           setPhase('idle');
           setStatus('');
           callTargetRef.current = null;
-          notificationService.info(t('voiceCall.call.configureFirst'));
+          notificationService.info(t(
+            systemVoice ? 'voiceCall.call.enableFirst' : 'voiceCall.call.configureFirst',
+          ));
           openSettings();
           return;
         }
@@ -1028,6 +1104,7 @@ export function useRealtimeVoiceCallController(disabled = false): RealtimeVoiceC
             activeTaskContext(activeTaskRef.current),
             callTargetRef.current,
           ),
+          systemVoice ? i18n.language : undefined,
         );
         if (activeCallIdRef.current !== callId) {
           bufferStartupEventsRef.current = false;
@@ -1036,7 +1113,7 @@ export function useRealtimeVoiceCallController(disabled = false): RealtimeVoiceC
           return;
         }
         sessionRef.current = session;
-        preparedPlayer.setSourceSampleRate(session.outputSampleRate);
+        preparedPlayer?.setSourceSampleRate(session.outputSampleRate);
         bufferStartupEventsRef.current = false;
         const startupEvents = startupEventsRef.current;
         startupEventsRef.current = [];
@@ -1049,39 +1126,43 @@ export function useRealtimeVoiceCallController(disabled = false): RealtimeVoiceC
         ) {
           throw new Error('Realtime voice session closed during audio startup');
         }
-        const silence = silentPcm16Base64(session.inputSampleRate);
-        recorderRef.current = await createVoiceInputRecorder({
-          targetSampleRate: session.inputSampleRate || DEFAULT_SPEECH_SAMPLE_RATE,
-          chunkDurationMs: AUDIO_CHUNK_DURATION_MS,
-          audioContext: preparedPlayer.getAudioContext(),
-          microphoneDeviceId: controllerConfig.microphoneDeviceId || undefined,
-          analyzeFrequency: true,
-          onDeviceEnded: () => {
-            if (sessionRef.current?.sessionId !== session.sessionId) return;
-            activeCallIdRef.current += 1;
-            sessionRef.current = null;
-            callTargetRef.current = null;
-            setPhase('error');
-            setStatus(t('voiceCall.call.status.microphoneDisconnected'));
-            void cleanupMedia().finally(() => {
-              void speechAPI.closeRealtimeSession(session.sessionId).catch(() => undefined);
-            });
-          },
-          onChunk: pcm16Base64 => {
-            const activeSession = sessionRef.current;
-            if (!activeSession || activeSession.sessionId !== session.sessionId) return;
-            const audio = mutedRef.current ? silence : pcm16Base64;
-            pendingAudioRef.current = pendingAudioRef.current
-              .catch(() => undefined)
-              .then(() => speechAPI.appendRealtimeAudio(session.sessionId, audio))
-              .catch(error => {
-                log.warn('Failed to stream realtime microphone audio', {
-                  sessionId: session.sessionId,
-                  error,
-                });
+        // A client-side provider captures and recognizes on the host, so the
+        // web layer must not open a second microphone or stream PCM.
+        if (!systemVoice && preparedPlayer) {
+          const silence = silentPcm16Base64(session.inputSampleRate);
+          recorderRef.current = await createVoiceInputRecorder({
+            targetSampleRate: session.inputSampleRate || DEFAULT_SPEECH_SAMPLE_RATE,
+            chunkDurationMs: AUDIO_CHUNK_DURATION_MS,
+            audioContext: preparedPlayer.getAudioContext(),
+            microphoneDeviceId: controllerConfig.microphoneDeviceId || undefined,
+            analyzeFrequency: true,
+            onDeviceEnded: () => {
+              if (sessionRef.current?.sessionId !== session.sessionId) return;
+              activeCallIdRef.current += 1;
+              sessionRef.current = null;
+              callTargetRef.current = null;
+              setPhase('error');
+              setStatus(t('voiceCall.call.status.microphoneDisconnected'));
+              void cleanupMedia().finally(() => {
+                void speechAPI.closeRealtimeSession(session.sessionId).catch(() => undefined);
               });
-          },
-        });
+            },
+            onChunk: pcm16Base64 => {
+              const activeSession = sessionRef.current;
+              if (!activeSession || activeSession.sessionId !== session.sessionId) return;
+              const audio = mutedRef.current ? silence : pcm16Base64;
+              pendingAudioRef.current = pendingAudioRef.current
+                .catch(() => undefined)
+                .then(() => speechAPI.appendRealtimeAudio(session.sessionId, audio))
+                .catch(error => {
+                  log.warn('Failed to stream realtime microphone audio', {
+                    sessionId: session.sessionId,
+                    error,
+                  });
+                });
+            },
+          });
+        }
         if (activeCallIdRef.current !== callId) {
           await cleanupMedia();
           return;
@@ -1111,6 +1192,7 @@ export function useRealtimeVoiceCallController(disabled = false): RealtimeVoiceC
     clearAssistantSpeechFallbackTimer,
     disabled,
     handleRealtimeEvent,
+    i18n,
     openSettings,
     phase,
     t,

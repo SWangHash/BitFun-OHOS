@@ -50,7 +50,7 @@
   },
   "voiceCall": {
     "title": "即時語音通話",
-    "description": "麥克風音訊由目前控制端傳送至火山引擎即時處理，與本機語音輸入獨立",
+    "description": "音訊鏈路由目前平台決定：桌面端將麥克風音訊傳送至火山引擎即時處理，鴻蒙使用系統語音辨識與播報",
     "loading": "正在載入即時語音設定…",
     "enabled": {
       "label": "啟用客戶端語音助理",
@@ -64,6 +64,9 @@
     "voice": {
       "label": "音色 ID",
       "description": "預設使用官方 Demo 的 Jupiter 女聲音色。"
+    },
+    "systemVoice": {
+      "description": "使用鴻蒙系統語音辨識與系統播報，無需 API Key。辨識與播放都在本機完成；每句話由 BitFun 會話執行，並朗讀任務進度與結論。"
     },
     "status": {
       "label": "連線設定",
@@ -98,6 +101,7 @@
       "hangUp": "掛斷",
       "settings": "即時語音設定",
       "configureFirst": "請先設定火山引擎即時語音 API Key。",
+      "enableFirst": "請先在設定中啟用即時語音。",
       "startFailed": "即時語音通話啟動失敗",
       "taskComplete": "BitFun 任務已完成，正在整理結果。",
       "taskFailed": "BitFun 任務執行失敗，正在說明原因。",

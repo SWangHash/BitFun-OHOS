@@ -152,6 +152,11 @@ pub struct SpeechStartRealtimeSessionRequest {
     /// the snapshot later through its client-context tool.
     #[serde(default)]
     pub client_context: Option<String>,
+    /// Preferred recognition language for a client-side provider such as the
+    /// HarmonyOS system recognizer. Hosted providers derive language from their
+    /// own session policy and ignore this field.
+    #[serde(default)]
+    pub language: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
