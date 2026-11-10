@@ -53,7 +53,6 @@ import { startFlowChatInitialization } from '../services/flowChatInitialization'
 import { clearTransientGenerativeWidgetResources } from '@/shared/services/workbenchContentService';
 import { openMainSession } from '@/flow_chat/services/sessionActivation';
 import { AcpSessionNotifications } from './AcpSessionNotifications';
-import { api } from '@/infrastructure/api/service-api/ApiClient';
 import { AppearanceBackgroundMediaLayer, appearanceRuntime, useAppearance } from '@/infrastructure/appearance';
 import { PeerConnectionStatus } from '@/infrastructure/peer-device/PeerConnectionStatus';
 import './AppLayout.scss';
@@ -456,20 +455,11 @@ const AppLayout: React.FC<AppLayoutProps> = ({ className = '' }) => {
           handlingClose = true;
           setMainWindowCloseRequestInProgress(true);
 
-          if (isMacOS) {
-            // macOS always hides to keep the app alive in the dock.
-            try {
-              await api.invoke('hide_main_window_after_close_request');
-            } catch (error) {
-              log.error('Failed to hide main window after close request', error);
-            } finally {
-              setMainWindowCloseRequestInProgress(false);
-              handlingClose = false;
-            }
-            return;
-          }
-
-          // Windows / Linux: read the user's close-button preference.
+          // Every host runs the same decision, so the close button behaves the
+          // same on Windows, Linux, macOS, and HarmonyOS PC: the persisted
+          // preference wins and its default is quit. macOS used to hide the
+          // window unconditionally; it now follows the setting like everyone
+          // else, and `minimizeToTray` hides into its menu-bar tray / Dock.
           let behavior: CloseBehavior = 'quit';
           try {
             behavior = (await configManager.getConfig<CloseBehavior>('app.close_button_behavior')) ?? 'quit';
@@ -517,7 +507,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ className = '' }) => {
 
     setupWindowCloseListener();
     return () => { if (unlistenFn) unlistenFn(); };
-  }, [canUseNativeWindowControls, isMacOS, tCommon]);
+  }, [canUseNativeWindowControls, tCommon]);
 
   // Handle switch-to-files-panel event
   React.useEffect(() => {

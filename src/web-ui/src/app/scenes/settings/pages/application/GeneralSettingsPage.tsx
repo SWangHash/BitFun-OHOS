@@ -314,7 +314,9 @@ function WindowBehaviorSetting() {
   const { t } = useTranslation('settings/application');
   const isTauri = typeof window !== 'undefined' && '__TAURI__' in window;
   const seed = useConfigSeed(['app.close_button_behavior']);
-  const [behavior, setBehavior] = useState<CloseBehavior>(seed.get<CloseBehavior | null>('app.close_button_behavior', null) ?? 'minimize_to_tray');
+  // Default matches the backend default (`default_close_button_behavior`):
+  // closing the window quits the app until the user picks another behavior.
+  const [behavior, setBehavior] = useState<CloseBehavior>(seed.get<CloseBehavior | null>('app.close_button_behavior', null) ?? 'quit');
   const [loading, setLoading] = useState(!seed.loaded);
   const [loadFailed, setLoadFailed] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -340,7 +342,8 @@ function WindowBehaviorSetting() {
     setLoadFailed(false);
     try {
       const value = await configManager.getOptionalConfig<CloseBehavior>('app.close_button_behavior');
-      setBehavior(value ?? 'minimize_to_tray');
+      // An unset config value means the default close behavior: quit.
+      setBehavior(value ?? 'quit');
     } catch (error) {
       log.error('Failed to load close behavior', error);
       setLoadFailed(true);

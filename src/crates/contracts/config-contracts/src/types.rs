@@ -167,9 +167,17 @@ impl ProjectConfig {
     }
 }
 
-/// App configuration.
+/// Default behavior for the window close button (X): exit the application.
+///
+/// Every desktop host (Windows, Linux, macOS, HarmonyOS PC) runs the same
+/// decision, so clicking the title-bar close button ends the process by default.
+/// Users who want the process to keep running can pick `minimize_to_tray` (or
+/// `ask`) in Settings > Application > Window behavior; that option hides the
+/// window into the tray / Dock on every host. The choice is persisted as an
+/// explicit value, so changing this default never rewrites an existing
+/// preference.
 fn default_close_button_behavior() -> String {
-    "minimize_to_tray".to_string()
+    "quit".to_string()
 }
 
 /// Reads the telemetry opt-in from either the current boolean or the object the
@@ -200,6 +208,7 @@ fn released_telemetry_enabled(value: &serde_json::Value) -> bool {
     }
 }
 
+/// App configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct AppConfig {
@@ -253,8 +262,10 @@ pub struct AppConfig {
     /// Marketplace used by the serving host for Skill discovery and installation.
     #[serde(default)]
     pub skill_market: SkillMarketConfig,
-    /// What happens when the window close button is clicked on Windows / Linux.
+    /// What happens when the window close button is clicked. Every desktop host
+    /// honors this, including macOS and HarmonyOS PC.
     /// Allowed values: "quit" | "minimize_to_tray" | "ask".
+    /// New installs default to "quit": closing the window exits the process.
     #[serde(default = "default_close_button_behavior")]
     pub close_button_behavior: String,
     /// Native agent lifecycle hooks (Codex-compatible hooks.json).
@@ -2910,21 +2921,22 @@ mod tests {
     }
 
     #[test]
-    fn close_button_behavior_defaults_to_minimize_to_tray() {
-        assert_eq!(
-            AppConfig::default().close_button_behavior,
-            "minimize_to_tray"
-        );
+    fn close_button_behavior_defaults_to_quit() {
+        // Clicking the window close button exits the app unless the user saved
+        // another behavior.
+        assert_eq!(AppConfig::default().close_button_behavior, "quit");
 
         let config: AppConfig =
             serde_json::from_value(serde_json::json!({})).expect("empty app config should default");
-        assert_eq!(config.close_button_behavior, "minimize_to_tray");
+        assert_eq!(config.close_button_behavior, "quit");
 
+        // An explicitly saved tray preference still wins over the default, so
+        // existing installs keep the behavior their user chose.
         let saved: AppConfig = serde_json::from_value(serde_json::json!({
-            "close_button_behavior": "quit"
+            "close_button_behavior": "minimize_to_tray"
         }))
         .expect("saved close behavior should deserialize");
-        assert_eq!(saved.close_button_behavior, "quit");
+        assert_eq!(saved.close_button_behavior, "minimize_to_tray");
     }
 
     #[test]
