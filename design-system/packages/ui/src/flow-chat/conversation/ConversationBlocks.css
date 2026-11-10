@@ -868,6 +868,12 @@
   overflow: hidden;
   white-space: nowrap;
 }
+.runtime-status-slot__elapsed {
+  flex: 0 0 auto;
+  color: var(--bitfun-color-content-caption);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
 .runtime-status-slot__icon {
   display: inline-flex;
   flex: 0 0 auto;

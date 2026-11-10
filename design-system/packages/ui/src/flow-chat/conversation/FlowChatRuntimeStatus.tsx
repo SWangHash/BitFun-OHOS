@@ -4,14 +4,17 @@ import { Spinner } from '../../components/Spinner/Spinner';
 import './ConversationBlocks.css';
 
 export interface FlowChatRuntimeStatusProps extends HTMLAttributes<HTMLDivElement> {
-  label: string;
+  /** Rotating wait hint. Omitted once the reply itself is what the slot reports. */
+  label?: string;
   visible: boolean;
+  /** Live turn duration, shown beside the hint for as long as the turn runs. */
+  elapsedLabel?: string | null;
   placement?: 'footer' | 'inline';
   revealDelayMs?: number;
 }
 
 /** A resident status slot; submission receipts and the selected hint belong to the host. */
-export function FlowChatRuntimeStatus({ label, visible, placement = 'inline', revealDelayMs = 0, className = '', ...props }: FlowChatRuntimeStatusProps) {
+export function FlowChatRuntimeStatus({ label, visible, elapsedLabel = null, placement = 'inline', revealDelayMs = 0, className = '', ...props }: FlowChatRuntimeStatusProps) {
   const contentRef = useRef<HTMLDivElement>(null);
   const [retainPlayback, setRetainPlayback] = useState(visible);
   useEffect(() => {
@@ -44,7 +47,12 @@ export function FlowChatRuntimeStatus({ label, visible, placement = 'inline', re
       <span className="runtime-status-slot__icon" data-bitfun-component="runtime-status-slot" data-bitfun-part="leadingIcon" aria-hidden="true">
         <Spinner size="md" active={visible || retainPlayback} />
       </span>
-      <OverflowText className="runtime-status-slot__hint" data-bitfun-component="runtime-status-slot" data-bitfun-part="hint">{label}</OverflowText>
+      {label ? <OverflowText className="runtime-status-slot__hint" data-bitfun-component="runtime-status-slot" data-bitfun-part="hint">{label}</OverflowText> : null}
+      {elapsedLabel ? <span
+        className="runtime-status-slot__elapsed"
+        data-bitfun-component="runtime-status-slot"
+        data-bitfun-part="elapsed"
+      >{elapsedLabel}</span> : null}
     </div>
   </div>;
 }

@@ -188,5 +188,6 @@
     "Thoughts marching in step — answer incoming...",
     "Done in one second (approximately)...",
     "Casting a chaos-to-clarity spell..."
-  ]
+  ],
+  "elapsed": "{{duration}} elapsed"
 }

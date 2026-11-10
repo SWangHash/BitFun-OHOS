@@ -108,4 +108,18 @@ describe('resident runtime status playback', () => {
     expect(container.childElementCount).toBe(0);
     expect(playback.cancel).toHaveBeenCalledTimes(1);
   });
+
+  it('renders the live duration beside the hint, alone once the hint clears, then not at all', () => {
+    const elapsed = () => container.querySelector<HTMLElement>('[data-bitfun-part="elapsed"]');
+    act(() => root.render(<FlowChatRuntimeStatus label="Working" elapsedLabel="12 sec elapsed" visible />));
+    expect(container.querySelector('[data-bitfun-part="hint"]')?.textContent).toBe('Working');
+    expect(elapsed()?.textContent).toBe('12 sec elapsed');
+
+    act(() => root.render(<FlowChatRuntimeStatus elapsedLabel="13 sec elapsed" visible />));
+    expect(container.querySelector('[data-bitfun-part="hint"]')).toBeNull();
+    expect(elapsed()?.textContent).toBe('13 sec elapsed');
+
+    act(() => root.render(<FlowChatRuntimeStatus elapsedLabel={null} visible={false} />));
+    expect(elapsed()).toBeNull();
+  });
 });

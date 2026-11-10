@@ -32,8 +32,8 @@ export const exploreGroupMeta = {
 
 export const flowChatRuntimeStatusMeta = {
   category: 'flow-chat', name: 'FlowChatRuntimeStatus', maturity: 'stable',
-  description: 'A resident runtime-status view with host-controlled visibility and submission delay.',
-  props: [{ name: 'label', type: 'string' }, { name: 'visible', type: 'boolean' }, { name: 'revealDelayMs', type: 'number' }],
+  description: 'A resident runtime-status view with host-controlled visibility, submission delay, and an optional live duration.',
+  props: [{ name: 'label', type: 'string' }, { name: 'visible', type: 'boolean' }, { name: 'elapsedLabel', type: 'string | null' }, { name: 'revealDelayMs', type: 'number' }],
   states: ['visible', 'hidden'], tokens,
 } as const satisfies ComponentMeta;
 

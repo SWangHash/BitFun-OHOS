@@ -3,10 +3,16 @@ import { useTranslation } from 'react-i18next';
 import { FlowChatRuntimeStatus } from '@bitfun/ui/flow-chat';
 import { useRuntimeStatusStore } from '../../store/runtimeStatusStore';
 import { submittedMessageStatusDelay } from '../../services/submittedMessagePresentation';
+import { useActiveTurnStartTime } from '../../hooks/useActiveTurnStartTime';
+import { useLiveElapsedTime } from '../../hooks/useLiveElapsedTime';
+import { formatDuration } from '@/shared/utils/format';
 import './RuntimeStatusSlot.scss';
 
 const EMPTY_HINTS: readonly string[] = [];
 const FALLBACK_I18N_CACHE_OWNER = {};
+// A fast turn should not flash a timer. The completed footer reports the exact
+// duration anyway, so the live clock only takes over once it has read a second.
+const LIVE_ELAPSED_VISIBLE_AFTER_MS = 1000;
 const translatedHintsCache = new WeakMap<object, Map<string, readonly string[]>>();
 
 // Status labels supplied by the runtime do not need the generated hint list;
@@ -70,13 +76,25 @@ export const RuntimeStatusSlot: React.FC<RuntimeStatusSlotProps> = ({
       || hints[stableHintIndex(`${status.turnId}:${status.roundId}`, hints.length)]
       || ''
     : '';
-  const visible = Boolean(status && hint);
+
+  // The status entry only covers the wait before the round's first visible
+  // output. The turn ledger is what stays true while the reply streams, so the
+  // resident slot keeps reporting the whole turn from it.
+  const turnStartTime = useActiveTurnStartTime(sessionId);
+  const isTurnRunning = turnStartTime !== null;
+  const { elapsedMs } = useLiveElapsedTime(turnStartTime ?? undefined, isTurnRunning, undefined, true);
+  const elapsedLabel = isTurnRunning && elapsedMs >= LIVE_ELAPSED_VISIBLE_AFTER_MS
+    ? t('elapsed', { duration: formatDuration(elapsedMs, 'live') })
+    : null;
+
+  const visible = Boolean(elapsedLabel) || Boolean(status && hint);
   const revealDelay = status && visible
     ? submittedMessageStatusDelay(status.sessionId, status.turnId)
     : 0;
 
   return <FlowChatRuntimeStatus
-    label={hint}
+    label={hint || undefined}
+    elapsedLabel={elapsedLabel}
     visible={visible}
     placement={placement}
     revealDelayMs={revealDelay}

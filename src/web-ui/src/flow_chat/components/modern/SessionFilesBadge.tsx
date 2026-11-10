@@ -31,6 +31,7 @@ import { useSessionReviewActivity } from '../../hooks/useSessionReviewActivity';
 import { useSessionStateMachine } from '../../hooks/useSessionStateMachine';
 import { SessionExecutionState } from '../../state-machine/types';
 import { isReviewActivityBlocking } from '../../utils/sessionReviewActivity';
+import { isTurnActivelyRunning } from '../../utils/turnActivity';
 import {
   aiExperienceConfigService,
   DEFAULT_QUICK_ACTIONS,
@@ -138,16 +139,6 @@ function getLatestTurnSnapshot(sessionId?: string): LatestTurnSnapshot {
     turnId: latestTurn?.id ?? null,
     status: latestTurn?.status ?? null,
   };
-}
-
-function isTurnActivelyRunning(status: DialogTurn['status'] | null): boolean {
-  return (
-    status === 'pending' ||
-    status === 'image_analyzing' ||
-    status === 'processing' ||
-    status === 'finishing' ||
-    status === 'cancelling'
-  );
 }
 
 /**
