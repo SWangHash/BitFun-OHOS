@@ -318,6 +318,9 @@
       "html_preview_read_resource",
       "html_preview_release"
     ],
+    "latexPreview": [
+      "compile_workspace_latex"
+    ],
     "githubDeviceRouting": [
       "account_get_credential_hint",
       "account_login",
@@ -2042,6 +2045,7 @@
           },
           "evidence": [
             "command:git_get_status",
+            "command:git_get_tracked_change_count",
             "command:git_get_changed_files",
             "command:git_get_diff",
             "command:git_get_repository",
@@ -7476,7 +7480,8 @@
           },
           "evidence": [
             "command:get_ai_model_catalog",
-            "command:list_ai_models_by_config"
+            "command:list_ai_models_by_config",
+            "command:probe_magpie_gateway"
           ]
         },
         {
@@ -10635,6 +10640,9 @@
       "capabilityId": "feature.browser"
     },
     "html_preview": {
+      "capabilityId": "feature.files-editor"
+    },
+    "latex": {
       "capabilityId": "feature.files-editor"
     },
     "tool": {

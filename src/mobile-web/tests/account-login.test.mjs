@@ -17,10 +17,7 @@ async function loadSource(relativePath, imports = {}) {
   return { url: `data:text/javascript;base64,${Buffer.from(code).toString('base64')}`, source };
 }
 
-const officialRelay = await loadSource('../../shared/relay-transport/OfficialRelay.ts');
-const links = await loadSource('../src/services/pairingLink.ts', {
-  '../../../shared/relay-transport/OfficialRelay': officialRelay.url,
-});
+const links = await loadSource('../src/services/pairingLink.ts');
 const relayEncoding = await loadSource('../src/services/relayMessageEncoding.ts');
 const encryptionImports = { './relayMessageEncoding': relayEncoding.url };
 const selection = await loadSource('../src/services/accountDeviceSelection.ts');
@@ -109,18 +106,22 @@ test('GitHub login registers the browser store key without generating another id
   globalThis.window = { setTimeout, clearTimeout };
   const browserPrivateKey = new Uint8Array(32).fill(7);
   globalThis.fetch = async (url, options) => {
-    assert.equal(url, 'https://remote.openbitfun.com/v/1.0.1/api/auth/login');
+    assert.equal(url, 'https://remote.openbitfun.com/v/1.0.2/api/auth/login');
     const body = JSON.parse(options.body);
     requests.push(body);
     assert.equal(body.access_token, 'verified-github-token');
     assert.equal(body.device_id, 'browser');
     assert.equal(body.password_hash, undefined);
+    // The login body reports this client's build so the Relay can gate control
+    // compatibility instead of treating the browser as a legacy client.
+    assert.equal(body.clientProtocol, CLIENT_PROTOCOL_VERSION);
+    assert.equal(body.clientVersion, CLIENT_VERSION);
     assert.equal(Buffer.from(body.public_key, 'base64').length, 32);
     return Response.json({ token: 'test-account-token', user_id: '101' });
   };
   try {
-    const first = await new CloudAccountClient('https://remote.openbitfun.com/v/1.0.1').login('verified-github-token', 'browser', browserPrivateKey);
-    const second = await new CloudAccountClient('https://remote.openbitfun.com/v/1.0.1').login('verified-github-token', 'browser', browserPrivateKey);
+    const first = await new CloudAccountClient('https://remote.openbitfun.com/v/1.0.2').login('verified-github-token', 'browser', browserPrivateKey);
+    const second = await new CloudAccountClient('https://remote.openbitfun.com/v/1.0.2').login('verified-github-token', 'browser', browserPrivateKey);
     assert.equal(first.userId, '101');
     assert.deepEqual(first.masterKey, second.masterKey);
     assert.equal(requests[0].public_key, requests[1].public_key);
@@ -155,6 +156,19 @@ test('account UI entry precedes discovery and mounts no remote workspace surface
   assert.ok(devices.indexOf('await client.sendDeviceRpc') < devices.indexOf('client.setTargetDeviceId(d.device_id)'));
 });
 
+test('alias editing replaces the device row instead of repeating its name', async () => {
+  const devices = await readFile(new URL('../src/pages/DevicesPage.tsx', import.meta.url), 'utf8');
+  const start = devices.indexOf('{editingId === d.device_id ? (');
+  assert.ok(start > 0, 'the alias editor must be a mutually exclusive branch');
+  const elseAt = devices.indexOf(') : (', start);
+  const rowAt = devices.indexOf('<MobileListRow', start);
+  assert.ok(elseAt > start, 'the editing branch needs an else branch for the row');
+  assert.ok(rowAt > elseAt, 'the device row must render only while the alias editor is closed');
+  const editingBranch = devices.slice(start, elseAt);
+  assert.match(editingBranch, /devices-page__alias-editor/);
+  assert.match(editingBranch, /devices\.saveAlias/);
+});
+
 test('authorization follows the central GitHub OAuth URL and rejects lookalike destinations', async () => {
   const encryption = await loadSource('../src/services/E2EEncryption.ts', encryptionImports);
   const authModule = await loadSource('../src/services/CloudAccountClient.ts', { './E2EEncryption': encryption.url, './pairingLink': links.url, ...clientBuildImports });
@@ -183,7 +197,7 @@ test('authorization follows the central GitHub OAuth URL and rejects lookalike d
         return Response.json({ status: 'authorized', tokens: { accessToken: 'verified' } });
       };
       const popup = { location: { href: 'about:blank' } };
-      const result = new CloudAccountClient('https://remote.openbitfun.com/v/1.0.1').authorize(popup, new AbortController().signal);
+      const result = new CloudAccountClient('https://remote.openbitfun.com/v/1.0.2').authorize(popup, new AbortController().signal);
       if (authorizationUrl === 'https://github.com/login/oauth/authorize?state=test' || authorizationUrl === 'https://auth.openbitfun.com/sign-in#ticket=test') {
         assert.equal(await result, 'verified');
         assert.equal(popup.location.href, authorizationUrl.startsWith('https://auth.openbitfun.com') ? authorizationUrl.replace('/sign-in#', '/sign-in?locale=en-US#') : authorizationUrl);
@@ -205,7 +219,7 @@ test('authorization follows the central GitHub OAuth URL and rejects lookalike d
 
 test('official and local invitations share strict device-only targeting', async () => {
   const { currentRelayUrl, pairingRelayUrl, accountDeviceIdFromHash } = await import(links.url);
-  for (const base of ['https://remote.openbitfun.com/v/1.0.1/', 'https://remote.openbitfun.com/v/1.0.2/', 'http://192.168.1.9:9700/']) {
+  for (const base of ['https://remote.openbitfun.com/v/1.0.2/', 'http://192.168.1.9:9700/']) {
     const url = new URL(`${base}#/pair?did=desktop-1`);
     assert.equal(currentRelayUrl(url), base.replace(/\/$/, ''));
     assert.equal(accountDeviceIdFromHash(url.hash), 'desktop-1');
@@ -216,9 +230,12 @@ test('official and local invitations share strict device-only targeting', async 
   }
   for (const base of ['https://evil.example/', 'https://remote.openbitfun.com.evil.example/v/1.0.0/',
     'https://user@remote.openbitfun.com/v/1.0.1/', 'http://remote.openbitfun.com/v/1.0.1/',
-    'https://remote.openbitfun.com/relay/']) {
+    'https://user@remote.openbitfun.com/v/1.0.2/', 'http://remote.openbitfun.com/v/1.0.2/']) {
     assert.equal(pairingRelayUrl(base), null);
   }
+  // Both official aliases resolve to the same deployment.
+  assert.equal(pairingRelayUrl('https://remote.openbitfun.com/relay/'), 'https://remote.openbitfun.com/relay');
+  assert.equal(pairingRelayUrl('https://remote.openbitfun.com/relay/?v=1.0.9'), 'https://remote.openbitfun.com/relay');
   assert.equal(accountDeviceIdFromHash('#/pair?did=desktop'), 'desktop');
   assert.equal(accountDeviceIdFromHash('#/chat?did=desktop'), null);
 });
@@ -297,7 +314,7 @@ test('legacy v2 account proof remains readable and scoped for migration', () => 
   accountStore.saveCloudAccountSession(restored, storage);
   assert.deepEqual(JSON.parse(storage.getItem('bitfun.mobile.account_session.v2')), JSON.parse(legacy));
   for (const [relay, username, controllerId] of [
-    ['https://remote.openbitfun.com/v/1.0.1', '', 'browser-a'],
+    ['https://remote.openbitfun.com/v/1.0.2', '', 'browser-a'],
     [storedAccount.relayUrl, '', 'browser-b'], [storedAccount.relayUrl, '456', 'browser-a'],
   ]) assert.equal(accountStore.loadMatchingCloudAccountSession(relay, username, controllerId, storage), null);
   assert.equal(storage.getItem('bitfun.mobile.account_session.v2'), legacy);

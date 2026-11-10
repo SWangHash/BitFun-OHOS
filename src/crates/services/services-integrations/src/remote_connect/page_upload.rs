@@ -337,6 +337,9 @@ async fn finish_page_publication(
 }
 
 /// Join account relay base URL with a page path into an absolute URL.
+///
+/// The endpoint may announce its service version as `?v=`; that parameter is
+/// dropped before joining so the path is never appended to a query string.
 pub fn join_relay_url(relay_url: &str, path: &str) -> String {
     let path = path.trim();
     if path.is_empty() {
@@ -345,7 +348,7 @@ pub fn join_relay_url(relay_url: &str, path: &str) -> String {
     if path.starts_with("http://") || path.starts_with("https://") {
         return path.to_string();
     }
-    let base = relay_url.trim().trim_end_matches('/');
+    let base = bitfun_product_domains::account::relay_endpoint_base(relay_url);
     if base.is_empty() {
         return path.to_string();
     }
@@ -1243,10 +1246,8 @@ mod tests {
 
     #[test]
     fn collect_allows_worker_without_index() {
-        let base = std::env::temp_dir().join(format!(
-            "bitfun-page-worker-only-{}",
-            uuid::Uuid::new_v4()
-        ));
+        let base =
+            std::env::temp_dir().join(format!("bitfun-page-worker-only-{}", uuid::Uuid::new_v4()));
         let server = base.join("server");
         std::fs::create_dir_all(&server).unwrap();
         std::fs::write(
@@ -1300,10 +1301,8 @@ mod tests {
     fn directory_source_rejects_symlink_loops() {
         use std::os::unix::fs::symlink;
 
-        let root = std::env::temp_dir().join(format!(
-            "bitfun-page-symlink-loop-{}",
-            uuid::Uuid::new_v4()
-        ));
+        let root =
+            std::env::temp_dir().join(format!("bitfun-page-symlink-loop-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&root).unwrap();
         std::fs::write(root.join("index.html"), b"<html></html>").unwrap();
         symlink(&root, root.join("loop")).unwrap();

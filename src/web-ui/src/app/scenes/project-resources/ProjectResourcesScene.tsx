@@ -10,6 +10,8 @@ import { getSkillSourceLabel } from '@/infrastructure/config/skillSourcePresenta
 import { fileTabManager } from '@/shared/services/FileTabManager';
 import { isRemoteWorkspace, type WorkspaceInfo } from '@/shared/types';
 import { useNavSceneStore } from '@/app/stores/navSceneStore';
+import { appManager } from '@/app/services/AppManager';
+import { useWorkspaceResourceState } from '../workspace-resources/workspaceResourceState';
 import { lazyWithRecovery } from '@/shared/utils/lazyWithRecovery';
 import { WorkspaceIcon } from '@/app/components/WorkspaceIcon/WorkspaceIcon';
 import { parseProjectResourceTarget } from './projectResourceTarget';
@@ -72,8 +74,14 @@ function ProjectResourcesContent({ workspace, scope, isActive }: { workspace: Wo
   useEffect(() => { if (!isActive) { setDialog(null); setDetail(null); setCapabilityList(null); } }, [isActive]);
   const current = () => alive.current && scope.isCurrent();
   const closeDialog = () => { setDialog(null); data.refresh(); };
-  const browseFiles = () => {
-    if (current() && fileAccess) useNavSceneStore.getState().openWorkspaceResources(workspace.id);
+  const browseFiles = (directoryPath?: string) => {
+    if (!isActive || !current() || !fileAccess) return;
+    const resourceLayout = useWorkspaceResourceState.getState();
+    const resourceKey = scope.key('workspace-resources', workspace.id);
+    resourceLayout.migrateLayout(scope.key('workspace-resources', workspace.connectionId, workspace.id, workspace.rootPath), resourceKey);
+    resourceLayout.updateLayout(resourceKey, { filesCollapsed: false, fileView: 'tree' });
+    useNavSceneStore.getState().openWorkspaceResources(workspace.id, directoryPath);
+    appManager.updateLayout({ leftPanelActiveTab: 'files', leftPanelCollapsed: false });
   };
   const openFile = (path: string) => {
     if (!current() || !fileAccess) return;
@@ -129,7 +137,7 @@ function ProjectResourcesContent({ workspace, scope, isActive }: { workspace: Wo
         {!fileAccess && <p className="project-resources__error" role="status">{t('connectionUnavailable')}</p>}
 
         <ProjectDirectoriesSection workspace={workspace} fileAccess={fileAccess} onBrowse={browseFiles} onManage={() => setDialog('directories')}
-          onAdd={() => setDialog('addDirectory')} onRemove={path => void directoryActions.remove(path)}
+          onAdd={() => setDialog('addDirectory')} onRemove={(path, trigger) => void directoryActions.remove(path, trigger)}
           canReveal={isActive && directoryActions.canReveal} onReveal={path => void directoryActions.reveal(path)} revealingPath={directoryActions.revealingPath}
           removingPath={directoryActions.removingPath} error={directoryActions.error} />
 

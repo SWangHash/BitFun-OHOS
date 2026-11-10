@@ -5,6 +5,7 @@ import { resolveLegacySessionWorkspace } from '@/infrastructure/api/service-api/
 import { storage } from '@/shared/utils/storageAdapter';
 import { projectUserQuestionTiming } from '../utils/userQuestionTiming';
 import { externalHistoryFromMetadata } from '../utils/externalHistory';
+import { shouldIncludeInternalSession } from '../utils/internalSession';
 import { isExternalSessionEcosystem } from '@/shared/types/external-session';
 /**
  * Flow Chat global state store
@@ -3628,7 +3629,7 @@ export class FlowChatStore {
         workspaceId,
         remoteConnectionId: session.remoteConnectionId,
         remoteSshHost: session.remoteSshHost,
-        includeInternal: session.sessionKind === 'subagent',
+        includeInternal: shouldIncludeInternalSession(session),
         requireActiveSession: false,
         startImmediately: true,
         initialSessionTraceId: sessionTraceId,
@@ -3716,6 +3717,18 @@ export class FlowChatStore {
         this.sessionTurnWindowRequests.delete(key);
       }
     }
+  }
+
+  public loadPreviousSessionTurnWindow(
+    sessionId: string,
+    targetOrdinal: number,
+  ): Promise<SessionTurnWindowLoadResult> {
+    // The tail warm-up and the older boundary must share the same request.
+    return this.loadSessionTurnWindow(sessionId, targetOrdinal, {
+      source: 'prefetch',
+      before: 12,
+      after: 1,
+    });
   }
 
   public async loadSessionTurnWindow(
@@ -3852,7 +3865,7 @@ export class FlowChatStore {
       remoteSshHost: session.remoteSshHost,
       includeInternal:
         options?.includeInternal
-        ?? session.sessionKind === 'subagent',
+        ?? shouldIncludeInternalSession(session),
       targetOrdinal: normalizedTargetOrdinal,
       targetStorageTurnIndex: entry.storageTurnIndex,
       originalTargetTurnId: entry.turnId,
@@ -3919,6 +3932,8 @@ export class FlowChatStore {
       request.workspaceId ? '' : request.remoteSshHost ?? '',
       request.targetStorageTurnIndex,
       request.catalog.revision,
+      request.originalTargetTurnId ?? '',
+      request.includeInternal ? 'internal' : 'public',
       request.before,
       request.after,
     );
@@ -4105,7 +4120,7 @@ export class FlowChatStore {
       const first = canonicalSessionTurns(session)[0];
       const firstOrdinal = session.turnCatalog.entries.find(entry => entry.turnId === first?.id)?.ordinal;
       if (firstOrdinal !== undefined && firstOrdinal > 0) {
-        void this.loadSessionTurnWindow(sessionId, firstOrdinal - 1, { before: 0, after: 1, source: 'prefetch' })
+        void this.loadPreviousSessionTurnWindow(sessionId, firstOrdinal - 1)
           .catch(error => {
             if (!isSurfaceChangedError(error)) log.debug('Adjacent session history prefetch stopped', { sessionId, error });
           });
@@ -9151,7 +9166,7 @@ export class FlowChatStore {
       sessionId,
       this.sessionHistoryWorkspaceId(sessionId),
       `settled-turn-${turnId.slice(0, 8)}`,
-      initialSession.sessionKind === 'subagent',
+      shouldIncludeInternalSession(initialSession),
       SETTLED_TURN_RECONCILE_TAIL_TURN_COUNT,
     );
     scope.assertCurrent('reconcileSettledDialogTurn');
@@ -9320,6 +9335,8 @@ export class FlowChatStore {
   ): Promise<void> {
     const traceStartedAt = nowMs();
     const initialSession = this.state.sessions.get(sessionId);
+    const includeInternal = options?.includeInternal
+      ?? (shouldIncludeInternalSession(initialSession) || undefined);
     const prewarmStillApplies = (): boolean => {
       if (options?.retainInactiveTail !== true) return true;
       const session = this.state.sessions.get(sessionId);
@@ -9474,7 +9491,7 @@ export class FlowChatStore {
                   sessionId,
                   this.sessionHistoryWorkspaceId(sessionId),
                   sessionTraceId,
-                  options?.includeInternal,
+                  includeInternal,
                 );
                 notifyHydratingState();
                 const restored = await restoredPromise;
@@ -9502,7 +9519,7 @@ export class FlowChatStore {
               sessionId,
               this.sessionHistoryWorkspaceId(sessionId),
               sessionTraceId,
-              options?.includeInternal,
+              includeInternal,
             );
             notifyHydratingState();
             restoredSessionInfo = await restoredSessionPromise;
@@ -9518,7 +9535,7 @@ export class FlowChatStore {
                 sessionId,
                 this.sessionHistoryWorkspaceId(sessionId),
                 sessionTraceId,
-                options?.includeInternal,
+                includeInternal,
                 historicalSessionInitialTailTurnCount(remote),
               );
               notifyHydratingState();
@@ -9852,7 +9869,7 @@ export class FlowChatStore {
             workspaceId: this.sessionHistoryWorkspaceId(sessionId),
             remoteConnectionId,
             remoteSshHost,
-            includeInternal: options?.includeInternal,
+            includeInternal,
             requireActiveSession: options?.deferFullHistoryUntilActive === true,
             initialSessionTraceId: sessionTraceId,
             expectedDialogTurnIds: dialogTurns.map(turn => turn.id),

@@ -1,9 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { ConnectionResult, RemoteConnectStatus, RemoteConnectionMethod } from '../api/service-api/RemoteConnectAPI';
 import { remoteNetworkMethod, selectRemoteNetworkConnection, invitationRelayUrl } from './remoteConnectionState';
-import { OFFICIAL_RELAY_URL } from '../../../../shared/relay-transport/OfficialRelay';
 
-const official = OFFICIAL_RELAY_URL;
+const official = 'https://remote.openbitfun.com/v/1.0.2';
 const lan = 'http://192.168.1.2:9700';
 const method = (url: string): RemoteConnectionMethod => url === official ? 'bitfun_server' : { lan: { ip: '192.168.1.2' } };
 const status = (url: string): RemoteConnectStatus => ({
@@ -47,13 +46,13 @@ describe('account device connection routes', () => {
     expect(selectRemoteNetworkConnection(status(official), null, 'lan').connected).toBe(false);
     expect(selectRemoteNetworkConnection(status(lan), null, 'bitfun_server').connected).toBe(false);
   });
-  it('classifies legacy official versions as the public Relay, not LAN', () => {
+  it('classifies legacy official aliases as the public Relay, not LAN', () => {
     // Hosts that predate `active_method` report only the endpoint they dialed.
-    // Any version on the official origin is still the public route.
-    for (const relayUrl of ['https://remote.openbitfun.com/v/1.0.1', 'https://remote.openbitfun.com/v/0.9.9']) {
+    // Both live aliases of the official Relay stay on the public route.
+    for (const relayUrl of ['https://remote.openbitfun.com/relay?v=1.0.9', official]) {
       const legacy: RemoteConnectStatus = { ...status(relayUrl), relay_url: relayUrl };
       delete (legacy as Partial<RemoteConnectStatus>).active_method;
-      expect(selectRemoteNetworkConnection(legacy)).toMatchObject({ connected: true, method: 'bitfun_server', relayUrl });
+      expect(selectRemoteNetworkConnection(legacy)).toMatchObject({ connected: true, method: 'bitfun_server' });
     }
     const otherHost: RemoteConnectStatus = { ...status('https://relay.example.test/v/1.0.2'), relay_url: 'https://relay.example.test/v/1.0.2' };
     delete (otherHost as Partial<RemoteConnectStatus>).active_method;

@@ -19,7 +19,7 @@ import { useCurrentWorkspace } from '@/infrastructure/contexts/WorkspaceContext'
 import { useNotification } from '@/shared/notification-system';
 import { WorkspaceKind } from '@/shared/types';
 import { createLogger } from '@/shared/utils/logger';
-import {
+import { captureConfirmationAnchor,
   Button,
   ConfirmDialog,
   Dialog,
@@ -81,6 +81,7 @@ const HooksSettingsSection: React.FC = () => {
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [reviewPlan, setReviewPlan] = useState<ExternalHookImportPlan | null>(null);
   const [planNotice, setPlanNotice] = useState<string | null>(null);
+  const [confirmationAnchor, setConfirmationAnchor] = useState<ReturnType<typeof captureConfirmationAnchor>>(undefined);
   const [confirmation, setConfirmation] = useState<
     | { kind: 'remove'; importId: string }
     | { kind: 'reset'; scope: ExternalHookSource['scope'] }
@@ -443,7 +444,7 @@ const HooksSettingsSection: React.FC = () => {
                     size="sm"
                     disabled={busyKey !== null}
                     data-testid={`hooks-import-remove-${item.importId}`}
-                    onClick={() => setConfirmation({ kind: 'remove', importId: item.importId })}
+                    onClick={event => { setConfirmationAnchor(captureConfirmationAnchor(event.currentTarget)); setConfirmation({ kind: 'remove', importId: item.importId }); }}
                   >
                     {t('imports.remove')}
                   </Button>
@@ -578,6 +579,7 @@ const HooksSettingsSection: React.FC = () => {
       </Dialog>
 
       <ConfirmDialog
+        anchor={confirmation?.kind === 'remove' ? confirmationAnchor : undefined}
         open={confirmation !== null}
         onOpenChange={() => setConfirmation(null)}
         onConfirm={confirmMutation}

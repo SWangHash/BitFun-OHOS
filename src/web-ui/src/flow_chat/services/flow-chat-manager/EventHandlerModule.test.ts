@@ -27,11 +27,16 @@ import { agentAPI } from '@/infrastructure/api/service-api/AgentAPI';
 import { api } from '@/infrastructure/api/service-api/ApiClient';
 import { agenticEventListener } from '../AgenticEventListener';
 import { localSessionDriver } from '../../session-drivers/local/LocalSessionDriver';
+import * as peerSessionRefresh from './PeerSessionRefreshModule';
 import { chatInputSessionSubscriptionKey } from '../../utils/chatInputSessionSubscription';
 import { selectInterruptedTurnRecovery } from '../../utils/interruptedTurnRecovery';
 import { promptSuggestionKey, usePromptSuggestionStore } from '../../store/promptSuggestionStore';
 import { clearAgentCanvasForPeerSwitch, switchAgentCanvasScope, useAgentCanvasStore } from '@/app/components/panels/content-canvas/stores';
 import { activateSurface } from '@/infrastructure/peer-device/deviceSurface';
+import {
+  isRuntimeSessionProjectionStale,
+  resetRuntimeSessionEventGateForTest,
+} from '@/infrastructure/peer-device/runtimeSessionEventGate';
 import { markCurrentTurnItemsAsCancelled } from '../../utils/turnCancellation';
 import { workspaceManager } from '@/infrastructure/services/business/workspaceManager';
 import { sessionBelongsToWorkspaceNavRow } from '../../utils/sessionOrdering';
@@ -1319,6 +1324,36 @@ describe('shouldProcessEvent', () => {
     ).toBe(false);
   });
 
+  it.each(['local', 'peer-review'])('preserves replay repair for an unmaterialized session on %s', surfaceId => {
+    resetRuntimeSessionEventGateForTest();
+    activateSurface(surfaceId);
+    try {
+      expect(FlowChatStore.getInstance().getState().sessions.has(mockSessionId)).toBe(false);
+      expect(shouldProcessEvent(mockSessionId, mockTurnId, 'data', 'TextChunk')).toBe(false);
+      expect(isRuntimeSessionProjectionStale(surfaceId, mockSessionId)).toBe(true);
+    } finally {
+      activateSurface('local');
+      resetRuntimeSessionEventGateForTest();
+    }
+  });
+
+  it('coalesces an unknown session gap without suppressing repair after registration', () => {
+    resetRuntimeSessionEventGateForTest();
+    const repair = vi.spyOn(peerSessionRefresh, 'requestRuntimeProjectionRepair');
+    try {
+      expect(shouldProcessEvent('session-1', 'turn-1', 'data', 'TextChunk')).toBe(false);
+      expect(shouldProcessEvent('session-1', 'turn-1', 'data', 'TextChunk')).toBe(false);
+      expect(repair).toHaveBeenCalledTimes(1);
+      expect(isRuntimeSessionProjectionStale('local', 'session-1')).toBe(true);
+      createSessionWithTurn(createFinishingTurn());
+      expect(shouldProcessEvent('session-1', 'turn-1', 'data', 'TextChunk')).toBe(false);
+      expect(repair).toHaveBeenCalledTimes(2);
+    } finally {
+      repair.mockRestore();
+      resetRuntimeSessionEventGateForTest();
+    }
+  });
+
   it('returns true for state_sync event even when no state machine exists', () => {
     expect(
       shouldProcessEvent(mockSessionId, mockTurnId, 'state_sync', 'SessionStateChanged'),
@@ -2098,15 +2133,18 @@ describe('handleSessionHistoryChanged', () => {
     expect(context.pendingHistoryFenceSessions.has('session-1')).toBe(false);
   });
 
-  it('reloads an out-of-lifecycle edit even when the obsolete local tail is still finishing', () => {
+  it.each(['normal', 'miniapp', 'subagent'] as const)('reloads an out-of-lifecycle %s edit even when the obsolete local tail is still finishing', sessionKind => {
     createSessionWithTurn(createFinishingTurn());
     const store = FlowChatStore.getInstance();
+    store.setState(prev => ({ sessions: new Map(prev.sessions).set('session-1', {
+      ...prev.sessions.get('session-1')!, sessionKind, agentBackedTransient: sessionKind === 'miniapp',
+    }) }));
     const reload = vi.spyOn(store, 'loadSessionHistory').mockResolvedValue(undefined);
     const context = createFlowChatContext();
 
     handleSessionHistoryChanged(context, { sessionId: 'session-1', settledTurnId: null });
 
-    expect(reload).toHaveBeenCalledExactlyOnceWith('session-1', { includeInternal: false });
+    expect(reload).toHaveBeenCalledExactlyOnceWith('session-1', { includeInternal: sessionKind !== 'normal' });
     expect(context.pendingHistoryFenceSessions.has('session-1')).toBe(false);
   });
 

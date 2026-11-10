@@ -65,6 +65,7 @@ import { getWorkspaceSessionHierarchy } from './sessionNavHierarchy';
 import { useWorkspaceSessionCatalog } from './useWorkspaceSessionCatalog';
 import { useArchivedSessionMetadata } from './useArchivedSessionMetadata';
 import ArchivedSessionMenuItems from './ArchivedSessionMenuItems';
+import SessionDeleteMenuItem from './SessionDeleteMenuItem';
 import { captureWorkspaceSessionCatalogQuery, countPersistedWorkspaceCatalogSessions, resolveWorkspaceSessionCatalogSource, workspaceSessionCatalogQuery, workspaceSessionCatalogSources, workspaceSessionCatalogTotal } from './workspaceSessionCatalogQuery';
 import { useWorkspaceSessionDiscovery } from './useWorkspaceSessionDiscovery';
 import { useSessionNavExpansion } from './useSessionNavExpansion';
@@ -98,6 +99,7 @@ import {
 } from '@/features/dispatch/types';
 import { useDispatchJobStore } from '@/features/dispatch/dispatchJobStore';
 import { resolveDispatchNavPresentation } from '@/features/dispatch/dispatchNavPresentation';
+import { resolveSessionDriverId } from '@/flow_chat/session-drivers/resolve';
 import {
   ensureCronJobCountsListener,
   getCronJobCountsSnapshot,
@@ -122,7 +124,7 @@ import {
 import { useSessionRowRemovalTransition } from './sessionRowShift';
 import { SessionStatusIndicator } from './SessionStatusIndicator';
 import { createSessionsNavSelector } from './sessionsNavSelector';
-import { archiveSessionRow, duplicateSessionRow, openWorktreeWorkspaceRow, renameSessionRow } from './sessionRowActions';
+import { archiveSessionRow, deleteSessionRow, duplicateSessionRow, openWorktreeWorkspaceRow, renameSessionRow } from './sessionRowActions';
 import './SessionsSection.scss';
 
 /** A limited flat list reads each workspace's newest rows in steps of this many. */
@@ -1460,6 +1462,10 @@ const SessionsSection: React.FC<SessionsSectionProps> = ({
           const showAssistantInTooltip = trimmedAssistant.length > 0;
           const dispatchTarget = session.config.dispatchTarget;
           const isDispatched = isNonLocalDispatchTarget(dispatchTarget);
+          const sessionMutationDisabledReason = openMenuSessionId === session.sessionId
+            && resolveSessionDriverId(session.sessionId, session) === 'dispatch'
+            ? t('nav.sessions.dispatchMutationUnsupported')
+            : undefined;
           const worktreeIsolated = isWorktreeIsolatedSession(session);
           const worktreeRootPath = sessionWorktreeRootPath(session) ?? '';
           const dispatchTargetLabel =
@@ -1941,11 +1947,21 @@ const SessionsSection: React.FC<SessionsSectionProps> = ({
                             type="button"
                             leading={<Icon glyph={Archive} size="sm" />}
                             onClick={e => { closeSessionMenu(); void handleArchive(e, session.sessionId); }}
+                            disabled={Boolean(sessionMutationDisabledReason)}
+                            title={sessionMutationDisabledReason}
                             data-testid="nav-session-menu-archive"
                             data-session-id={session.sessionId}
                           >
                             <span>{t('nav.sessions.archive')}</span>
                           </MenuItem>
+                          <SessionDeleteMenuItem
+                            sessionId={session.sessionId}
+                            testId="nav-session-menu-delete"
+                            label={t(session.externalHistory?.mode === 'follow' ? 'nav.sessions.removeSource' : 'nav.sessions.delete')}
+                            disabled={Boolean(sessionMutationDisabledReason)}
+                            description={sessionMutationDisabledReason ?? t(session.externalHistory?.mode === 'follow' ? 'nav.sessions.removeSourceConfirmMessage' : 'nav.sessions.deleteConfirmMessage', { name: sessionTitle })}
+                            onConfirm={() => { closeSessionMenu(); return deleteSessionRow(session.sessionId); }}
+                          />
                         </>
                       )}
                     </Menu>,

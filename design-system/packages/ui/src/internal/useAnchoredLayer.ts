@@ -14,6 +14,8 @@ function readHostChromeInsetBlockStart(view: Window, element: HTMLElement): numb
 }
 
 export type LayerPlacement = "top" | "bottom" | "left" | "right";
+/** Cross-axis edge shared with the anchor for top/bottom placement; logical, so RTL mirrors it. */
+export type LayerAlign = "start" | "end";
 export type PortalTarget = Element | DocumentFragment | (() => Element | DocumentFragment | null) | null;
 
 /** Default portals stay inside the nearest theme scope; hosts may supply an overlay root. */
@@ -22,17 +24,20 @@ export function resolveLayerPortal(target: PortalTarget | undefined, anchor: HTM
   return target ?? anchor?.closest("[data-bitfun-design-system-root]") ?? anchor?.ownerDocument.body ?? null;
 }
 
-export function useAnchoredLayer({ open, anchorRef, layerRef, placement = "bottom", matchWidth = false, overlapAnchor = false, revision, point }: {
+export function useAnchoredLayer({ open, anchorRef, layerRef, placement = "bottom", align = "start", matchWidth = false, overlapAnchor = false, revision, point, fallbackRect }: {
   open: boolean;
   anchorRef: RefObject<HTMLElement | null>;
   layerRef: RefObject<HTMLElement | null>;
   placement?: LayerPlacement;
+  align?: LayerAlign;
   /** Match the anchor exactly, or use its width as the layer's minimum. */
   matchWidth?: boolean | "minimum";
   /** Position the layer over the anchor when the layer visually replaces it. */
   overlapAnchor?: boolean;
   revision?: unknown;
   point?: { x: number; y: number };
+  /** Keep the action's origin when a menu item disappears before the layer mounts. */
+  fallbackRect?: Pick<DOMRect, "left" | "right" | "top" | "bottom" | "width" | "height">;
 }) {
   const [layout, setLayout] = useState<{ style: CSSProperties; placement: LayerPlacement } | null>(null);
   const measuredContentWidth = useRef(0);
@@ -41,13 +46,13 @@ export function useAnchoredLayer({ open, anchorRef, layerRef, placement = "botto
     const anchor = anchorRef.current;
     const layer = layerRef.current;
     const view = layer?.ownerDocument.defaultView;
-    if (!layer || !view || (!anchor && !point)) return;
+    if (!layer || !view || (!anchor && !point && !fallbackRect)) return;
     const update = () => {
       const padding = 8;
       const resolvedGap = point ? 0 : 4;
       const rect = point
         ? { left: point.x, right: point.x, top: point.y, bottom: point.y, width: 0, height: 0 }
-        : anchor!.getBoundingClientRect();
+        : anchor?.isConnected ? anchor.getBoundingClientRect() : fallbackRect ?? anchor!.getBoundingClientRect();
       const viewport = view.visualViewport;
       const vx = viewport?.offsetLeft ?? 0;
       const vy = viewport?.offsetTop ?? 0;
@@ -91,7 +96,9 @@ export function useAnchoredLayer({ open, anchorRef, layerRef, placement = "botto
         ? overlapAnchor
           ? (useBefore ? rect.right - box.width : rect.left)
           : (useBefore ? rect.left - box.width - resolvedGap : rect.right + resolvedGap)
-        : rect.left;
+        : alignToRight(align, view.getComputedStyle(layer).direction === "rtl")
+          ? rect.right - box.width
+          : rect.left;
       const top = horizontal
         ? rect.top
         : overlapAnchor
@@ -119,6 +126,10 @@ export function useAnchoredLayer({ open, anchorRef, layerRef, placement = "botto
       view.visualViewport?.removeEventListener("resize", update);
       view.visualViewport?.removeEventListener("scroll", update);
     };
-  }, [open, anchorRef, layerRef, placement, matchWidth, overlapAnchor, revision, point?.x, point?.y]);
+  }, [open, anchorRef, layerRef, placement, align, matchWidth, overlapAnchor, revision, point?.x, point?.y, fallbackRect]);
   return layout;
+}
+
+function alignToRight(align: LayerAlign, rtl: boolean) {
+  return (align === "end") !== rtl;
 }

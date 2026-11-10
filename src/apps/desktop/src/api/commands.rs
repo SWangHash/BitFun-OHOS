@@ -6983,3 +6983,17 @@ pub async fn set_workspace_icon(
 ) -> Result<bitfun_core::service::workspace::WorkspaceIconSnapshot, String> {
     state.workspace_service.set_workspace_icon(request).await
 }
+
+/// Detect Magpie on the selected inference host without running inference.
+#[tauri::command]
+pub async fn probe_magpie_gateway(
+    state: State<'_, AppState>,
+    request: bitfun_core_types::magpie::MagpieProbeRequest,
+) -> Result<bitfun_core_types::magpie::MagpieProbeResult, String> {
+    let config: bitfun_core::service::config::GlobalConfig = state
+        .config_service
+        .get_config(None)
+        .await
+        .map_err(|_| "Failed to read proxy configuration".to_string())?;
+    Ok(bitfun_core::infrastructure::ai::magpie::probe(request, Some(config.ai.proxy)).await)
+}

@@ -334,6 +334,17 @@ For durable per-turn token usage, client checkpoint reconciliation, and recovery
 The fixtures cover host-ledger isolation and client-free completion, not live SSH,
 Relay, Peer Device, or Detached Dispatch connections.
 
+For model-round order when completion fills sparse client checkpoints:
+
+```bash
+cargo test --locked -p bitfun-core --no-default-features --features agent-runtime,git --lib generation_round_order
+```
+
+These fixtures cover suffix/scattered checkpoints, legacy record round trips,
+idempotent merge, prior interrupted generations, additive metadata, and headless
+completion/reload. They do not establish live SSH, Relay, Peer Device, or
+Detached Dispatch behavior.
+
 For cold dialog startup and the production-feature scheduler stack regression:
 
 ```bash
@@ -510,7 +521,7 @@ cargo test --locked -p bitfun-core --no-default-features --features agent-runtim
 Skill discovery, installation provenance, and local/remote registry regressions:
 
 ```bash
-cargo test --locked -p bitfun-core --no-default-features --features agent-runtime,git --lib agentic::tools::implementations::skills::
+cargo test --locked -p bitfun-core --no-default-features --features agent-runtime,git,file-watch --lib agentic::tools::implementations::skills::
 ```
 
 SessionControl workspace selection, remote routing, and session-targeted actions:

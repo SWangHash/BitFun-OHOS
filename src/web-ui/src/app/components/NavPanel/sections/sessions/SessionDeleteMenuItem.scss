@@ -1,0 +1,15 @@
+.bitfun-session-delete-menu__confirmation {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--bitfun-border-width-default) minmax(0, 1fr);
+  align-items: center;
+}
+
+.bitfun-session-delete-menu__button {
+  text-align: center;
+}
+
+.bitfun-session-delete-menu__divider {
+  align-self: stretch;
+  margin-block: var(--bitfun-space-2);
+  background: var(--bitfun-color-border-subtle);
+}

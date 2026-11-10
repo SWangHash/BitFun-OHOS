@@ -1,0 +1,42 @@
+.bitfun-magpie-source {
+  padding: var(--bitfun-space-4);
+  border-block-start: 1px solid var(--bitfun-color-border-default);
+
+  > p {
+    color: var(--bitfun-color-content-secondary);
+    margin-block: var(--bitfun-space-2);
+  }
+}
+
+.bitfun-magpie-source__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--bitfun-space-2);
+  margin-block: var(--bitfun-space-3);
+}
+
+.bitfun-magpie-source__catalog {
+  max-block-size: 20rem;
+  overflow: auto;
+  margin-block: var(--bitfun-space-3);
+}
+
+.bitfun-magpie-source__model {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--bitfun-space-2);
+  padding-block: var(--bitfun-space-2);
+
+  > [data-bitfun-component='checkbox'],
+  > span:not([data-bitfun-component='status-pill']) {
+    flex: 1 1 12rem;
+    min-inline-size: 0;
+    overflow-wrap: anywhere;
+  }
+
+  > [data-bitfun-component='status-pill'] {
+    flex: 0 0 auto;
+    max-inline-size: 100%;
+  }
+}

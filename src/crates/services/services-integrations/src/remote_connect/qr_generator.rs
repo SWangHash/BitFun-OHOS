@@ -55,8 +55,14 @@ impl QrGenerator {
         {
             return Err(anyhow!("Invalid account device id"));
         }
+        // Keep the announced service version in the user-facing page URL, but
+        // place it before the fragment: `.../relay/?v=1.0.9#/pair?did=...`.
+        let version = bitfun_product_domains::account::relay_endpoint_version(web_app_url);
         let mut url = super::account::validate_relay_base_url(web_app_url)?;
         url.set_path(&format!("{}/", url.path().trim_end_matches('/')));
+        if let Some(version) = version {
+            url.set_query(Some(&format!("v={version}")));
+        }
         url.set_fragment(Some(&format!("/pair?did={device_id}")));
         Ok(url.to_string())
     }
@@ -124,8 +130,7 @@ mod account_device_tests {
     #[test]
     fn invitation_uses_only_the_authenticated_device_target() {
         assert_eq!(
-            QrGenerator::build_device_url("https://remote.bitfun.com/v/1.0.1", "host-1")
-                .unwrap(),
+            QrGenerator::build_device_url("https://remote.bitfun.com/v/1.0.1", "host-1").unwrap(),
             "https://remote.bitfun.com/v/1.0.1/#/pair?did=host-1"
         );
         for id in ["", "host&relay=evil", "../host", "host/other"] {

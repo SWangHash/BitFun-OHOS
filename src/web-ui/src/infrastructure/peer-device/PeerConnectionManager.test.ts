@@ -101,6 +101,7 @@ describe('PeerConnectionManager attach', () => {
             session_trajectory_v1: true,
             btw_initial_model_selection_v1: true,
             btw_model_pool_selection_v1: true,
+            magpie_discovery_v1: true,
           },
         },
       }),
@@ -120,6 +121,7 @@ describe('PeerConnectionManager attach', () => {
     expect(caps.sessionTrajectoryV1).toBe(true);
     expect(caps.btwInitialModelSelectionV1).toBe(true);
     expect(caps.btwModelPoolSelectionV1).toBe(true);
+    expect(caps.magpieDiscoveryV1).toBe(true);
   });
 
   it('parses host_type into hostKind for desktop and cli', async () => {
@@ -152,6 +154,7 @@ describe('PeerConnectionManager attach', () => {
     expect(desktop.getState().capabilities.sessionTrajectoryV1).toBe(false);
     expect(desktop.getState().capabilities.btwInitialModelSelectionV1).toBe(false);
     expect(desktop.getState().capabilities.btwModelPoolSelectionV1).toBe(false);
+    expect(desktop.getState().capabilities.magpieDiscoveryV1).toBe(false);
     expect(desktop.getState().capabilities.chatMcpCatalogV1).toBe(false);
 
     const cli = await makeManager('cli').connect('peer-2', 'Studio');

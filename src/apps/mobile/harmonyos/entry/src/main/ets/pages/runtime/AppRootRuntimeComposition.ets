@@ -739,7 +739,7 @@ export abstract class AppRootRuntimeComposition {
         hooks: {
           deviceId: (): string => this.remoteConnectionController.getDeviceId(),
           openAuthorization: async (url: string): Promise<boolean> => {
-            const localizedUrl = url.includes('https://auth.bitfun.com/sign-in')
+            const localizedUrl = url.includes('https://auth.openbitfun.com/sign-in')
               ? url.replace('/sign-in?', `/sign-in?locale=${encodeURIComponent(RemoteI18n.language())}&`)
               : url;
             return this.host.openExternalLink ? await this.host.openExternalLink(localizedUrl) : false;

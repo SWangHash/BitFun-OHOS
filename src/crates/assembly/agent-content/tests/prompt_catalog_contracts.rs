@@ -86,6 +86,10 @@ const CATALOG_PROMPT_SOURCES: &[(&str, &[u8])] = &[
         include_bytes!("../prompts/agents/minimal_mode.md"),
     ),
     (
+        "paper_writing_agent",
+        include_bytes!("../prompts/agents/paper_writing_agent.md"),
+    ),
+    (
         "phase1_system",
         include_bytes!("../prompts/memories/phase1_system.md"),
     ),

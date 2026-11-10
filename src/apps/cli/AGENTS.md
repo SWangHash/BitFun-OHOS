@@ -150,6 +150,7 @@ Run the smallest checks matching the changed path:
 cargo check -p bitfun-cli
 cargo test -p bitfun-cli
 cargo test -p bitfun-cli --bin bitfun peer_host::
+cargo test --locked -p bitfun-cli --bin bitfun peer_host::commands::skills::tests
 cargo test -p bitfun-cli --bin bitfun system_info_home_contract
 ```
 

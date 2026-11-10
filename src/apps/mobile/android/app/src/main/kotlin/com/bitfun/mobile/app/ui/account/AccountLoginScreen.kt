@@ -72,7 +72,7 @@ internal fun AccountLoginPage(
     val locale = androidx.compose.ui.platform.LocalConfiguration.current.locales[0].toLanguageTag()
     val authorizationUrl = (state as? AccountUiState.Authorizing)?.authorizationUrl?.let { value ->
         val uri = android.net.Uri.parse(value)
-        if (uri.scheme == "https" && uri.host == "auth.bitfun.com") {
+        if (uri.scheme == "https" && uri.host == "auth.openbitfun.com") {
             uri.buildUpon()
                 .appendQueryParameter("locale", locale)
                 .appendQueryParameter("returnTo", "bitfun://auth/callback")

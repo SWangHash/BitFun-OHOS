@@ -27,6 +27,7 @@ pub use definitions::custom::{CustomMode, CustomSubagent, CustomSubagentKind};
 #[cfg(feature = "external-sources")]
 pub(crate) use definitions::external::ExternalProvidedAgent;
 pub use definitions::hidden::{BitFunAgent, CodeReviewAgent, DeepReviewAgent};
+use definitions::modes::PaperWritingAgent;
 pub use definitions::modes::{
     ClawMode, CoworkMode, CreativeHarness, DeepResearchMode, HarmonyBuildMode, HarmonyFeatureMode,
     HarmonyReleaseAuditMode, MinimalHarness, QtMigrationMode, StandardHarness, UltimateHarness,

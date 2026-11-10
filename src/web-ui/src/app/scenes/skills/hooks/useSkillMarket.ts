@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { useTranslation } from 'react-i18next';
 import { configManager } from '@/infrastructure/config/services/ConfigManager';
 import { configAPI } from '@/infrastructure/api';
@@ -7,6 +7,7 @@ import type { SkillLevel, SkillMarketItem } from '@/infrastructure/config/types'
 import { useWorkspaceManagerSync } from '@/infrastructure/hooks/useWorkspaceManagerSync';
 import { useNotification } from '@/shared/notification-system';
 import { createLogger } from '@/shared/utils/logger';
+import { getActiveSurfaceScope, onSurfaceActivated } from '@/infrastructure/peer-device/deviceSurface';
 
 const log = createLogger('SkillsScene:useSkillMarket');
 
@@ -40,6 +41,7 @@ export function useSkillMarket({
   const { t } = useTranslation('scenes/skills');
   const notification = useNotification();
   const { workspace, hasWorkspace, isRemoteWorkspace, isAssistantWorkspace } = useWorkspaceManagerSync();
+  const scope = useSyncExternalStore(onSurfaceActivated, getActiveSurfaceScope, getActiveSurfaceScope);
 
   const [marketSkills, setMarketSkills] = useState<SkillMarketItem[]>([]);
   const [marketLoading, setMarketLoading] = useState(true);
@@ -58,7 +60,9 @@ export function useSkillMarket({
     }
   }, [pageSize]);
   const marketRequestIdRef = useRef(0);
-  const capabilityKey = `${enabled}\u0000${workspace?.id ?? ''}\u0000${isRemoteWorkspace}`;
+  const loadedCatalogRef = useRef<{ key: string; query: string | undefined; limit: number } | null>(null);
+  const errorContextKeyRef = useRef<string | null>(null);
+  const capabilityKey = scope.key(scope.epoch, String(enabled), workspace?.id, String(isRemoteWorkspace));
   const capabilityRef = useRef({ key: capabilityKey, epoch: 0, enabled });
   useLayoutEffect(() => {
     if (capabilityRef.current.key !== capabilityKey) {
@@ -84,46 +88,59 @@ export function useSkillMarket({
     return await configAPI.querySkillMarkets(normalized || undefined, limit);
   }, []);
 
-  const loadFirstPage = useCallback(async (query?: string) => {
+  const loadFirstPage = useCallback(async (query?: string, options?: { background?: boolean }) => {
     const capabilityEpoch = currentCapabilityEpoch();
     if (capabilityEpoch === null) {
       return;
     }
     if (query && query.trim().length < 2) {
       setMarketLoading(false);
-      setMarketError('market.errors.tooShort');
+      setMarketError(t('market.errors.tooShort'));
       return;
     }
     const requestId = ++marketRequestIdRef.current;
+    const snapshot = loadedCatalogRef.current;
+    const background = options?.background && snapshot?.key === capabilityRef.current.key && snapshot.query === query;
+    // Refresh all currently loaded pages so re-entry does not discard the page
+    // being read or shrink its scroll range back to the first fetch batch.
+    const limit = background ? snapshot.limit : FETCH_BATCH_SIZE;
 
-    setMarketLoading(true);
+    setMarketLoading(!background);
     setLoadingMore(false);
     setMarketError(null);
-    setSourceErrors([]);
-    setCurrentPage(0);
+    if (!background) {
+      setSourceErrors([]);
+      setCurrentPage(0);
+    }
     try {
-      const result = await fetchSkills(query, FETCH_BATCH_SIZE);
+      const result = await fetchSkills(query, limit);
       if (requestId !== marketRequestIdRef.current || !capabilityIsCurrent(capabilityEpoch)) {
         return;
       }
       const skillList = result.skills;
       setSourceErrors(result.sourceErrors);
       setMarketSkills(skillList);
-      setHasMore(skillList.length >= FETCH_BATCH_SIZE);
+      setHasMore(limit < MAX_TOTAL_SKILLS && skillList.length >= limit);
+      loadedCatalogRef.current = { key: capabilityRef.current.key, query, limit };
+      if (background) {
+        setCurrentPage(page => Math.min(page, Math.max(0, Math.ceil(skillList.length / pageSizeRef.current) - 1)));
+      }
     } catch (err) {
       if (requestId !== marketRequestIdRef.current || !capabilityIsCurrent(capabilityEpoch)) {
         return;
       }
       log.error('Failed to load skill market', err);
-      setMarketError('market.errors.loadFailed');
+      errorContextKeyRef.current = capabilityRef.current.key;
+      setMarketError(err instanceof Error ? err.message : String(err));
     } finally {
       setMarketLoading(false);
     }
-  }, [capabilityIsCurrent, currentCapabilityEpoch, fetchSkills]);
+  }, [capabilityIsCurrent, currentCapabilityEpoch, fetchSkills, t]);
 
   useEffect(() => {
     marketRequestIdRef.current += 1;
     if (!enabled) {
+      loadedCatalogRef.current = null;
       setMarketSkills([]);
       setMarketLoading(false);
       setLoadingMore(false);
@@ -138,17 +155,20 @@ export function useSkillMarket({
 
   useEffect(() => configManager.onConfigChange((path) => {
     if (path === 'app.skill_market' || path.startsWith('app.skill_market.')) {
+      loadedCatalogRef.current = null;
       setMarketSkills([]);
       void loadFirstPage(searchQuery || undefined);
     }
   }), [loadFirstPage, searchQuery]);
 
-  const refresh = useCallback(async () => {
-    await loadFirstPage(searchQuery || undefined);
+  const refresh = useCallback(async (options?: { background?: boolean }) => {
+    await loadFirstPage(searchQuery || undefined, options);
   }, [loadFirstPage, searchQuery]);
 
+  const catalogCurrent = loadedCatalogRef.current?.key === capabilityKey;
+  const currentMarketError = errorContextKeyRef.current === capabilityKey ? marketError : null;
   const displayMarketSkills = useMemo(() => {
-    const entries = marketSkills.map((skill, index) => ({
+    const entries = (catalogCurrent ? marketSkills : []).map((skill, index) => ({
       skill,
       index,
       installed: isSkillMarketItemInstalled(skill, installedMarketIds),
@@ -168,7 +188,7 @@ export function useSkillMarket({
     });
 
     return entries.map((entry) => entry.skill);
-  }, [installedMarketIds, marketSkills]);
+  }, [catalogCurrent, installedMarketIds, marketSkills]);
 
   const loadedPages = Math.ceil(displayMarketSkills.length / pageSize);
   const totalPages = hasMore ? loadedPages + 1 : Math.max(1, loadedPages);
@@ -201,6 +221,7 @@ export function useSkillMarket({
       setSourceErrors(result.sourceErrors);
       setMarketSkills(skillList);
       setHasMore(limit < MAX_TOTAL_SKILLS && skillList.length >= limit);
+      loadedCatalogRef.current = { key: capabilityRef.current.key, query: searchQuery || undefined, limit };
       // An exhausted source may return no new entries. Stay on a populated page,
       // including when the viewport capacity changed during the request.
       setCurrentPage(Math.floor(Math.min(firstIndex, Math.max(0, skillList.length - 1)) / pageSizeRef.current));
@@ -275,9 +296,9 @@ export function useSkillMarket({
 
   return {
     marketSkills: paginatedSkills,
-    marketLoading,
+    marketLoading: enabled && (marketLoading || (!catalogCurrent && !currentMarketError)),
     loadingMore,
-    marketError,
+    marketError: currentMarketError,
     sourceErrors,
     downloadingPackage,
     hasMore,

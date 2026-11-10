@@ -1,12 +1,14 @@
 import type { ReactNode } from 'react';
 import { create } from 'zustand';
-import type { ConfirmDialogProps, ConfirmDialogType } from '@bitfun/ui';
+import type { ConfirmationAnchor, ConfirmDialogProps, ConfirmDialogType } from '@bitfun/ui';
+import { getActiveSurfaceScope, onSurfaceActivated } from '@/infrastructure/peer-device/deviceSurface';
 
 // A button press is a decision; dismissing the surface (mask, Escape, close
 // button) is not. Callers that treat "dismissed" as "cancel" must say so.
 export type ConfirmDialogChoice = 'confirm' | 'secondary' | 'cancel' | 'dismissed';
 
 export interface ConfirmDialogOptions {
+  anchor?: ConfirmationAnchor;
   cancelText?: ReactNode;
   confirmDanger?: boolean;
   confirmText?: ReactNode;
@@ -32,7 +34,10 @@ interface ConfirmDialogState {
 }
 
 export const useConfirmDialogStore = create<ConfirmDialogState>((set, get) => {
+  let stopWatchingSurface: (() => void) | undefined;
   const settle = (choice: ConfirmDialogChoice) => {
+    stopWatchingSurface?.();
+    stopWatchingSurface = undefined;
     const { resolve } = get();
     set({ isOpen: false, options: null, resolve: null });
     resolve?.(choice);
@@ -50,7 +55,10 @@ export const useConfirmDialogStore = create<ConfirmDialogState>((set, get) => {
     showChoice: (options) => new Promise<ConfirmDialogChoice>((resolve) => {
       const previousResolve = get().resolve;
       if (previousResolve) previousResolve('cancel');
-      set({ isOpen: true, options, resolve });
+      stopWatchingSurface?.();
+      const scope = getActiveSurfaceScope();
+      stopWatchingSurface = onSurfaceActivated(() => get().cancel());
+      set({ isOpen: true, options, resolve: choice => resolve(scope.isCurrent() ? choice : 'cancel') });
     }),
   };
 });

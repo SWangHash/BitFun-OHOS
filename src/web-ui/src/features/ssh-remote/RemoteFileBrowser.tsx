@@ -5,7 +5,7 @@ import { desktopDomainErrorMessage } from '@/shared/ai-errors/desktopDomainError
  * Allows browsing and selecting directories on a remote SSH host
  */
 
-import { subscribeOverlayInteraction, createOverlayPortal, Button, Dialog, DialogHeader, DialogHeading, DialogTitle, DialogClose, DialogBody, DialogFooter, Field, ConfirmDialog, Icon, IconButton, Input, Menu, MenuItem, MenuSeparator, ScrollArea } from '@bitfun/ui';
+import { captureConfirmationAnchor, subscribeOverlayInteraction, createOverlayPortal, Button, Dialog, DialogHeader, DialogHeading, DialogTitle, DialogClose, DialogBody, DialogFooter, Field, ConfirmDialog, Icon, IconButton, Input, Menu, MenuItem, MenuSeparator, ScrollArea } from '@bitfun/ui';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { getAppearanceOverlayHost } from '@/infrastructure/appearance/runtime/AppearanceOverlayHost';
 import { useI18n } from '@/infrastructure/i18n';
@@ -96,7 +96,11 @@ export const RemoteFileBrowser: React.FC<RemoteFileBrowserProps> = ({
   }>({ show: false, x: 0, y: 0, entry: null });
   const [renameEntry, setRenameEntry] = useState<RemoteFileEntry | null>(null);
   const [renameValue, setRenameValue] = useState('');
-  const [deleteConfirm, setDeleteConfirm] = useState<DeleteConfirmState>({ show: false, entry: null });
+  const [deleteAnchor, setDeleteAnchor] = useState<ReturnType<typeof captureConfirmationAnchor>>(undefined);
+  const [deleteConfirm, setDeleteConfirm] = useState<DeleteConfirmState>({
+    show: false,
+    entry: null,
+  });
   const [transferBusy, setTransferBusy] = useState(false);
   const [transferCancelling, setTransferCancelling] = useState(false);
   const activeTransferRef = useRef<BrowserTransfer | null>(null);
@@ -351,7 +355,8 @@ export const RemoteFileBrowser: React.FC<RemoteFileBrowserProps> = ({
     }
   };
 
-  const handleContextMenuAction = async (action: string) => {
+  const handleContextMenuAction = async (action: string, trigger?: HTMLElement) => {
+    const anchor = captureConfirmationAnchor(trigger);
     if (!contextMenu.entry) return;
 
     const entry = contextMenu.entry;
@@ -360,6 +365,7 @@ export const RemoteFileBrowser: React.FC<RemoteFileBrowserProps> = ({
     try {
       switch (action) {
         case 'delete':
+          setDeleteAnchor(anchor);
           setDeleteConfirm({ show: true, entry });
           break;
         case 'open':
@@ -772,7 +778,7 @@ export const RemoteFileBrowser: React.FC<RemoteFileBrowserProps> = ({
             <MenuItem
               leading={<Icon name="delete" size="sm" aria-hidden />}
               tone="danger"
-              onClick={() => handleContextMenuAction('delete')}
+              onClick={event => handleContextMenuAction('delete', event.currentTarget)}
             >
               {t('actions.delete') || 'Delete'}
             </MenuItem>
@@ -849,6 +855,7 @@ export const RemoteFileBrowser: React.FC<RemoteFileBrowserProps> = ({
 
         {/* Delete Confirmation Dialog */}
         <ConfirmDialog
+          anchor={deleteAnchor}
           open={deleteConfirm.show}
           title={t('ssh.remote.deleteTitle') || 'Delete'}
           message={deleteConfirm.entry

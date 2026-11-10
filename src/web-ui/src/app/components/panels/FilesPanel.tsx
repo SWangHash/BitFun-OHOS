@@ -63,6 +63,7 @@ import {
   resolvePasteTargetDirectory,
   uploadLocalPathsToWorkspaceDirectory,
   type TransferProgressState,
+  type WorkspaceTransferResult,
 } from '@/tools/file-system/services/workspaceFileTransfer';
 import {
   clearFileTreeClipboard,
@@ -135,6 +136,8 @@ interface FilesPanelProps {
   /** Hide the in-explorer floating toolbar; parent can render equivalent actions (e.g. file viewer nav header). */
   hideExplorerToolbar?: boolean;
   onExplorerToolbarApi?: (api: FileExplorerToolbarHandlers | null) => void;
+  revealDirectoryPath?: string;
+  onRevealHandled?: () => void;
 }
 
 const FilesPanel: React.FC<FilesPanelProps> = ({
@@ -148,6 +151,8 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
   onViewModeChange,
   hideExplorerToolbar = false,
   onExplorerToolbarApi,
+  revealDirectoryPath,
+  onRevealHandled,
 }) => {
   const { t } = useTranslation('panels/files');
   const { t: tComponents } = useI18n('components');
@@ -157,10 +162,11 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
   // Identity is (surface, workspace ID). The path and connection are IO
   // projections that downstream openers still record for legacy tab data.
   const currentWorkspaceId = currentWorkspace?.id;
+  const ownerRoot = currentWorkspace?.rootPath ?? workspacePath;
   const resourceScope = useMemo(() => ({
     surfaceId: surface.surfaceId, workspaceId: currentWorkspaceId,
-    workspacePath, remoteConnectionId: currentWorkspace?.connectionId,
-  }), [surface.surfaceId, currentWorkspaceId, currentWorkspace?.connectionId, workspacePath]);
+    workspacePath: ownerRoot, remoteConnectionId: currentWorkspace?.connectionId,
+  }), [surface.surfaceId, currentWorkspaceId, currentWorkspace?.connectionId, ownerRoot]);
   
   const panelRef = useRef<HTMLDivElement>(null);
   const navigationRequestRef = useRef(0);
@@ -419,12 +425,11 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
       openFileInBestTarget({
         filePath: data.path,
         scope: resourceScope,
-        workspacePath,
         ...(data.line ? { jumpToLine: data.line } : {}),
         ...(data.column ? { jumpToColumn: data.column } : {}),
       }, { source: 'project-nav' });
     });
-  }, [workspacePath, shouldOpenLargeFile, surface, resourceScope]);
+  }, [shouldOpenLargeFile, surface, resourceScope]);
 
   const findNode = useCallback((nodes: FileSystemNode[], path: string): FileSystemNode | null => {
     for (const node of nodes) {
@@ -664,6 +669,12 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
       if (data.scrollIntoView) setRevealTarget({ path: plan.targetPath, requestId: request });
     })();
   }, [workspacePath, isRemoteCurrentWorkspace, expandFolderEnsure, selectFile]);
+
+  useEffect(() => {
+    if (!revealDirectoryPath || viewMode !== 'tree' || loading || !fileTree.length) return;
+    onRevealHandled?.();
+    handleNavigateToPath({ path: revealDirectoryPath, scrollIntoView: true });
+  }, [revealDirectoryPath, viewMode, loading, fileTree.length, onRevealHandled, handleNavigateToPath]);
 
   const executePaste = useCallback(async (targetDir?: string) => {
     if (!workspacePath) {
@@ -963,7 +974,6 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
     globalEventBus.on('file:copy', handleCopyFromContextMenu);
     globalEventBus.on('file:cut', handleCutFromContextMenu);
     globalEventBus.on('file-tree:refresh', handleFileTreeRefresh);
-    globalEventBus.on('file-explorer:navigate', handleNavigateToPath);
 
     return () => {
       globalEventBus.off('file:open', handleOpenFile);
@@ -976,9 +986,8 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
       globalEventBus.off('file:copy', handleCopyFromContextMenu);
       globalEventBus.off('file:cut', handleCutFromContextMenu);
       globalEventBus.off('file-tree:refresh', handleFileTreeRefresh);
-      globalEventBus.off('file-explorer:navigate', handleNavigateToPath);
     };
-  }, [handleOpenFile, handleNewFile, handleNewFolder, handleStartRename, handleDelete, handleFileDownload, handleCompress, handleDecompress, handlePasteFromContextMenu, handleCopyFromContextMenu, handleCutFromContextMenu, handleFileTreeRefresh, handleNavigateToPath]);
+  }, [handleOpenFile, handleNewFile, handleNewFolder, handleStartRename, handleDelete, handleFileDownload, handleCompress, handleDecompress, handlePasteFromContextMenu, handleCopyFromContextMenu, handleCutFromContextMenu, handleFileTreeRefresh]);
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -1036,13 +1045,28 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
     setFileDropHighlight(overPanel);
   }, []);
 
-  const handleFileDropComplete = useCallback((targetDirectory: string) => {
+  const handleFileDropComplete = useCallback((
+    targetDirectory: string,
+    _transferId: string,
+    result: WorkspaceTransferResult,
+  ) => {
     setFileDropHighlight(false);
     void loadFileTree(workspacePath || '', true);
     if (workspacePath && !pathsEquivalentFs(targetDirectory, workspacePath)) {
       expandFolder(targetDirectory, true);
     }
-  }, [workspacePath, loadFileTree, expandFolder]);
+    // Items that were refused or failed must not disappear silently.
+    if (result.failedFiles.length > 0) {
+      const failedNames = result.failedFiles.map((entry) => {
+        const name = entry.path.split(/[/\\]/).pop() || entry.path;
+        return `${name}: ${entry.error}`;
+      }).join('\n');
+      notification.error(
+        t('notifications.pasteFailed', { count: result.failedFiles.length }) + `:\n${failedNames}`,
+        { duration: 5000 },
+      );
+    }
+  }, [workspacePath, loadFileTree, expandFolder, notification, t]);
 
   const handleFileDropError = useCallback((
     error: unknown,
@@ -1079,12 +1103,11 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
         openFileInBestTarget({
           filePath,
           fileName,
-          workspacePath,
           scope: resourceScope,
         }, { source: 'project-nav' });
       });
     }
-  }, [selectFile, onFileSelect, workspacePath, fileTree, findNode, shouldOpenLargeFile, surface, resourceScope]);
+  }, [selectFile, onFileSelect, fileTree, findNode, shouldOpenLargeFile, surface, resourceScope]);
 
   const handleFileDoubleClick = useCallback((filePath: string) => {
     // Double-click hands the caret to the file's editor tab. The active-editor

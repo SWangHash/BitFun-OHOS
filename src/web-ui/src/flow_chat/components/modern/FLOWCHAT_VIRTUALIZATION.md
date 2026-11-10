@@ -8,6 +8,16 @@ History uses a bottom-origin scroller and newest-first internal indexes. Public
 row indexes, stable keys, DOM order, navigation and viewport snapshots remain
 chronological. `data-virtual-index` is public; `data-flowchat-measure-index` is
 private to the adapter and is refreshed for surviving rows after each commit.
+This includes live prepends and new tail rows in bottom-origin history, not only
+origin handoffs. Refresh indexes through the adapter's connected row registry;
+an index update requires no geometry read or DOM subtree scan. A later observer
+delivery must still resize the same row key.
+Rows mounted while the viewport is suspended stay in the pending attachment
+registry until a resumed commit registers them with the measurement observer.
+The viewport recovery frame explicitly requests that commit, even when the
+restored dimensions are unchanged and output has stopped. It must not rely on
+the reader's next scroll or a later resize. Prune disconnected pending rows
+even during suspension.
 
 For native history, internal offset is `-scrollTop`, index zero is the newest
 row, and the footer is the scroll margin. The internal window's before/after
@@ -53,7 +63,83 @@ assert zero scroll writes as well as node and screen-position continuity.
 These supplied-geometry tests do not establish native paint or live remote
 behavior.
 
+## Projection cache lifetime
+
+Warm session projections are keyed weakly by the canonical `dialogTurns` array,
+so a history eviction or replacement can release both the body and its derived
+rows. Equal session IDs on different device sources do not share that key.
+Per-Turn streaming reconciliation drops removed Turn IDs on paging/rollback;
+each store, history projection and side panel owns its own mutable prefix state.
+Alternating views must not invalidate another view's live prefix. Immutable
+completed-Turn projections are shared weakly across views, while clearing a
+presentation store clears that store's warm projections. A completed Turn's
+normal projection does not depend on newer siblings, so appending a new message
+reuses its existing rows. Only the collapsed background presentation needs a
+separate variant. There is no shared mutable standalone projector; each caller,
+including benchmarks, creates its own. User-message reuse
+depends on the message and its presentation fields, not on its first model round.
+Normalized steering,
+retry and recovery rounds use weak source identities, including both source
+rounds for a merged retry. Inline group caches follow group objects rather than
+positions, which change when candidate groups are collected or expanded.
+
+The group index rebuilds from cached row groups when the transcript changes,
+preserving the original last-alias/first-member ownership rules even when a tail
+that shadowed an earlier alias disappears. Identical transcript arrays reuse
+their weakly cached index. The resource estimator remains a shared-reference-aware
+graph walk; the history owner already caches immutable Turn estimates and
+coalesces active-history accounting at 500 ms. A completed round does not prove
+an unchanged prefix or disjoint object graph.
+
+Search caches only match metadata for an active query in its owning view. Clearing
+search drops that cache, and unmounting drops the matcher. Lowercase transcript
+text exists only during a cache miss and is not retained beside the source body.
+
+Turn navigation summaries use a reader-owned `createFlowChatTurnSummaryProjector`.
+It retains only scalar Turn/catalog identities, ordinals and storage indexes.
+Body-only streaming updates compare those identities and reuse the summary arrays;
+structural changes rebuild one ordinal lookup shared by live and rendered
+summaries. Catalog corrections, partial-tail offsets, provisional usage reports
+and explicit history-window offsets keep their existing precedence. No Session,
+Turn body, viewport position or editor state is retained by this cache.
+
+### Settled record identity
+
+Live text/thinking items can have client-generated IDs, while the host's settled
+record uses journal-derived IDs. Replacing those IDs as React/measurement keys
+remounted unchanged output and discarded its measured height. A supplied-geometry
+regression observed a 92px downward displacement followed by an eased return.
+`TimelineItemIdentity` keeps view-local aliases across a one-to-one ordered
+narrative handoff inside the same Turn and model round. Types, attempts and
+content must agree (allowing coalesced blank lines and a recovered suffix);
+insertions, removals, unrelated prose and replaced tools do not qualify.
+Native settled records can omit the first attempt's item-level metadata. An
+explicit settled `attemptCount: 1` permits that handoff from `attemptIndex: 1`;
+missing counts, multiple attempts and conflicting explicit identities do not.
+Markdown section budgets use coalesced blank-line coordinates so that journal
+whitespace cannot move a semantic boundary. View-local section aliases retain
+the original display offsets while section ranges and bookmarks continue to
+use the unmodified host source. No viewport writer or follow policy changes.
+Unchanged source arrays skip item reconciliation, retired sources are released,
+and aliases are weakly keyed by the source item objects.
+
+Only rendered block keys use these aliases. Canonical item IDs, source references,
+search/navigation membership and persisted records remain host-owned. Bookmarks
+use `getVirtualItemBookmarkKey` and the row's canonical bookmark attribute, so a
+fresh projection can restore them after reopening. Restoration still accepts
+legacy row keys. The full-list regression checks every frame, retained DOM nodes,
+canonical bookmarks and reopening on local/simulated Peer surfaces, both while
+following and while reading. It does not establish native paint or live transport.
+
 ## Large text and decoration residency
+
+Globally loaded styles also affect virtualization cost. Universal sibling rules
+in the GenUI spacing sheets and an unqualified child after the shared agent-card
+`:has()` selector invalidated unrelated shell subtrees when rows were recycled.
+Spacing keeps its element-child matching and specificity; agent-row sizing names
+the stack renderers' owned children inside `:where()`. New direct stack child
+kinds must retain that sizing contract. Native invalidation/Selector Stats traces
+identify the cause; ordinary uninstrumented runs establish the performance change.
 
 `markdownSections` uses the existing streaming parser's block tokenizer to find
 semantic boundaries. It does not perform inline parsing or replace the product
@@ -63,8 +149,10 @@ not truncation: an individual fence, table, list or quote remains whole. Raw HTM
 reference/footnote dependencies and structured research protocols keep their
 whole-document path. Canonical text and export/copy payloads stay unchanged.
 
-The first section retains its previous block key; later keys include the raw
-source offset. Thinking stays with the first section. Search translates whole
+The first section retains its previous block key; later keys initially include
+the raw source offset, retained as a display alias during settled whitespace
+handoff. Canonical bookmarks always use the current raw offset. Thinking stays
+with the first section. Search translates whole
 message occurrence counts into section-local counts, including Unicode case
 folding. Section indexes and search boundary counts each have a 2 MiB/64-entry
 budget under the shared derived-resource budget. They retain neither DOM nor

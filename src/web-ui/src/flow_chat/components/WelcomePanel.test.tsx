@@ -24,6 +24,8 @@ const gitApiMock = vi.hoisted(() => ({
   isGitRepository: vi.fn(),
   getStatus: vi.fn(),
 }));
+const useTrackedChangeCount = vi.hoisted(() => vi.fn());
+vi.mock('@/tools/git/hooks/useTrackedChangeCount', () => ({ useTrackedChangeCount }));
 
 const workspaceMocks = vi.hoisted(() => ({
   hasWorkspace: true,
@@ -102,7 +104,7 @@ vi.mock('@/app/scenes/my-agent/useAgentIdentityDocument', () => ({
   useAgentIdentityDocument: () => ({ document: { name: '' } }),
 }));
 
-// The composer still reads Git state; the welcome panel must not subscribe.
+// The composer reads the full Git state; the welcome panel uses the count only.
 vi.mock('@/tools/git/hooks/useGitState', () => ({
   useGitState: ({ repositoryPath, debugSource }: { repositoryPath: { workspaceId: string }; debugSource: string }) => {
     const workspaceId = repositoryPath.workspaceId;
@@ -164,6 +166,7 @@ describe('WelcomePanel empty session presentation', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    useTrackedChangeCount.mockReturnValue(null);
     workspaceMocks.hasWorkspace = true;
     workspaceMocks.selectDraftWorkspace.mockReset();
     workspaceMocks.createChatDraft.mockResolvedValue('selected-workspace-draft');
@@ -332,7 +335,7 @@ describe('WelcomePanel empty session presentation', () => {
     expect(update).not.toHaveBeenCalled();
   });
 
-  it('includes the project in the greeting without the workspace and Git summary', async () => {
+  it('includes the project in the greeting without displaying an unavailable count', async () => {
     await act(async () => {
       root.render(<WelcomePanel sessionMode="Standard" />);
     });
@@ -341,8 +344,31 @@ describe('WelcomePanel empty session presentation', () => {
     expect(container.querySelector('[data-bitfun-product-part="narrative"]')).toBeNull();
     expect(container.querySelector('[data-bitfun-product-part="divider"]')).toBeNull();
     expect(container.querySelector('.welcome-panel__details')).toBeNull();
+    expect(container.querySelector('[data-bitfun-product-part="workspaceChanges"]')).toBeNull();
     expect(workspaceMocks.gitScopes).toEqual([]);
     expect(gitApiMock.getStatus).not.toHaveBeenCalled();
+  });
+
+  it('shows only a positive count below the greeting and uses the execution workspace', async () => {
+    const { draft: _draft, ...session } = newDraft();
+    const worktreeSession = { ...session, workspaceId: 'worktree-1', config: {
+      workspaceId: 'worktree-1', projectWorkspaceId: 'workspace-1',
+    } };
+    useTrackedChangeCount.mockReturnValue(3);
+    await act(async () => root.render(<WelcomePanel session={worktreeSession} />));
+    const greeting = container.querySelector('[data-bitfun-product-part="greeting"]')!;
+    const summary = greeting.nextElementSibling;
+    expect(summary?.textContent).toBe('工作区有动静，3 个文件改了还没提交。');
+    expect(summary?.querySelector('strong')?.textContent).toBe('3');
+    expect(useTrackedChangeCount).toHaveBeenLastCalledWith('worktree-1', false);
+
+    useTrackedChangeCount.mockReturnValue(0);
+    await act(async () => root.render(<WelcomePanel session={worktreeSession} />));
+    expect(container.querySelector('[data-bitfun-product-part="workspaceChanges"]')).toBeNull();
+
+    useTrackedChangeCount.mockClear();
+    await act(async () => root.render(<WelcomePanel session={worktreeSession} isActive={false} />));
+    expect(useTrackedChangeCount).not.toHaveBeenCalled();
   });
 
   it('does not render the retired panda mascot', async () => {

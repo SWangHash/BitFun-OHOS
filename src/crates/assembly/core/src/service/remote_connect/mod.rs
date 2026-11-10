@@ -362,12 +362,24 @@ impl RemoteConnectService {
             .await
             .clone()
             .ok_or_else(|| anyhow::anyhow!("No authenticated relay connection"))?;
-        if self.prepared_relay_url.read().await.as_deref() != Some(relay_url.as_str())
-            || self.active_method.read().await.as_ref() != Some(&method)
-        {
+        // A restored device connection uses the endpoint base, while the
+        // prepared endpoint also announces `?v=`; only the base identifies it.
+        let prepared_relay_url = self
+            .prepared_relay_url
+            .read()
+            .await
+            .clone()
+            .filter(|prepared| {
+                bitfun_product_domains::account::relay_endpoint_base(prepared)
+                    == bitfun_product_domains::account::relay_endpoint_base(&relay_url)
+            });
+        let Some(prepared_relay_url) = prepared_relay_url else {
+            anyhow::bail!("Relay endpoint changed; start the connection again");
+        };
+        if self.active_method.read().await.as_ref() != Some(&method) {
             anyhow::bail!("Relay endpoint changed; start the connection again");
         }
-        let qr_url = QrGenerator::build_device_url(&relay_url, &device_id)?;
+        let qr_url = QrGenerator::build_device_url(&prepared_relay_url, &device_id)?;
         #[cfg(target_env = "ohos")]
         let _ = send_remote_url(qr_url.clone());
         Ok(ConnectionResult {

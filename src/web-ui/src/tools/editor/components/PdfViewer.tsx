@@ -108,6 +108,8 @@ export interface PdfViewerProps {
   workspaceId?: string;
   fileName?: string;
   className?: string;
+  /** An in-memory build artifact for editors that keep preview output off disk. */
+  pdfBase64?: string;
 }
 
 function decodePdfBase64(value: string): Uint8Array {
@@ -364,6 +366,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({ isActiveTab = true,
   filePath,
   workspaceId,
   className = '',
+  pdfBase64,
 }) => {
   const documentSession = useEditorDocument();
   const standaloneFiles = useMemo(() => standaloneEditorFileAccess(workspaceId), [workspaceId]);
@@ -421,7 +424,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({ isActiveTab = true,
     setLoading(true);
 
     try {
-      const encoded = await documentFiles.readFileContent(filePath, 'base64');
+      const encoded = pdfBase64 ?? await documentFiles.readFileContent(filePath, 'base64');
       if (loadEpochRef.current !== loadEpoch) {
         return;
       }
@@ -451,6 +454,12 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({ isActiveTab = true,
 
       setDocument(loadedDocument);
       setPageSizes(measuredPageSizes);
+      if (pdfBase64 && containerRef.current?.clientWidth && measuredPageSizes[0]) {
+        const container = containerRef.current;
+        const styles = window.getComputedStyle(container);
+        const width = container.clientWidth - (parseFloat(styles.paddingLeft) || 0) - (parseFloat(styles.paddingRight) || 0);
+        setZoom(Math.max(MIN_ZOOM, Math.min(100, Math.floor(100 * width / measuredPageSizes[0].width))));
+      }
       setCopyAllowed(!permissions || permissions.includes(PermissionFlag.COPY));
       setLoading(false);
     } catch (loadError) {
@@ -461,7 +470,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({ isActiveTab = true,
       setError(t('editor.pdfViewer.loadFailedWithMessage', { message: errorMessage(loadError) }));
       setLoading(false);
     }
-  }, [documentFiles, filePath, t]);
+  }, [documentFiles, filePath, pdfBase64, t]);
 
   const errorRef = useRef(error);
   errorRef.current = error;

@@ -98,6 +98,47 @@ afterEach(() => {
 });
 
 describe('MiniApp detail page navigation', () => {
+  it.each([{ apps: [] }, { apps: [app] }])('retains installed content throughout a pending return refresh: $apps.length entries', async ({ apps }) => {
+    vi.useFakeTimers();
+    useMiniAppStore.setState({ apps });
+    await render();
+    const card = container.querySelector('.miniapp-installed-card');
+    let finish!: (apps: MiniAppMeta[]) => void;
+    mocks.listMiniApps.mockReturnValueOnce(new Promise(resolve => { finish = resolve; }));
+    let refresh!: Promise<void>;
+    await act(async () => { refresh = mocks.refetch!(); });
+    expect(useMiniAppStore.getState().loading).toBe(false);
+    expect(container.querySelector('.gallery-skeleton')).toBeNull();
+    if (card) expect(container.querySelector('.miniapp-installed-card')).toBe(card);
+    else expect(container.textContent).toContain('market.library.empty');
+    await act(async () => { finish([{ ...app, name: 'Refreshed' }]); await refresh; });
+    expect(container.querySelector('.miniapp-installed-card')?.textContent).toContain('Refreshed');
+  });
+
+  it('does not clear another catalog load while a return refresh finishes', async () => {
+    vi.useFakeTimers();
+    useMiniAppStore.setState({ apps: [], loading: true });
+    await render();
+    await act(async () => { await mocks.refetch!(); });
+    expect(useMiniAppStore.getState().loading).toBe(true);
+  });
+
+  it.each([{ items: [] }, { items: [listing] }])('keeps a cached marketplace snapshot during return refresh: $items.length entries', async ({ items }) => {
+    vi.useFakeTimers();
+    mocks.items = items;
+    await render('market');
+    let finish!: (page: { items: MarketListingDetail[] }) => void;
+    mocks.browse.mockReturnValueOnce(new Promise(resolve => { finish = resolve; }));
+    let refresh!: Promise<void>;
+    await act(async () => { refresh = mocks.refetch!(); });
+    expect(container.querySelector('.gallery-skeleton')).toBeNull();
+    expect(container.querySelector('[role="list"][aria-busy="true"]')).toBeNull();
+    if (items.length) expect(container.querySelector('.miniapp-library-row')?.textContent).toContain('Timer');
+    else expect(container.textContent).toContain('market.empty');
+    await act(async () => { finish({ items: [listing] }); await refresh; });
+    expect(container.querySelector('.miniapp-library-row')?.textContent).toContain('Timer');
+  });
+
   it.each([{ apps: [] }, { apps: [app] }])('finishes the installed refresh before the marketplace responds: $apps.length entries', async ({ apps }) => {
     vi.useFakeTimers();
     mocks.listMiniApps.mockResolvedValue(apps);
@@ -190,7 +231,7 @@ describe('MiniApp detail page navigation', () => {
     expect(mocks.openApp).not.toHaveBeenCalled();
     await act(async () => button('detail.back').click());
     await act(async () => launch.click());
-    expect(mocks.openApp).toHaveBeenCalledWith('notes', 'tab', 'box');
+    expect(mocks.openApp).toHaveBeenCalledWith('notes', 'tab', 'box', expect.objectContaining({ element: expect.any(HTMLButtonElement) }));
     expect(page()).toBeNull();
     expect(mocks.getListing).not.toHaveBeenCalled();
 
@@ -236,8 +277,9 @@ describe('MiniApp detail page navigation', () => {
     const menu = document.querySelector<HTMLElement>('[role="menu"][aria-label="detail.start"]')!;
     expect(menu).not.toBeNull();
     await act(async () => button(kind === 'tab' ? 'presentation.openTab' : 'presentation.openWindow', menu).click());
-    expect(mocks.openApp).toHaveBeenCalledExactlyOnceWith('notes', kind, 'box');
-    expect(page()).toBeNull();
+    expect(mocks.openApp).toHaveBeenCalledExactlyOnceWith('notes', kind, 'box', expect.objectContaining({ element: expect.any(HTMLButtonElement) }));
+    // Keep the action's context mounted while the host checks for a transfer.
+    expect(page()?.querySelector('h1')?.textContent).toBe('Notes');
   });
 
   it('disables the independent-window menu choice on remote surfaces and permits in-app launch', async () => {
@@ -250,7 +292,7 @@ describe('MiniApp detail page navigation', () => {
     await act(async () => windowChoice.click());
     expect(mocks.openApp).not.toHaveBeenCalled();
     await act(async () => button('presentation.openTab', menu).click());
-    expect(mocks.openApp).toHaveBeenCalledExactlyOnceWith('notes', 'tab', 'box');
+    expect(mocks.openApp).toHaveBeenCalledExactlyOnceWith('notes', 'tab', 'box', expect.objectContaining({ element: expect.any(HTMLButtonElement) }));
   });
 
   it('requires confirmation before uninstalling from details', async () => {

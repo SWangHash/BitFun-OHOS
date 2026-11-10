@@ -1,4 +1,4 @@
-import { ActionCard } from '@bitfun/ui';
+import { captureConfirmationAnchor, ActionCard } from '@bitfun/ui';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -399,8 +399,9 @@ export function AppearancePackageConfigSection() {
     }
   };
 
-  const handleDelete = async (id: string, name: string) => {
+  const handleDelete = async (id: string, name: string, trigger?: HTMLElement) => {
     const confirmed = await confirmDialog({
+      anchor: captureConfirmationAnchor(trigger),
       title: t('package.deleteTitle'),
       message: t('package.deleteMessage', { name }),
       confirmText: t('package.delete'),
@@ -468,7 +469,7 @@ export function AppearancePackageConfigSection() {
                 title={t('package.delete')}
                 aria-label={t('package.delete')}
                 disabled={busy}
-                onClick={() => void handleDelete(selectedAppearance.id, selectedAppearance.name)}
+                onClick={event => void handleDelete(selectedAppearance.id, selectedAppearance.name, event.currentTarget)}
                 icon={<Icon name="delete" size="sm" />}
               />
             </>

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { flowChatStore, mergeModelRoundAttemptDiagnostics } from './FlowChatStore';
-import { sessionToVirtualItems } from './modernFlowChatStore';
+import { createSessionVirtualItemProjector } from './modernFlowChatStore';
 import { getTurnOutputDurationMs, getTurnUsageMetrics } from '../utils/turnUsageMetrics';
 import { buildModelRoundItemGroups } from '../components/modern/modelRoundItemGrouping';
 import { getVirtualItemFlowGroups } from '../grouping/selectors';
@@ -36,6 +36,9 @@ import {
   askUserQuestionDraftKey,
   askUserQuestionDraftStore,
 } from './askUserQuestionDraftStore';
+
+let projectSession: ReturnType<typeof createSessionVirtualItemProjector>;
+beforeEach(() => { projectSession = createSessionVirtualItemProjector(); });
 
 vi.mock('@/shared/notification-system', () => ({
   notificationService: { error: vi.fn(), warning: vi.fn() },
@@ -1402,7 +1405,7 @@ describe('FlowChatStore round attempts', () => {
       }], { supersedeMatchingAttempts: true }));
     flowChatStore.addModelRoundItem(session.sessionId, 'turn-1', tool('recovered', 2), 'retry');
 
-    const groups = () => sessionToVirtualItems(flowChatStore.getState().sessions.get(session.sessionId)!)
+    const groups = () => projectSession(flowChatStore.getState().sessions.get(session.sessionId)!)
       .flatMap(getVirtualItemFlowGroups);
     expect(groups().map(group => group.allItems.map(item => item.id))).toEqual([['before-call'], ['recovered']]);
     const owner = groups()[1].groupId;
@@ -1444,7 +1447,7 @@ describe('FlowChatStore round attempts', () => {
     const reloaded = restore(JSON.parse(JSON.stringify(convertDialogTurnToBackendFormat(restored, 0))));
     for (const turn of [restored, reloaded]) {
       const session = createSession({ dialogTurns: [turn] });
-      const groups = sessionToVirtualItems(session).flatMap(getVirtualItemFlowGroups);
+      const groups = projectSession(session).flatMap(getVirtualItemFlowGroups);
       expect(groups.map(group => group.allItems.map(item => item.id))).toEqual(source ? [] : [['read', 'read-next']]);
       expect(turn.modelRounds[0].attempts).toHaveLength(2);
       expect(turn.modelRounds[0].attempts[0].diagnostic.rawError).toBe('Connection reset');
@@ -2939,7 +2942,7 @@ describe('FlowChatStore historical session hydration state', () => {
         attemptId: scenario === 'diagnostic' ? 'runtime-interaction:round-live' : 'attempt-live', isParamsStreaming: false }),
     ]));
     expect(round().items).toEqual(round().attempts!.flatMap(entry => entry.items));
-    const visibleRound = sessionToVirtualItems(flowChatStore.getState().sessions.get('history-1')!)
+    const visibleRound = projectSession(flowChatStore.getState().sessions.get('history-1')!)
       .find(item => item.type === 'model-round');
     expect(visibleRound?.type).toBe('model-round');
     if (visibleRound?.type === 'model-round') {
@@ -4395,7 +4398,7 @@ describe('FlowChatStore historical session hydration state', () => {
     expect(stateMachineManagerMock.reset).not.toHaveBeenCalled();
   });
 
-  it('merges restored model and reasoning selections into an existing subagent shell', async () => {
+  it.each(['subagent', 'miniapp'] as const)('restores an internal %s shell without requiring callers to repeat its visibility', async sessionKind => {
     apiMocks.restoreSessionView.mockResolvedValueOnce({
       session: {
         sessionId: 'subagent-1',
@@ -4414,7 +4417,8 @@ describe('FlowChatStore historical session hydration state', () => {
       sessions: new Map([
         ['subagent-1', createSession({
           sessionId: 'subagent-1',
-          sessionKind: 'subagent',
+          sessionKind,
+          agentBackedTransient: sessionKind === 'miniapp',
           mode: 'Explore',
           config: { agentType: 'Explore' },
           workspacePath: 'D:/workspace/BitFun',
@@ -4423,13 +4427,9 @@ describe('FlowChatStore historical session hydration state', () => {
       activeSessionId: 'parent-1',
     }));
 
-    await flowChatStore.loadSessionHistory(
-      'subagent-1',
-      'D:/workspace/BitFun',
-      undefined,
-      undefined,
-      undefined,
-      { includeInternal: true },
+    await flowChatStore.loadSessionHistory('subagent-1');
+    expect(apiMocks.restoreSessionView).toHaveBeenCalledWith(
+      'subagent-1', expect.any(String), expect.any(String), true, expect.any(Number),
     );
 
     expect(flowChatStore.getState().sessions.get('subagent-1')?.config.modelName)
@@ -6522,7 +6522,7 @@ describe('FlowChatStore historical session hydration state', () => {
     });
   });
 
-  it('seeds the restored tail, deduplicates target loads, and merges adjacent ranges', async () => {
+  it.each(['normal', 'miniapp'] as const)('seeds the %s tail, deduplicates target loads, and merges adjacent ranges', async sessionKind => {
     const catalog = createTurnCatalog(15);
     apiMocks.restoreSessionView.mockResolvedValueOnce({
       session: {
@@ -6545,6 +6545,8 @@ describe('FlowChatStore historical session hydration state', () => {
         'history-1',
         createSession({
           sessionId: 'history-1',
+          sessionKind,
+          agentBackedTransient: sessionKind === 'miniapp',
           isHistorical: true,
           historyState: 'metadata-only',
         }),
@@ -6564,6 +6566,9 @@ describe('FlowChatStore historical session hydration state', () => {
     const firstLoad = flowChatStore.loadSessionTurnWindow('history-1', 3);
     const duplicateLoad = flowChatStore.loadSessionTurnWindow('history-1', 3);
     expect(apiMocks.loadSessionTurnWindow).toHaveBeenCalledTimes(1);
+    expect(apiMocks.loadSessionTurnWindow).toHaveBeenCalledWith(expect.objectContaining({
+      includeInternal: sessionKind === 'miniapp',
+    }));
     deferred.resolve({
       status: 'ready',
       catalogRevision: catalog.revision,
@@ -6755,7 +6760,7 @@ describe('FlowChatStore historical session hydration state', () => {
     expect(apiMocks.loadSessionTurnWindow).toHaveBeenCalledTimes(1);
   });
 
-  it.each(['local', 'ssh'])('opens %s history with one Turn and warms an adjacent range only after paint without replacing the tail', async location => {
+  it.each(['local', 'ssh'])('opens %s history with one Turn and shares the post-paint warm-up with older paging', async location => {
     const catalog = createTurnCatalog(100);
     const session = createSession({ sessionId: 'history-1', isHistorical: true, historyState: 'metadata-only',
       ...(location === 'ssh' ? { remoteConnectionId: 'ssh-host', remoteSshHost: 'host.example' } : {}),
@@ -6767,8 +6772,8 @@ describe('FlowChatStore historical session hydration state', () => {
     });
     apiMocks.loadSessionTurnWindow.mockResolvedValueOnce({
       status: 'ready', catalogRevision: catalog.revision, totalTurnCount: 100,
-      startOrdinal: 98, endOrdinalExclusive: 100, targetTurnId: 'turn-98',
-      turns: [98, 99].map(index => createPersistedTurn(index)),
+      startOrdinal: 94, endOrdinalExclusive: 99, targetTurnId: 'turn-98',
+      turns: [94, 95, 96, 97, 98].map(index => createPersistedTurn(index)),
     });
     flowChatStore.setState(() => ({ sessions: new Map([[session.sessionId, session]]), activeSessionId: session.sessionId }));
     await flowChatStore.loadSessionHistory(session.sessionId);
@@ -6777,9 +6782,13 @@ describe('FlowChatStore historical session hydration state', () => {
     const tail = flowChatStore.getState().sessions.get(session.sessionId)!.dialogTurns;
     expect(tail.map(turn => turn.id)).toEqual(['turn-99']);
     flowChatStore.releaseSessionHistoryCompletionAfterInitialPaint(session.sessionId);
+    await expect(flowChatStore.loadPreviousSessionTurnWindow(session.sessionId, 98)).resolves.toMatchObject({
+      status: 'ready',
+      range: { startOrdinal: 94, endOrdinalExclusive: 100 },
+    });
     await flushAsyncWork();
     expect(apiMocks.loadSessionTurnWindow).toHaveBeenCalledTimes(1);
-    expect(apiMocks.loadSessionTurnWindow).toHaveBeenCalledWith(expect.objectContaining({ targetStorageTurnIndex: 98, before: 0, after: 1 }));
+    expect(apiMocks.loadSessionTurnWindow).toHaveBeenCalledWith(expect.objectContaining({ targetStorageTurnIndex: 98, before: 12, after: 1 }));
     expect(flowChatStore.getState().sessions.get(session.sessionId)!.dialogTurns).toBe(tail);
     expect(flowChatStore.getSessionHistoryViewState(session.sessionId)?.activeRange).toBeNull();
     expect(flowChatStore.hasPendingSessionHistoryCompletion(session.sessionId)).toBe(false);
@@ -8257,8 +8266,11 @@ describe('FlowChatStore reconcile snapshot content safety', () => {
       .toBeCloseTo(expectedOutput / 4.25);
   });
 
-  it('repairs a settled local or Peer projection from the host tail', async () => {
+  it.each(['normal', 'miniapp', 'subagent'] as const)('repairs a settled %s projection from the host tail', async sessionKind => {
     await hydrateSessionWithContent();
+    flowChatStore.setState(prev => ({ sessions: new Map(prev.sessions).set('history-1', {
+      ...prev.sessions.get('history-1')!, sessionKind, agentBackedTransient: sessionKind === 'miniapp',
+    }) }));
     const completeContent = 'BitFun is an agentic IDE… with a complete persisted response.';
     flowChatStore.addModelRoundItem('history-1', 'turn-0', {
       id: 'plan-display-test',
@@ -8292,10 +8304,8 @@ describe('FlowChatStore reconcile snapshot content safety', () => {
     expect(apiMocks.restoreSessionView).toHaveBeenLastCalledWith(
       'history-1',
       '/repo/BitFun',
-      undefined,
-      undefined,
       'settled-turn-turn-0',
-      false,
+      sessionKind !== 'normal',
       1,
     );
     expect(
@@ -8849,9 +8859,9 @@ describe('FlowChatStore device surfaces', () => {
           expect(result.composerText).toBe('test2');
         }
         expect(turnIds(sessionId)).toEqual(['turn-0']);
-        expect(sessionToVirtualItems(flowChatStore.getState().sessions.get(sessionId)!))
+        expect(projectSession(flowChatStore.getState().sessions.get(sessionId)!))
           .toEqual(expect.arrayContaining([expect.objectContaining({ turnId: 'turn-0' })]));
-        expect(sessionToVirtualItems(flowChatStore.getState().sessions.get(sessionId)!)
+        expect(projectSession(flowChatStore.getState().sessions.get(sessionId)!)
           .some(item => item.turnId === 'turn-1' || item.turnId === 'turn-2')).toBe(false);
         expect(apiMocks.restoreSessionView).not.toHaveBeenCalled();
       },

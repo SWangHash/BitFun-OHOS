@@ -29,13 +29,15 @@ vi.mock('../../store/FlowChatStore', () => ({ flowChatStore: {
   releaseSessionHistoryCompletionAfterInitialPaint: () => false,
   extendSessionHistoryWindow: () => null,
   loadSessionTurnWindow: (...args: unknown[]) => fixture.loadTurnWindow(...args),
+  loadPreviousSessionTurnWindow: (...args: unknown[]) => fixture.loadTurnWindow(...args),
   activateSessionHistoryWindow: () => fixture.cached,
 } }));
 vi.mock('../../store/modernFlowChatStore', async importOriginal => {
   const original = await importOriginal<typeof import('../../store/modernFlowChatStore')>();
+  const projectSession = original.createSessionVirtualItemProjector();
   return { ...original,
     useActiveSession: () => fixture.session,
-    useVirtualItems: () => original.sessionToVirtualItems(fixture.session!),
+    useVirtualItems: () => projectSession(fixture.session!),
     useVisibleTurnInfo: () => null,
   };
 });

@@ -61,6 +61,42 @@
   .surface[data-size="xl"] { max-inline-size: var(--bitfun-overlay-dialog-max-inline-size-xlarge); }
   .surface[data-size="2xl"] { max-inline-size: var(--bitfun-overlay-dialog-max-inline-size-xxlarge); }
 
+  .anchoredOverlay {
+    display: contents;
+  }
+
+  .anchoredSurface {
+    inline-size: min(var(--bitfun-overlay-dialog-max-inline-size-small), calc(100vw - 2 * var(--bitfun-space-2)));
+    box-shadow: var(--bitfun-shadow-overlay);
+    transform-origin: top right;
+    animation: none;
+  }
+
+  .anchoredSurface[data-placement="top"] { transform-origin: bottom right; }
+
+  .anchoredSurface > .header {
+    padding: var(--bitfun-space-4) var(--bitfun-space-4) var(--bitfun-space-2);
+  }
+
+  .anchoredSurface > .body {
+    padding: 0 var(--bitfun-space-4) var(--bitfun-space-2);
+  }
+
+  .anchoredSurface > .footer {
+    padding: var(--bitfun-space-3) var(--bitfun-space-4) var(--bitfun-space-4);
+  }
+
+  /* A popover beside its trigger reads as a compact question, not a page title. */
+  .anchoredSurface > .header > .heading > .title {
+    font-family: var(--bitfun-type-heading-section-font-family);
+    font-size: var(--bitfun-type-heading-section-font-size);
+    font-weight: var(--bitfun-type-heading-section-font-weight);
+    line-height: var(--bitfun-line-height-snug);
+    letter-spacing: var(--bitfun-type-heading-section-letter-spacing);
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
   .surface[data-preset="panel"] {
     --_dialog-panel-title-gap: calc(var(--bitfun-overlay-dialog-header-padding-block-start) + var(--bitfun-space-4));
 

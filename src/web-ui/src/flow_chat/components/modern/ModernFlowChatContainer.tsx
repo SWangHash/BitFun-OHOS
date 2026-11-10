@@ -1,3 +1,4 @@
+import { captureConfirmationAnchor } from '@bitfun/ui';
 import { globalEventBus } from '@/infrastructure/event-bus';
 import { requireSessionOwningWorkspaceId } from '../../utils/sessionOrdering';
 /**
@@ -46,7 +47,7 @@ import { TRAJECTORY_NAVIGATE_EVENT, type TrajectoryPanelData, showTrajectoryRang
 import type { TrajectoryRangeSummary } from '../../trajectory/trajectoryRange';
 import { useTrajectoryNavigation } from '../../trajectory/useTrajectoryNavigation';
 import {
-  sessionToVirtualItems,
+  createSessionVirtualItemProjector,
   useVirtualItems,
   useActiveSession,
   useVisibleTurnInfo,
@@ -122,10 +123,9 @@ import {
   canRetainContinuousHistoryProjection,
 } from './continuousHistoryProjection';
 import {
-  canonicalSessionTurns,
   projectedSessionTurnCount,
-  resolveTurnOrdinal,
 } from '../../utils/flowChatTurnIdentity';
+import { createFlowChatTurnSummaryProjector, type FlowChatTurnSummary } from './flowChatTurnSummaries';
 import type { FlowChatViewportSnapshot } from './flowChatViewportSnapshot';
 import { peekConversationViewTransfer, registerConversationReader, takeConversationViewTransfer } from './flowChatViewHandoff';
 import { getSubmittedMessagePreviews, subscribeSubmittedMessagePreviews } from '../../services/submittedMessagePresentation';
@@ -150,12 +150,6 @@ interface ModernFlowChatContainerProps {
   onFileViewRequest?: (filePath: string, fileName: string, lineRange?: LineRange) => void;
   onTabOpen?: (tabInfo: any, sessionId?: string, panelType?: string) => void;
   onOpenVisualization?: (type: string, data: any) => void;
-}
-
-interface FlowChatTurnSummary {
-  turnId: string;
-  turnIndex: number;
-  storageTurnIndex?: number;
 }
 
 interface FlowChatHistoryPresentationState extends SessionHistoryPresentation {
@@ -321,6 +315,8 @@ export const ModernFlowChatContainer: React.FC<ModernFlowChatContainerProps> = (
   const { t } = useTranslation('flow-chat');
   const canonicalVirtualItems = useVirtualItems();
   const activeSession = useActiveSession();
+  const [projectContinuousHistory] = useState(createSessionVirtualItemProjector);
+  const [projectHistory] = useState(createSessionVirtualItemProjector);
   const surfaceScope = getActiveSurfaceScope();
   useLayoutEffect(() => activeSession?.sessionId
     ? flowChatStore.retainSessionHistory(activeSession.sessionId)
@@ -415,13 +411,14 @@ export const ModernFlowChatContainer: React.FC<ModernFlowChatContainerProps> = (
   }, [activeSession, canonicalizedHistoryPresentation]);
   const continuousHistoryVirtualItems = useMemo(() => {
     if (!activeSession || !continuousHistoryPresentation) {
+      projectContinuousHistory(null);
       return null;
     }
-    return sessionToVirtualItems({
+    return projectContinuousHistory({
       ...activeSession,
       dialogTurns: continuousHistoryPresentation.turns,
     });
-  }, [activeSession, continuousHistoryPresentation]);
+  }, [activeSession, continuousHistoryPresentation, projectContinuousHistory]);
   const continuousHistoryProjectionEligible = canRetainContinuousHistoryProjection(
     continuousHistoryPresentation,
     continuousHistoryVirtualItems?.length ?? Number.POSITIVE_INFINITY,
@@ -482,14 +479,16 @@ export const ModernFlowChatContainer: React.FC<ModernFlowChatContainerProps> = (
   const virtualItems = useMemo(() => {
     let items: VirtualItem[];
     if (!activeSession || !renderedHistoryPresentation) {
+      projectHistory(null);
       items = canonicalVirtualItems;
     } else if (
       isRenderingContinuousHistoryProjection
       && continuousHistoryVirtualItems
     ) {
+      projectHistory(null);
       items = continuousHistoryVirtualItems;
     } else {
-      items = sessionToVirtualItems({
+      items = projectHistory({
         ...activeSession,
         dialogTurns: renderedHistoryPresentation.turns,
       });
@@ -517,6 +516,7 @@ export const ModernFlowChatContainer: React.FC<ModernFlowChatContainerProps> = (
     isViewportDetachedFromLiveTail,
     renderedHistoryPresentation,
     submittedPreviews,
+    projectHistory,
   ]);
 
   const stickyTranscriptRef = useRef<{
@@ -1079,31 +1079,16 @@ export const ModernFlowChatContainer: React.FC<ModernFlowChatContainerProps> = (
     searchCurrentMatch,
   ]);
 
-  const turnSummaries = useMemo<FlowChatTurnSummary[]>(() => {
-    if (!activeSession) {
-      return [];
-    }
-    return canonicalSessionTurns(activeSession).map((turn, index) => ({
-        turnId: turn.id,
-        turnIndex: (resolveTurnOrdinal(activeSession, turn) ?? index) + 1,
-        storageTurnIndex: turn.storageTurnIndex ?? turn.backendTurnIndex,
-      }));
-  }, [activeSession]);
   const renderedTurns = useMemo(
     () => renderedHistoryPresentation
       ? renderedHistoryPresentation.turns
       : activeSession?.dialogTurns ?? [],
     [activeSession?.dialogTurns, renderedHistoryPresentation],
   );
-  const renderedTurnSummaries = useMemo<FlowChatTurnSummary[]>(() => {
-    return renderedTurns
-      .filter(turn => turn.userMessage?.metadata?.usageReportProvisional !== true)
-      .map((turn, index) => ({
-        turnId: turn.id,
-        turnIndex: index + 1,
-        storageTurnIndex: turn.storageTurnIndex ?? turn.backendTurnIndex,
-      }));
-  }, [renderedTurns]);
+  const [projectTurnSummaries] = useState(createFlowChatTurnSummaryProjector);
+  const { turnSummaries, renderedTurnSummaries, absoluteRenderedTurnSummaries } = projectTurnSummaries(
+    activeSession, renderedTurns, renderedHistoryPresentation?.range.startOrdinal,
+  );
   const activeTurnCatalog = activeSession?.turnCatalog;
   const turnCatalog = activeTurnCatalog?.sessionId === activeSession?.sessionId
     ? activeTurnCatalog
@@ -1111,24 +1096,6 @@ export const ModernFlowChatContainer: React.FC<ModernFlowChatContainerProps> = (
   const sessionTotalTurnCount = activeSession
     ? projectedSessionTurnCount(activeSession)
     : 0;
-  const absoluteRenderedTurnSummaries = useMemo<FlowChatTurnSummary[]>(() => {
-    if (renderedHistoryPresentation) {
-      return renderedTurnSummaries.map((turn, index) => ({
-        ...turn,
-        turnIndex: renderedHistoryPresentation.range.startOrdinal + index + 1,
-      }));
-    }
-    return renderedTurnSummaries.map(turn => ({
-      ...turn,
-      turnIndex: activeSession
-        ? (resolveTurnOrdinal(activeSession, turn.turnId) ?? turn.turnIndex - 1) + 1
-        : turn.turnIndex,
-    }));
-  }, [
-    activeSession,
-    renderedHistoryPresentation,
-    renderedTurnSummaries,
-  ]);
   const absoluteRenderedTurnSummaryById = useMemo(() => {
     return new Map(absoluteRenderedTurnSummaries.map(turn => [turn.turnId, turn]));
   }, [absoluteRenderedTurnSummaries]);
@@ -2202,11 +2169,13 @@ export const ModernFlowChatContainer: React.FC<ModernFlowChatContainerProps> = (
       setHistoryBoundaryState(previous => ({ ...previous, [direction]: 'loading' }));
       let viewportPreparationStarted = false;
       try {
-        const result = await flowChatStore.loadSessionTurnWindow(sessionId, targetOrdinal, {
-          source: 'prefetch',
-          before: direction === 'before' ? 12 : 4,
-          after: direction === 'after' ? 12 : 1,
-        });
+        const result = direction === 'before'
+          ? await flowChatStore.loadPreviousSessionTurnWindow(sessionId, targetOrdinal)
+          : await flowChatStore.loadSessionTurnWindow(sessionId, targetOrdinal, {
+            source: 'prefetch',
+            before: 4,
+            after: 12,
+          });
         if (!result.isCurrent || !isCurrent()) {
           recordHistoryPagingEvent(sessionId, 'outcome_cancelled', {
             direction,
@@ -2516,7 +2485,7 @@ export const ModernFlowChatContainer: React.FC<ModernFlowChatContainerProps> = (
     }
   }, [t]);
 
-  const handleDeleteSessionTreeSession = useCallback(async (selection: SessionTreeSelection) => {
+  const handleDeleteSessionTreeSession = useCallback(async (selection: SessionTreeSelection, anchor?: ReturnType<typeof captureConfirmationAnchor>) => {
     if (selection.isRoot) return false;
     if (activeSession && resolveSessionDriverId(activeSession.sessionId, activeSession) === 'dispatch') {
       notificationService.error(t('flowChatHeader.agentTreeDeleteUnsupported'), { duration: 5000 });
@@ -2527,7 +2496,7 @@ export const ModernFlowChatContainer: React.FC<ModernFlowChatContainerProps> = (
       const confirmed = await confirmDanger(
         t('flowChatHeader.agentTreeDelete'),
         t('flowChatHeader.agentTreeDeleteConfirm', { name: selection.displayTitle }),
-        { confirmText: t('flowChatHeader.agentTreeDelete') },
+        { anchor, confirmText: t('flowChatHeader.agentTreeDelete') },
       );
       if (!confirmed) return false;
       await deleteSessionTreeBranch({ sessionId: selection.sessionId, workspaceId: requireSessionOwningWorkspaceId(flowChatStore.getState().sessions.get(selection.sessionId) || activeSession!) }, scope);
@@ -2808,6 +2777,7 @@ export const ModernFlowChatContainer: React.FC<ModernFlowChatContainerProps> = (
                     key={surfaceScope.key('welcome', surfaceScope.epoch,
                       activeSession?.sessionId ?? '', activeSession?.draft?.workspaceId ?? '')}
                     session={activeSession}
+                    isActive={isViewportActive}
                     onQuickAction={(command) => {
                       window.dispatchEvent(new CustomEvent('fill-chat-input', {
                         detail: { message: command, sessionId: activeSession?.sessionId }

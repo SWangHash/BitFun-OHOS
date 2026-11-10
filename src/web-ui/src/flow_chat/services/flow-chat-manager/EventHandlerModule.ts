@@ -1,7 +1,9 @@
 import { desktopDomainErrorMessage } from '@/shared/ai-errors/desktopDomainErrors';
 import { i18nService } from '@/infrastructure/i18n';
 import { modelPoolAPI, supportsModelPools } from '@/infrastructure/api/service-api/ModelPoolAPI';
+import { isRuntimeSessionProjectionStale } from '@/infrastructure/peer-device/runtimeSessionEventGate';
 import { sessionWorkspaceId, sessionProjectWorkspacePath } from '../../utils/sessionWorkspace';
+import { shouldIncludeInternalSession } from '../../utils/internalSession';
 /**
  * Event handling module
  * Initializes event listeners and handles various Agentic events
@@ -313,6 +315,11 @@ function logDroppedDataEvent(
   turnId: string | null,
   details: Record<string, unknown>
 ): void {
+  // Missing UI state does not identify an internal background session. Preserve
+  // the first replay gap, then coalesce repeated drops until it materializes.
+  if (details.reason === 'missing_state_machine'
+    && !FlowChatStore.getInstance().getState().sessions.has(sessionId)
+    && isRuntimeSessionProjectionStale(getActiveSurfaceScope().surfaceId, sessionId)) return;
   requestRuntimeProjectionRepair(sessionId);
   log.debug('Dropped agentic data event', {
     eventName,
@@ -1800,7 +1807,7 @@ export function handleSessionHistoryChanged(context: FlowChatContext, event: any
     clearPromptSuggestion(sessionId);
     context.pendingHistoryFenceSessions.delete(sessionId);
     void context.flowChatStore.loadSessionHistory(sessionId, {
-      includeInternal: session.sessionKind === 'subagent',
+      includeInternal: shouldIncludeInternalSession(session),
     }).catch(error => {
       log.warn('Failed to reload changed session history', { sessionId, error });
     });
@@ -2576,7 +2583,7 @@ function handleModelRoundComplete(context: FlowChatContext, event: ModelRoundCom
     const selectionConfig = session.config;
     void modelPoolAPI.target({ sessionId, workspaceId: sessionWorkspaceId(session),
       workspacePath: sessionProjectWorkspacePath(session), remoteConnectionId: session.remoteConnectionId,
-      remoteSshHost: session.remoteSshHost, includeInternal: session.sessionKind === 'subagent' })
+      remoteSshHost: session.remoteSshHost, includeInternal: shouldIncludeInternalSession(session) })
       .then(target => {
         if (!scope.isCurrent() || store.getState().sessions.get(sessionId)?.config !== selectionConfig) return;
         if (target.selection.kind === 'pool') store.updateSessionModelPool(sessionId, target.selection.pool_id, target.binding);

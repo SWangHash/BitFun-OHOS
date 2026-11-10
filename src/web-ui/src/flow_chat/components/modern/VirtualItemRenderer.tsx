@@ -15,7 +15,7 @@ import { TurnCompletionNoticeItem } from './TurnCompletionNoticeItem';
 import { TurnFailureNoticeItem } from './TurnFailureNoticeItem';
 import { QtToolchainProvisionItem } from './QtToolchainProvisionItem';
 import './VirtualItemRenderer.scss';
-import { getVirtualItemStableKey } from './virtualItemIdentity';
+import { getVirtualItemBookmarkKey, getVirtualItemStableKey } from './virtualItemIdentity';
 import { useFlowChatSearchPresentation } from './useFlowChatSearchPresentation';
 import { useConversationExcerptMarkers } from '../../selection/ConversationExcerptMarkers';
 import { getKnownVirtualItemHeightPx } from './virtualItemHeightEstimators';
@@ -175,6 +175,7 @@ export const VirtualItemRenderer = React.memo<VirtualItemRendererProps>(
         data-turn-boundary-after={endsBeforeUserTurn ? 'true' : undefined}
         data-ambient-tool-run-continuation-after={continuesAmbientToolRunAfter ? 'true' : undefined}
         data-virtual-item-key={getVirtualItemStableKey(item)}
+        data-virtual-bookmark-key={getVirtualItemBookmarkKey(item)}
         data-virtual-index={index}
         data-markdown-section-start={item.timeline?.markdownSection?.start}
         data-item-index={index}

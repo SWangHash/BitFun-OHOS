@@ -406,17 +406,29 @@ const SceneBar: React.FC<SceneBarProps> = ({
           renderItem={(item, node) => {
             const tabId = item.value as SceneTabId;
             const tab = openTabs.find(candidate => candidate.id === tabId);
+            const resource = tab?.contentId ? resources[tab.contentId] : undefined;
+            const title = resource?.target.kind === 'file'
+              ? [resource.scope.surfaceId, resource.scope.remoteConnectionId, resource.target.path].filter(Boolean).join(' · ')
+              : undefined;
             const group = groupStarts.get(tabId);
-            const itemNode = <div className="bitfun-scene-bar__item" draggable
+            const itemNode = <div className="bitfun-scene-bar__item" draggable title={title}
               data-scene-tab-id={tabId}
               data-pending={pendingTabId === tabId || undefined}
               data-session-history-open={historyOpen && history?.tabId === tabId ? 'true' : undefined}
               data-canvas-drop-position={activeCanvasDrop?.target?.tabId === tabId ? activeCanvasDrop.target.placement : undefined}
-              onContextMenu={event => handleContextMenu(event, tabId)}
               onClick={event => {
+                if (event.target instanceof Element
+                  && event.target.closest('[data-scene-bar-part="closeTab"]')) return;
+                // Clicking a tab header also toggles its session history list.
                 const trigger = (event.target as Element).closest<HTMLElement>('[role="tab"]');
                 if (trigger) toggleHistory(tabId, trigger);
+                // TabGroup falls back to its first item when the controlled
+                // value is empty. In the shell idle state that fallback must
+                // not swallow clicks on a retained background tab.
+                if (selectedTabId !== null) return;
+                activateScene(tabId);
               }}
+              onContextMenu={event => handleContextMenu(event, tabId)}
               onKeyDown={event => {
                 if (event.key !== 'ArrowDown' || !hasSessionHistory(tab) || tabId !== activeTabId || pendingTabId) return;
                 const trigger = (event.target as Element).closest<HTMLElement>('[role="tab"]');

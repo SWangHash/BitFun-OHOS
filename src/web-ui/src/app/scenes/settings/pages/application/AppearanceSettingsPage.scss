@@ -70,6 +70,36 @@
   }
 }
 
+.sidebar-settings__available-page [data-bitfun-part='trailing-icon'] {
+  opacity: 1;
+  pointer-events: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .sidebar-settings__available-page [data-bitfun-part='trailing-icon'] {
+    inline-size: 0;
+    margin-inline-start: calc(0px - var(--bitfun-space-1));
+    overflow: hidden;
+    opacity: 0;
+    transition:
+      inline-size var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+      margin-inline-start var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard),
+      opacity var(--bitfun-motion-duration-fast) var(--bitfun-motion-easing-standard);
+  }
+
+  .sidebar-settings__available-page:is(:hover, :focus-visible):not(:disabled) [data-bitfun-part='trailing-icon'] {
+    inline-size: var(--bitfun-control-button-xs-trailing-icon-size);
+    margin-inline-start: 0;
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-settings__available-page [data-bitfun-part='trailing-icon'] {
+    transition: none;
+  }
+}
+
 .sidebar-settings__available {
   display: flex;
   flex-wrap: wrap;

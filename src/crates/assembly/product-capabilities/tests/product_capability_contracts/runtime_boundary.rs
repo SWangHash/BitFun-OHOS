@@ -90,6 +90,7 @@ fn headless_agent_hosts_keep_explore_code_agents_without_product_workflow_agents
 
         for product_agent in [
             "DeepResearch",
+            "PaperWriting",
             "ResearchSpecialist",
             "DeepReview",
             "CodeReview",
@@ -131,6 +132,12 @@ fn desktop_agent_hosts_register_harmony_feature_agent() {
         plan.agent_ids().contains(&"HarmonyFeature"),
         "desktop profile must register HarmonyFeature"
     );
+}
+
+#[test]
+fn paper_writing_agent_is_available_on_desktop() {
+    let plan = product_assembly_plan_for_profile(DeliveryProfile::Desktop);
+    assert!(plan.agent_ids().contains(&"PaperWriting"));
 }
 
 #[test]

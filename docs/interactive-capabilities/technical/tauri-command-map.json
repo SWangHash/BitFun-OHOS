@@ -2,12 +2,12 @@
   "schemaVersion": 2,
   "generatedFrom": "src/shared/interactive-capabilities/catalog.json",
   "catalogDigest": "49a5bc1a9461bf6b3609a13c7a722f2525baeb9f603211962a1eb692424303dd",
-  "commandCount": 750,
+  "commandCount": 753,
   "coverage": {
-    "commandCount": 750,
-    "documentedCommandCount": 649,
-    "implementationCommandCount": 101,
-    "implementationDigest": "63e6fd5b537bf0579b70be33bd49f2ce60e4e1a7196ea2b3d37412d9dec1398f"
+    "commandCount": 753,
+    "documentedCommandCount": 651,
+    "implementationCommandCount": 102,
+    "implementationDigest": "32d57b90ddb9cea9a08407d177f482f340feb136ac1e4bfd0f30882c97fbe5b1"
   },
   "commands": [
     {
@@ -1408,6 +1408,20 @@
       "rustPath": "api::agentic_api::compact_session",
       "sourceFile": "src/apps/desktop/src/api/agentic_api.rs",
       "signature": "fn compact_session( coordinator: State<'_, Arc<ConversationCoordinator>>, request: CompactSessionRequest, ) -> Result<CompactSessionResponse, String>",
+      "remoteWorkspacePolicy": "RemoteRouted"
+    },
+    {
+      "id": "compile_workspace_latex",
+      "moduleId": "latex",
+      "capabilityId": "feature.files-editor",
+      "capabilityIds": [
+        "feature.files-editor"
+      ],
+      "documentedItemIds": [],
+      "visibility": "implementation",
+      "rustPath": "api::latex_api::compile_workspace_latex",
+      "sourceFile": "src/apps/desktop/src/api/latex_api.rs",
+      "signature": "fn compile_workspace_latex( request: CompileWorkspaceLatexRequest, ) -> Result<CompileWorkspaceLatexResponse, String>",
       "remoteWorkspacePolicy": "RemoteRouted"
     },
     {
@@ -3991,7 +4005,7 @@
       "visibility": "documented",
       "rustPath": "get_mode_skill_configs",
       "sourceFile": "src/apps/desktop/src/api/skill_api.rs",
-      "signature": "fn get_mode_skill_configs( state: State<'_, AppState>, mode_id: String, force_refresh: Option<bool>, include_diagnostics: Option<bool>, workspace_id: Option<String>, workspace_path: Option<String>, ) -> Result<Value, String>",
+      "signature": "fn get_mode_skill_configs( state: State<'_, AppState>, mode_id: String, force_refresh: Option<bool>, include_diagnostics: Option<bool>, workspace_id: Option<String>, workspace_path: Option<String>, summary_mode_ids: Option<Vec<String>>, ) -> Result<Value, String>",
       "remoteWorkspacePolicy": "LegacyUnaudited"
     },
     {
@@ -5028,6 +5042,22 @@
       "rustPath": "git_get_status",
       "sourceFile": "src/apps/desktop/src/api/git_api.rs",
       "signature": "fn git_get_status( state: State<'_, AppState>, mut request: GitRepositoryRequest, ) -> Result<GitStatus, String>",
+      "remoteWorkspacePolicy": "RemoteRouted"
+    },
+    {
+      "id": "git_get_tracked_change_count",
+      "moduleId": "git",
+      "capabilityId": "feature.git",
+      "capabilityIds": [
+        "feature.git"
+      ],
+      "documentedItemIds": [
+        "feature.git:status-diff"
+      ],
+      "visibility": "documented",
+      "rustPath": "git_get_tracked_change_count",
+      "sourceFile": "src/apps/desktop/src/api/git_api.rs",
+      "signature": "fn git_get_tracked_change_count( state: State<'_, AppState>, request: GitTrackedChangeCountRequest, ) -> Result<Option<usize>, String>",
       "remoteWorkspacePolicy": "RemoteRouted"
     },
     {
@@ -7613,6 +7643,22 @@
       "sourceFile": "src/apps/desktop/src/api/acp_client_api.rs",
       "signature": "fn probe_acp_client_requirements( state: State<'_, AppState>, startup_trace: State<'_, DesktopStartupTrace>, request: ProbeAcpClientRequirementsRequest, ) -> Result<Vec<AcpClientRequirementProbe>, String>",
       "remoteWorkspacePolicy": "LegacyUnaudited"
+    },
+    {
+      "id": "probe_magpie_gateway",
+      "moduleId": "commands",
+      "capabilityId": "setting.ai.models",
+      "capabilityIds": [
+        "setting.ai.models"
+      ],
+      "documentedItemIds": [
+        "setting.ai.models:available-models"
+      ],
+      "visibility": "documented",
+      "rustPath": "probe_magpie_gateway",
+      "sourceFile": "src/apps/desktop/src/api/commands.rs",
+      "signature": "fn probe_magpie_gateway( state: State<'_, AppState>, request: bitfun_core_types::magpie::MagpieProbeRequest, ) -> Result<bitfun_core_types::magpie::MagpieProbeResult, String>",
+      "remoteWorkspacePolicy": "WorkspaceAgnostic"
     },
     {
       "id": "product_control_invoke",

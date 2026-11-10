@@ -6,12 +6,12 @@
 
 #![allow(dead_code)]
 
+use bitfun_agent_tools::computer_use_host::error::{BitFunError, BitFunResult};
 use core_graphics::event::{CGEvent, CGEventFlags, CGEventType, CGMouseButton, ScrollEventUnit};
 use core_graphics::event_source::{CGEventSource, CGEventSourceStateID};
 use core_graphics::geometry::CGPoint;
 use foreign_types::ForeignType;
 use log::{debug, info, warn};
-use bitfun_agent_tools::computer_use_host::error::{BitFunError, BitFunResult};
 use std::ffi::c_void;
 use std::thread;
 use std::time::{Duration, Instant};
@@ -151,11 +151,7 @@ fn flags_from(mods: &[BgModifier]) -> CGEventFlags {
 /// Build one complete chord before dispatch. Modifier flags describe the keys
 /// still held at each event, so releasing several modifiers cannot reintroduce
 /// a previously released key. Aliases must never produce duplicate presses.
-fn key_chord_events(
-    modifiers: &[BgModifier],
-    key: u16,
-    label: &str,
-) -> BitFunResult<Vec<CGEvent>> {
+fn key_chord_events(modifiers: &[BgModifier], key: u16, label: &str) -> BitFunResult<Vec<CGEvent>> {
     let mut unique = Vec::with_capacity(modifiers.len());
     for modifier in modifiers {
         if !unique.contains(modifier) {
@@ -165,9 +161,8 @@ fn key_chord_events(
     let source = private_source(label)?;
     let mut events = Vec::with_capacity(unique.len() * 2 + 2);
     let mut append = |keycode, down, flags| -> BitFunResult<()> {
-        let event = CGEvent::new_keyboard_event(source.clone(), keycode, down).map_err(|_| {
-            BitFunError::tool(format!("CGEvent chord creation failed ({label})"))
-        })?;
+        let event = CGEvent::new_keyboard_event(source.clone(), keycode, down)
+            .map_err(|_| BitFunError::tool(format!("CGEvent chord creation failed ({label})")))?;
         event.set_flags(flags);
         events.push(event);
         Ok(())
@@ -371,9 +366,8 @@ fn release_held_input(
     verify_input_identity(owner, identity(owner.pid))?;
     let event = match input {
         HeldInput::Key(code, _) => {
-            CGEvent::new_keyboard_event(private_source("cancel_release")?, code, false).map_err(
-                |_| BitFunError::tool("Cancellation keyboard release creation failed"),
-            )?
+            CGEvent::new_keyboard_event(private_source("cancel_release")?, code, false)
+                .map_err(|_| BitFunError::tool("Cancellation keyboard release creation failed"))?
         }
         HeldInput::Mouse {
             button,
@@ -443,14 +437,11 @@ fn post_directed(pid: i32, event: &CGEvent, authenticated: bool) -> BitFunResult
         verify_input_identity(*held_owner, Some(identity))?;
     }
     let window_id = super::macos_capture::bound_window_id(pid).map_err(|_| {
-        BitFunError::tool(
-            "[CONTROL_TARGET_CHANGED] The captured application window is unavailable",
-        )
+        BitFunError::tool("[CONTROL_TARGET_CHANGED] The captured application window is unavailable")
     })?;
     super::control_session::target_allowed(&format!("pid:{pid}/window:{window_id}"))
         .map_err(BitFunError::tool)?;
-    let bounds =
-        super::macos_capture::window_bounds(pid, window_id).map_err(BitFunError::tool)?;
+    let bounds = super::macos_capture::window_bounds(pid, window_id).map_err(BitFunError::tool)?;
     let [wx, wy, width, height] = bounds;
     if matches!(event.get_type(), CGEventType::ScrollWheel) {
         let point = super::control_session::snapshot()
@@ -479,6 +470,12 @@ fn post_directed(pid: i32, event: &CGEvent, authenticated: bool) -> BitFunResult
         event.post_to_pid(pid);
     }
     super::macos_capture::note_input(pid);
+    if matches!(
+        event.get_type(),
+        CGEventType::LeftMouseDown | CGEventType::RightMouseDown | CGEventType::OtherMouseDown
+    ) {
+        super::macos_input_focus::forget_web_text_focus();
+    }
     match event.get_type() {
         CGEventType::KeyDown | CGEventType::KeyUp | CGEventType::FlagsChanged => {
             record_keyboard_input(&mut held, owner, event, authenticated);
@@ -1003,9 +1000,8 @@ pub(super) fn bg_type_text(pid: i32, text: &str) -> BitFunResult<()> {
         ev.set_string_from_utf16_unchecked(&buf);
         post_keyboard(pid, &ev)?;
         // Match keyup so the target app sees a complete keystroke.
-        let ev2 = CGEvent::new_keyboard_event(src.clone(), 0, false).map_err(|_| {
-            BitFunError::tool("CGEventCreateKeyboardEvent (up) failed".to_string())
-        })?;
+        let ev2 = CGEvent::new_keyboard_event(src.clone(), 0, false)
+            .map_err(|_| BitFunError::tool("CGEventCreateKeyboardEvent (up) failed".to_string()))?;
         ev2.set_string_from_utf16_unchecked(&buf);
         post_keyboard(pid, &ev2)?;
         // Pace direct Unicode events so controls can process each scalar.
@@ -1026,6 +1022,9 @@ pub(super) fn bg_key_chord(pid: i32, modifiers: &[BgModifier], key: u16) -> BitF
         "bg_key_chord.enter pid={} keycode={} modifiers={:?}",
         pid, key, modifiers
     );
+    if !super::macos_input_focus::chord_keeps_text_focus(modifiers, key) {
+        super::macos_input_focus::forget_web_text_focus();
+    }
     for event in key_chord_events(modifiers, key, "key_chord")? {
         post_keyboard(pid, &event)?;
     }
@@ -1267,6 +1266,7 @@ pub(super) fn bg_key_chord_no_auth(
         "bg_key_chord_no_auth.enter pid={} keycode={} modifiers={:?}",
         pid, key, modifiers
     );
+    super::macos_input_focus::forget_web_text_focus();
     for event in key_chord_events(modifiers, key, "key_chord_no_auth")? {
         post_keyboard_no_auth(pid, &event)?;
     }
@@ -1397,9 +1397,8 @@ pub(super) fn parse_key_sequence(keys: &[String]) -> BitFunResult<(Vec<BgModifie
     let (last, head) = keys.split_last().unwrap();
     let mut mods = Vec::with_capacity(head.len());
     for p in head {
-        let m = BgModifier::from_str(p).ok_or_else(|| {
-            BitFunError::tool(format!("unknown modifier in key sequence: {}", p))
-        })?;
+        let m = BgModifier::from_str(p)
+            .ok_or_else(|| BitFunError::tool(format!("unknown modifier in key sequence: {}", p)))?;
         if !mods.contains(&m) {
             mods.push(m);
         }
@@ -1633,16 +1632,14 @@ pub(super) fn bg_type_text_terminal_safe(pid: i32, text: &str) -> BitFunResult<(
         } else {
             // Fallback to Unicode string for non-ASCII characters.
             let buf: Vec<u16> = ch.encode_utf16(&mut [0u16; 2]).to_vec();
-            let down = CGEvent::new_keyboard_event(src.clone(), 0, true).map_err(|_| {
-                BitFunError::tool("terminal type: unicode down failed".to_string())
-            })?;
+            let down = CGEvent::new_keyboard_event(src.clone(), 0, true)
+                .map_err(|_| BitFunError::tool("terminal type: unicode down failed".to_string()))?;
             down.set_string_from_utf16_unchecked(&buf);
             post_keyboard(pid, &down)?;
             thread::sleep(Duration::from_millis(8));
 
-            let up = CGEvent::new_keyboard_event(src.clone(), 0, false).map_err(|_| {
-                BitFunError::tool("terminal type: unicode up failed".to_string())
-            })?;
+            let up = CGEvent::new_keyboard_event(src.clone(), 0, false)
+                .map_err(|_| BitFunError::tool("terminal type: unicode up failed".to_string()))?;
             up.set_string_from_utf16_unchecked(&buf);
             post_keyboard(pid, &up)?;
             thread::sleep(Duration::from_millis(8));

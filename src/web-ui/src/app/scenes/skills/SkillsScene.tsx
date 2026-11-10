@@ -1,4 +1,4 @@
-import {
+import { captureConfirmationAnchor,
   Button,
   Checkbox,
   ConfirmDialog,
@@ -127,6 +127,7 @@ const SkillsScene: React.FC = () => {
 
   const [marketSettingsOpen, setMarketSettingsOpen] = useState(false);
   useEffect(() => { if (!desktopConfigAvailable) setMarketSettingsOpen(false); }, [desktopConfigAvailable]);
+  const [deleteAnchor, setDeleteAnchor] = useState<ReturnType<typeof captureConfirmationAnchor>>(undefined);
   const [deleteTarget, setDeleteTarget] = useState<SkillInfo | null>(null);
   const [installedSearch, setInstalledSearch] = useState('');
   const [groupSearch, setGroupSearch] = useState('');
@@ -271,14 +272,12 @@ const SkillsScene: React.FC = () => {
   }, [coverageSourceBySkillKey, installed.globallyDisabledSkillKeys, market.isRemoteWorkspace, t]);
 
   const refetchSkillsScene = useCallback(async () => {
-    // The skill market list is intentionally NOT refreshed here. Re-entry
-    // refresh previously flipped marketLoading, which replaced the existing
-    // list with a skeleton grid and produced the "whole page refreshes"
-    // regression. Installed skills and skill groups remain cheap to reload
-    // and continue to refresh on focus/visibility. The market keeps its own
-    // capability/search effect for first load and explicit search.
-    await Promise.all([installed.loadSkills(true), skillGroups.reload()]);
-  }, [installed, skillGroups]);
+    await Promise.all([
+      installed.loadSkills(true, { background: true }),
+      market.refresh({ background: true }),
+      skillGroups.reload(),
+    ]);
+  }, [installed, market, skillGroups]);
 
   useGallerySceneAutoRefresh({
     sceneId: 'skills',
@@ -1055,9 +1054,9 @@ const SkillsScene: React.FC = () => {
               variant="text"
               tone="danger"
               size="sm"
-              onClick={() => {
+              onClick={event => {
+                setDeleteAnchor(captureConfirmationAnchor(event.currentTarget));
                 setDeleteTarget(selectedInstalledSkill);
-                setSelectedDetail(null);
               }}
               leadingIcon={<Icon name="delete" size="sm" />}
             >
@@ -1129,6 +1128,7 @@ const SkillsScene: React.FC = () => {
       />
 
       <ConfirmDialog
+        anchor={deleteAnchor}
         open={desktopConfigAvailable && Boolean(deleteTarget)}
         onOpenChange={() => setDeleteTarget(null)}
         onConfirm={async () => {
@@ -1139,6 +1139,7 @@ const SkillsScene: React.FC = () => {
           const deleted = await installed.handleDelete(deleteTarget);
           if (deleted) {
             setDeleteTarget(null);
+            setSelectedDetail(null);
           }
         }}
         title={t('deleteModal.title')}

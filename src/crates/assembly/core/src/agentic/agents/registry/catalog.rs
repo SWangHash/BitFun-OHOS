@@ -4,9 +4,10 @@ use crate::agentic::agents::{
     harmony_goal_agent, harmony_spec_implementation_agent, harmony_spec_verify_agent, Agent,
     BitFunAgent, ClawMode, CodeReviewAgent, ComputerUseMode, CoworkMode, CreativeHarness,
     DeepResearchMode, DeepReviewAgent, ExploreAgent, GeneralPurposeAgent, HarmonyBuildMode,
-    HarmonyFeatureMode, HarmonyPlanAgent, HarmonyReleaseAuditMode, MinimalHarness, QtMigrationMode,
-    ResearchSpecialistAgent, ReviewFixerAgent, ReviewJudgeAgent, ReviewWorkerAgent,
-    StandardHarness, SwarmPlannerAgent, SwarmReviewerAgent, SwarmWorkerAgent, UltimateHarness,
+    HarmonyFeatureMode, HarmonyPlanAgent, HarmonyReleaseAuditMode, MinimalHarness,
+    PaperWritingAgent, QtMigrationMode, ResearchSpecialistAgent, ReviewFixerAgent,
+    ReviewJudgeAgent, ReviewWorkerAgent, StandardHarness, SwarmPlannerAgent, SwarmReviewerAgent,
+    SwarmWorkerAgent, UltimateHarness,
 };
 use crate::agentic::memories::MemoryPhase2Agent;
 use bitfun_agent_runtime::agents as runtime_agents;
@@ -54,6 +55,7 @@ fn builtin_agent_factory(id: &str) -> fn() -> Arc<dyn Agent> {
         "HarmonyBuild" => || Arc::new(HarmonyBuildMode::new()),
         "Claw" => || Arc::new(ClawMode::new()),
         "DeepResearch" => || Arc::new(DeepResearchMode::new()),
+        "PaperWriting" => || Arc::new(PaperWritingAgent),
         "Ultimate" => || Arc::new(UltimateHarness::new()),
         "HarmonyFeature" => || Arc::new(HarmonyFeatureMode::new()),
         "HarmonyReleaseAudit" => || Arc::new(HarmonyReleaseAuditMode),

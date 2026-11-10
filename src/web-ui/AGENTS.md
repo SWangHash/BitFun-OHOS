@@ -143,6 +143,15 @@ pnpm --dir src/web-ui run test:run src/app/scenes/agents/components/CreateAgentD
 These DOM fixtures cover local forms and simulated Peer surface switches;
 they do not establish native rendering or live remote behavior.
 
+For retained gallery refresh, empty snapshots, pagination and stale workspace/Peer reads:
+
+```bash
+pnpm --dir src/web-ui run test:run src/app/hooks/useGallerySceneAutoRefresh.test.tsx src/app/scenes/agents/hooks/useAgentsList.test.tsx src/app/scenes/skills/hooks/useInstalledSkills.test.tsx src/app/scenes/skills/hooks/useSkillMarket.test.tsx src/app/scenes/miniapps/views/MiniAppLibraryView.navigation.test.tsx src/app/scenes/personal-overview/usePersonalOverview.test.tsx
+```
+
+These hook and DOM fixtures exercise background updates and simulated surface
+activation; they do not establish native timing or live remote behavior.
+
 For startup logo handoff, welcome typing, reduced motion, and interrupted startup exits:
 
 ```bash
@@ -290,6 +299,18 @@ pnpm --dir src/web-ui run test:run src/flow_chat/hooks/useChatInputModeSync.test
 These state/hook fixtures cover delayed session loading and selected peer-surface
 replacement; they do not establish native rendering or live remote behavior.
 
+For internal MiniApp session visibility across composer permissions, selectors,
+history paging/settlement, and runtime restoration:
+
+```bash
+pnpm --dir src/web-ui run test:run src/flow_chat/utils/sessionPermissionMode.test.ts src/flow_chat/utils/modelSelectionTarget.test.ts src/app/scenes/miniapps/hooks/useMiniAppBridge.test.tsx
+pnpm --dir src/web-ui run test:run src/flow_chat/store/FlowChatStore.test.ts src/flow_chat/services/flow-chat-manager/SessionModule.test.ts src/flow_chat/services/flow-chat-manager/EventHandlerModule.test.ts src/flow_chat/services/inheritReviewPermissionMode.test.ts src/flow_chat/components/ModelSelectorProviderLevels.test.tsx src/flow_chat/hooks/useSessionModeSelection.test.tsx
+```
+
+These request/bridge/store fixtures cover restored topics, legacy path-only scopes,
+history repair, and simulated remote workspace/Peer identity. They do not establish native rendering or
+live SSH, Remote Control, Peer Device or Detached Dispatch behavior.
+
 For cross-device undo/redo/rollback history invalidation and settled-Turn fences,
 run `pnpm --dir src/web-ui run test:run src/flow_chat/services/flow-chat-manager/EventHandlerModule.test.ts`.
 Missing fence identities (including legacy payloads) must reload authoritative
@@ -397,6 +418,16 @@ establish visual or remote transport behavior):
 pnpm --dir src/web-ui run test:run src/shared/ui/OverlayStack.test.tsx src/shared/ui/OverlayOwnership.contract.test.ts src/shared/ui/Dialog.test.tsx src/shared/ui/MenuPopover.test.tsx src/infrastructure/appearance/runtime/AppearanceOverlayHost.test.ts src/shared/notification-system/components/NotificationContainer.test.tsx src/shared/context-menu-system/components/ui/ContextMenu.test.tsx
 ```
 
+For anchored confirmations, inline menu confirmation, pending-action guards and
+device-switch cancellation:
+
+```bash
+pnpm --dir src/web-ui run test:run src/shared/ui/ConfirmationInteraction.test.tsx src/infrastructure/confirm-dialog src/app/components/DesktopCard/DesktopCardWindow.test.tsx
+```
+
+These DOM fixtures exercise viewport placement, focus and simulated Peer surface
+changes; they do not establish native rendering or live remote behavior.
+
 For global-search source diagnostics, retry, portal ownership and layered Escape dismissal:
 
 ```bash
@@ -498,15 +529,20 @@ pnpm --dir src/web-ui run test:run src/infrastructure/workspace-icons/workspaceI
 
 These fixtures exercise DOM behavior and simulated device switching, not live remote hosts.
 
-For retained scene visibility, Todos display-clock suspension and immediate return
+For retained scene visibility, content render isolation, overview layout suspension,
+Todos display-clock suspension and immediate return
 catch-up (including midnight and document visibility), run:
 
 ```bash
-pnpm --dir src/web-ui run test:run src/app/scenes/SceneViewport.test.tsx src/app/scenes/todos/useTodoClock.test.tsx src/app/scenes/personal-overview/usePersonalOverview.test.tsx
+pnpm --dir src/web-ui run test:run src/app/scenes/SceneViewport.test.tsx src/app/scenes/todos/useTodoClock.test.tsx src/app/scenes/personal-overview/usePersonalOverview.test.tsx src/app/scenes/personal-overview/OverviewMiniAppLogos.test.tsx
 ```
 
 These local DOM fixtures do not establish native rendering or live remote behavior.
 The Todos display clock must not gate job subscriptions or scheduler execution.
+Retained scene content may skip unchanged deck renders, but must keep its own
+state/context subscriptions and receive activity/workspace changes. Suspend
+overview sizing observers while inactive and remeasure on reveal; do not change
+the scene host lifetime or transcript viewport ownership to save rendering work.
 For scene-readiness-only changes, run the SceneViewport test file alone. Readiness
 must follow the committed tree: a closed or Suspense-hidden tree cannot leave a
 ready id that reveals a newly suspended reopening. Native non-editor close/reopen

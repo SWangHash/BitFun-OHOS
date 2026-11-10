@@ -1911,6 +1911,7 @@ pub async fn _run() {
             test_ai_config_connection,
             test_image_generation_service,
             list_ai_models_by_config,
+            probe_magpie_gateway,
             list_subscription_accounts,
             list_subscription_account_instances,
             get_subscription_account_quota,
@@ -2098,6 +2099,7 @@ pub async fn _run() {
             review_platform_update_auth_token,
             review_platform_clear_auth_token,
             git_get_status,
+            git_get_tracked_change_count,
             git_get_branches,
             git_get_enhanced_branches,
             git_get_commits,
@@ -2443,6 +2445,7 @@ pub async fn _run() {
             api::html_preview_api::html_preview_create,
             api::html_preview_api::html_preview_read_resource,
             api::html_preview_api::html_preview_release,
+            api::latex_api::compile_workspace_latex,
             // Browser Control API (CDP-based user browser control)
             api::browser_control_api::browser_control_list_browsers,
             api::browser_control_api::browser_control_get_status,

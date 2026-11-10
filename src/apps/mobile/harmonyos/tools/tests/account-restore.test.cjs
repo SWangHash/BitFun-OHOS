@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const ts = require('typescript');
-const official = 'https://remote.bitfun.com/v/1.0.2';
+const official = 'https://remote.openbitfun.com/v/1.0.2';
 const source = fs.readFileSync(path.join(__dirname, '../../entry/src/main/ets/pages/viewmodel/SettingsController.ets'), 'utf8');
 const js = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText;
 const exported = {};
@@ -15,7 +15,7 @@ new Function('require', 'exports', js)(name => ({
 }[name] || {}), exported);
 
 test('an older relay credential retains its saved profile without claiming current authentication', async () => {
-  const record = { relayUrl: 'https://remote.bitfun.com/v/1.0.0', userId: 'user', username: 'saved-user', token: 'old-token' };
+  const record = { relayUrl: 'https://remote.openbitfun.com/v/1.0.0', userId: 'user', username: 'saved-user', token: 'old-token' };
   const state = {};
   let cleared = false;
   const controller = new exported.SettingsController({

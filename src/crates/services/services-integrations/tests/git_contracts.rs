@@ -170,10 +170,7 @@ fn git_diff_arg_builders_preserve_existing_command_contract() {
 async fn review_safe_workspace_diff_forces_rename_detection() {
     let repo_dir = TempRepoDir::new("review-workspace-rename");
     run_git(repo_dir.path(), &["init"]);
-    run_git(
-        repo_dir.path(),
-        &["config", "user.name", "BitFun Tests"],
-    );
+    run_git(repo_dir.path(), &["config", "user.name", "BitFun Tests"]);
     run_git(
         repo_dir.path(),
         &["config", "user.email", "tests@bitfun.dev"],
@@ -332,6 +329,70 @@ async fn git_checkout_success_survives_a_failed_branch_name_query() {
         assert_eq!(
             repository.head().unwrap().name().unwrap(),
             "refs/heads/feature/topic"
+        );
+    }
+}
+
+#[tokio::test]
+async fn tracked_change_count_excludes_untracked_and_counts_each_file_once() {
+    let repo_dir = TempRepoDir::new("tracked change count");
+    let root = repo_dir.path();
+    assert_eq!(
+        GitService::get_tracked_change_count(root).await.unwrap(),
+        None
+    );
+    #[cfg(all(unix, feature = "remote-ssh"))]
+    assert!(!run_remote_tracked_change_count(root).status.success());
+    run_git(root, &["init"]);
+    run_git(root, &["config", "user.name", "BitFun Tests"]);
+    run_git(root, &["config", "user.email", "tests@bitfun.dev"]);
+    fs::write(root.join("both.txt"), "base\n").unwrap();
+    fs::write(root.join("old.txt"), "rename me\n").unwrap();
+    run_git(root, &["add", "--", "both.txt", "old.txt"]);
+    assert_tracked_change_count(root, 2).await;
+    run_git(root, &["commit", "-m", "base"]);
+
+    fs::create_dir(root.join("untracked")).unwrap();
+    fs::write(root.join("untracked/file.txt"), "ignored by count\n").unwrap();
+    assert_tracked_change_count(root, 0).await;
+
+    fs::write(root.join("both.txt"), "staged\n").unwrap();
+    run_git(root, &["add", "--", "both.txt"]);
+    fs::write(root.join("both.txt"), "staged and unstaged\n").unwrap();
+    run_git(root, &["mv", "old.txt", "renamed.txt"]);
+    assert_tracked_change_count(root, 2).await;
+
+    let worktree = TempRepoDir::new("tracked-change-count-worktree");
+    run_git(
+        root,
+        &[
+            "worktree",
+            "add",
+            "--detach",
+            worktree.path().to_str().unwrap(),
+        ],
+    );
+    assert_tracked_change_count(worktree.path(), 0).await;
+    fs::remove_file(worktree.path().join("both.txt")).unwrap();
+    assert_tracked_change_count(worktree.path(), 1).await;
+}
+
+async fn assert_tracked_change_count(root: &std::path::Path, expected: usize) {
+    assert_eq!(
+        GitService::get_tracked_change_count(root).await.unwrap(),
+        Some(expected)
+    );
+    #[cfg(all(unix, feature = "remote-ssh"))]
+    {
+        let output = run_remote_tracked_change_count(root);
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert_eq!(
+            String::from_utf8_lossy(&output.stdout).trim(),
+            expected.to_string()
         );
     }
 }
@@ -548,14 +609,23 @@ async fn changed_files_uses_the_index_as_the_empty_base_before_the_first_commit(
     assert_eq!(files[0].status, GitChangedFileStatus::Added);
 }
 
+#[cfg(all(unix, feature = "remote-ssh"))]
+fn run_remote_tracked_change_count(root: &std::path::Path) -> std::process::Output {
+    let command =
+        bitfun_services_integrations::remote_ssh::build_remote_git_tracked_change_count_command(
+            &root.to_string_lossy(),
+        );
+    bitfun_services_core::process_manager::create_command("sh")
+        .args(["-c", &command])
+        .output()
+        .unwrap()
+}
+
 #[tokio::test]
 async fn workspace_diff_port_reports_staged_unstaged_and_untracked_changes() {
     let repo_dir = TempRepoDir::new("workspace-diff-port");
     run_git(repo_dir.path(), &["init"]);
-    run_git(
-        repo_dir.path(),
-        &["config", "user.name", "BitFun Tests"],
-    );
+    run_git(repo_dir.path(), &["config", "user.name", "BitFun Tests"]);
     run_git(
         repo_dir.path(),
         &["config", "user.email", "tests@bitfun.dev"],
@@ -606,10 +676,7 @@ async fn workspace_diff_port_reports_staged_unstaged_and_untracked_changes() {
 async fn workspace_diff_port_keeps_staged_changes_when_worktree_returns_to_head() {
     let repo_dir = TempRepoDir::new("workspace-diff-cancelled-worktree");
     run_git(repo_dir.path(), &["init"]);
-    run_git(
-        repo_dir.path(),
-        &["config", "user.name", "BitFun Tests"],
-    );
+    run_git(repo_dir.path(), &["config", "user.name", "BitFun Tests"]);
     run_git(
         repo_dir.path(),
         &["config", "user.email", "tests@bitfun.dev"],
@@ -669,10 +736,7 @@ async fn workspace_diff_port_keeps_staged_additions_deleted_from_the_worktree() 
 async fn workspace_diff_port_preserves_staged_delete_and_recreated_file_sources() {
     let repo_dir = TempRepoDir::new("workspace-diff-staged-delete-recreated");
     run_git(repo_dir.path(), &["init"]);
-    run_git(
-        repo_dir.path(),
-        &["config", "user.name", "BitFun Tests"],
-    );
+    run_git(repo_dir.path(), &["config", "user.name", "BitFun Tests"]);
     run_git(
         repo_dir.path(),
         &["config", "user.email", "tests@bitfun.dev"],
@@ -701,10 +765,7 @@ async fn workspace_diff_port_preserves_staged_delete_and_recreated_file_sources(
 async fn workspace_diff_port_marks_conflicts_without_projecting_an_incomplete_patch() {
     let repo_dir = TempRepoDir::new("workspace-diff-conflict");
     run_git(repo_dir.path(), &["init"]);
-    run_git(
-        repo_dir.path(),
-        &["config", "user.name", "BitFun Tests"],
-    );
+    run_git(repo_dir.path(), &["config", "user.name", "BitFun Tests"]);
     run_git(
         repo_dir.path(),
         &["config", "user.email", "tests@bitfun.dev"],
@@ -730,6 +791,7 @@ async fn workspace_diff_port_marks_conflicts_without_projecting_an_incomplete_pa
         .iter()
         .find(|file| file.path == "conflict.txt")
         .expect("conflicted file");
+    assert_tracked_change_count(repo_dir.path(), 1).await;
 
     assert_eq!(conflict.status, WorkspaceDiffFileStatus::Conflicted);
     assert!(matches!(
@@ -742,10 +804,7 @@ async fn workspace_diff_port_marks_conflicts_without_projecting_an_incomplete_pa
 async fn workspace_diff_port_scopes_parent_repository_paths_to_the_bound_workspace() {
     let repo_dir = TempRepoDir::new("workspace-diff-scope");
     run_git(repo_dir.path(), &["init"]);
-    run_git(
-        repo_dir.path(),
-        &["config", "user.name", "BitFun Tests"],
-    );
+    run_git(repo_dir.path(), &["config", "user.name", "BitFun Tests"]);
     run_git(
         repo_dir.path(),
         &["config", "user.email", "tests@bitfun.dev"],
@@ -902,10 +961,7 @@ fn git_status_json_preserves_conflict_contract() {
 async fn review_git_service_reads_exact_renamed_and_deleted_range_without_mutation() {
     let repo_dir = TempRepoDir::new("review-exact-range");
     run_git(repo_dir.path(), &["init"]);
-    run_git(
-        repo_dir.path(),
-        &["config", "user.name", "BitFun Tests"],
-    );
+    run_git(repo_dir.path(), &["config", "user.name", "BitFun Tests"]);
     run_git(
         repo_dir.path(),
         &["config", "user.email", "bitfun-tests@example.com"],
@@ -944,11 +1000,7 @@ async fn review_git_service_reads_exact_renamed_and_deleted_range_without_mutati
 
     run_git(
         repo_dir.path(),
-        &[
-            "config",
-            "diff.external",
-            "bitfun-review-should-not-run",
-        ],
+        &["config", "diff.external", "bitfun-review-should-not-run"],
     );
     run_git(
         repo_dir.path(),

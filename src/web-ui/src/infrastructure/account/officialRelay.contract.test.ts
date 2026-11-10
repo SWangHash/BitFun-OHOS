@@ -3,8 +3,9 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
   OFFICIAL_RELAY_URL,
-  isOfficialRelayEndpoint,
-} from '../../../../shared/relay-transport/OfficialRelay';
+  relayEndpointBase,
+  sameRelayDeployment,
+} from '../../../../shared/relay-transport/RelayEndpoint';
 
 function read(relativePath: string): string {
   return readFileSync(
@@ -27,14 +28,13 @@ describe('official Relay endpoint single source', () => {
     );
   });
 
-  it('accepts every versioned deployment on the official origin', () => {
+  it('treats every live alias of the official Relay as one deployment', () => {
     for (const value of [
       OFFICIAL_RELAY_URL,
-      'https://remote.openbitfun.com/v/1.0.1',
-      'https://remote.openbitfun.com/v/2.3.4',
-      'https://remote.openbitfun.com/v/2.3.4/',
+      'https://remote.openbitfun.com/v/1.0.2',
+      'https://remote.openbitfun.com/v/1.0.2/',
     ]) {
-      expect(isOfficialRelayEndpoint(value)).toBe(true);
+      expect(sameRelayDeployment(value, OFFICIAL_RELAY_URL)).toBe(true);
     }
   });
 
@@ -45,6 +45,7 @@ describe('official Relay endpoint single source', () => {
       '',
       'not a url',
       'http://remote.openbitfun.com/v/1.0.2',
+      'http://remote.openbitfun.com/relay',
       'https://remote.openbitfun.com/',
       'https://remote.openbitfun.com/v/1.0',
       'https://remote.openbitfun.com/v/1.0.2/relay',
@@ -55,7 +56,8 @@ describe('official Relay endpoint single source', () => {
       'https://remote.openbitfun.com@evil.test/v/1.0.2',
       'https://evil.test/v/1.0.2',
     ]) {
-      expect(isOfficialRelayEndpoint(value)).toBe(false);
+      expect(sameRelayDeployment(value, OFFICIAL_RELAY_URL)).toBe(false);
     }
+    expect(relayEndpointBase(OFFICIAL_RELAY_URL)).toBe('https://remote.openbitfun.com/relay');
   });
 });

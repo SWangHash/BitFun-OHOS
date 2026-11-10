@@ -117,6 +117,18 @@
     border-radius: var(--bitfun-overlay-menu-item-radius);
   }
 
+  .confirmation {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) var(--bitfun-border-width-default) minmax(0, 1fr);
+    align-items: center;
+  }
+  .confirmationButton { text-align: center; }
+  .confirmationDivider {
+    align-self: stretch;
+    margin-block: var(--bitfun-space-2);
+    background: var(--bitfun-color-border-subtle);
+  }
+
   .item > [data-bitfun-part="trigger"] {
     gap: var(--bitfun-overlay-menu-item-gap);
   }

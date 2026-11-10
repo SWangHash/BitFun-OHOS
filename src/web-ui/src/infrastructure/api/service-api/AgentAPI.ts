@@ -483,7 +483,7 @@ export interface ModelRoutingStatus {
   subagentModel?: string;
 }
 export type ModelRoutingStatusRequest = Partial<Pick<UpdateSessionModelRequest,
-  'sessionId' | 'workspaceId' | 'workspacePath' | 'remoteConnectionId' | 'remoteSshHost'>> & { probe?: boolean };
+  'sessionId' | 'workspaceId' | 'workspacePath' | 'remoteConnectionId' | 'remoteSshHost' | 'includeInternal'>> & { probe?: boolean };
 
 export interface UpdateSessionModelRequest {
   sessionId: string;
@@ -616,6 +616,8 @@ export interface ListBackgroundCommandActivitiesResponse {
 
  
 export interface ModeInfo {
+  /** Present when the host honored includeSubagentCounts. */
+  manageableSubagentCount?: number;
   id: string;
   name: string;
   description: string;
@@ -1767,11 +1769,14 @@ export class AgentAPI {
   
 
    
-  async getAvailableModes(request: { workspaceId?: string } = {}): Promise<ModeInfo[]> {
+  async getAvailableModes(request: { workspaceId?: string; includeSubagentCounts?: boolean } = {}): Promise<ModeInfo[]> {
     try {
       if (request.workspaceId !== undefined && !request.workspaceId.trim()) throw new Error('Workspace identity is unresolved');
       return translateAgentIdentityFields(await invokePrepared<ModeInfo[]>('get_available_modes', async () => ({
-        request: request.workspaceId !== undefined ? await workspaceIdRequest(request.workspaceId, 'workspacePath') : {},
+        request: {
+          ...(request.workspaceId !== undefined ? await workspaceIdRequest(request.workspaceId, 'workspacePath') : {}),
+          ...(request.includeSubagentCounts ? { includeSubagentCounts: true } : {}),
+        },
       })), 'canonical');
     } catch (error) {
       throw createTauriCommandError('get_available_modes', error);

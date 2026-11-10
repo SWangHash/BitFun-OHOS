@@ -226,6 +226,7 @@ fn builtin_agent_definition_catalog_preserves_order_categories_models_and_visibi
             "HarmonyBuild",
             "Claw",
             "DeepResearch",
+            "PaperWriting",
             "Ultimate",
             "HarmonyReleaseAudit",
             "HarmonyFeature",
@@ -349,6 +350,7 @@ fn builtin_agent_definition_catalog_preserves_order_categories_models_and_visibi
             Some("Creative"),
             Some("Claw"),
             Some("DeepResearch"),
+            Some("PaperWriting"),
             Some("SwarmWorker"),
             Some("SwarmReviewer"),
         ] {

@@ -114,6 +114,12 @@ pub fn builtin_agent_definition_specs() -> Vec<BuiltinAgentDefinitionSpec> {
             SubagentVisibilityPolicy::default(),
         ),
         builtin_agent_spec(
+            "PaperWriting",
+            Mode,
+            "primary",
+            SubagentVisibilityPolicy::default(),
+        ),
+        builtin_agent_spec(
             "Ultimate",
             Mode,
             "primary",
@@ -266,6 +272,7 @@ pub fn default_model_id_for_builtin_agent(agent_type: &str) -> &'static str {
         | "ComputerUse"
         | "Claw"
         | "DeepResearch"
+        | "PaperWriting"
         | "Ultimate"
         | "HarmonyFeature"
         | "QtMigration"

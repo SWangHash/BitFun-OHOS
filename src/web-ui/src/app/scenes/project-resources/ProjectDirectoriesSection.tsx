@@ -9,10 +9,10 @@ export function ProjectDirectoriesSection({ workspace, fileAccess, onBrowse, onM
   canReveal, onReveal, revealingPath, error }: {
   workspace: WorkspaceInfo;
   fileAccess: boolean;
-  onBrowse: () => void;
+  onBrowse: (directoryPath?: string) => void;
   onManage: () => void;
   onAdd: () => void;
-  onRemove: (path: string) => void;
+  onRemove: (path: string, trigger?: HTMLElement) => void;
   removingPath: string | null;
   canReveal: boolean;
   onReveal: (path: string) => void;
@@ -44,15 +44,16 @@ export function ProjectDirectoriesSection({ workspace, fileAccess, onBrowse, onM
       resetKey={JSON.stringify([workspace.id, ...directories.map(directory => directory.path)])}>
       {directories.map((directory, index) => <li className="project-resource-cards__cell" key={`${index}:${directory.path}`}>
         <ActionCard className="project-resource-cards__card" triggerClassName="project-resource-cards__trigger" actionPlacement="floating"
-            disabled={directory.primary ? !fileAccess : !!removingPath} onClick={directory.primary ? onBrowse : onManage}
-            aria-label={t(directory.primary ? 'directories.openDirectory' : 'directories.editDirectory', { name: directory.name })}
+            disabled={!fileAccess || (!directory.primary && !!removingPath)}
+            onClick={() => onBrowse(directory.primary ? undefined : directory.path)}
+            aria-label={t('directories.openDirectory', { name: directory.name })}
             actions={[{ id: 'reveal', label: t('directories.revealDirectory', { name: directory.name }),
               tooltip: t(canReveal ? 'directories.reveal' : 'directories.revealUnavailable'),
               icon: <Icon glyph={FolderOpen} size="sm" />, disabled: !canReveal || !!revealingPath || !!removingPath,
               loading: revealingPath === directory.path, onClick: () => onReveal(directory.path) },
               ...(directory.primary ? [] : [{ id: 'remove', label: t('directories.removeDirectory', { name: directory.name }),
               icon: <Icon name="delete" size="sm" />, tone: 'danger', 'aria-haspopup': 'dialog',
-              disabled: !!removingPath, loading: removingPath === directory.path, onClick: () => onRemove(directory.path) } satisfies ActionCardAction])]}
+              disabled: !!removingPath, loading: removingPath === directory.path, onClick: event => onRemove(directory.path, event.currentTarget) } satisfies ActionCardAction])]}
             body={<>
             <span className="project-resource-cards__icon" aria-hidden="true"><Icon name="folder" size="lg" /></span>
             <span className="project-resource-cards__copy">

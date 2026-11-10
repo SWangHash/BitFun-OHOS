@@ -221,7 +221,7 @@ extension MobileAppModel {
         let previousAuthorizationURL = accountAuthorizationURL
         accountAuthorizationURL = (state as? AccountUiStateAuthorizing).flatMap { authorization in
             guard var components = URLComponents(string: authorization.authorizationUrl) else { return nil }
-            if components.scheme == "https", components.host == "auth.bitfun.com" {
+            if components.scheme == "https", components.host == "auth.openbitfun.com" {
                 var items = (components.queryItems ?? []).filter { $0.name != "locale" }
                 items.append(URLQueryItem(name: "locale", value: appLanguage.rawValue))
                 items.append(URLQueryItem(name: "returnTo", value: "bitfun://auth/callback"))

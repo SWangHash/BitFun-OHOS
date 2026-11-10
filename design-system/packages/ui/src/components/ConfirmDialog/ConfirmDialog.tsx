@@ -24,12 +24,14 @@ import {
   type DialogCloseReason,
 } from "../Dialog";
 import styles from "./ConfirmDialog.module.css";
+import type { ConfirmationAnchor } from "../../internal/confirmationAnchor";
 
 export type ConfirmDialogCloseReason = DialogCloseReason | "cancel-button";
 export type ConfirmDialogType = "info" | "warning" | "error" | "success";
 export type ConfirmDialogAction = () => void | Promise<void>;
 
 export interface ConfirmDialogProps {
+  anchor?: ConfirmationAnchor;
   cancelText?: ReactNode;
   closeOnEscape?: boolean;
   closeOnPointerOutside?: boolean;
@@ -55,6 +57,8 @@ export interface ConfirmDialogProps {
   type?: ConfirmDialogType;
 }
 
+const ANCHORED_TITLE_LINES = 3;
+
 const defaultIcons: Record<ConfirmDialogType, ReactNode> = {
   error: <Icon glyph={AlertCircle} />,
   info: <Icon name="info" />,
@@ -64,6 +68,7 @@ const defaultIcons: Record<ConfirmDialogType, ReactNode> = {
 
 export const ConfirmDialog = forwardRef<HTMLDivElement, ConfirmDialogProps>(
   function ConfirmDialog({
+    anchor,
     cancelText,
     closeOnEscape = true,
     closeOnPointerOutside = true,
@@ -91,6 +96,7 @@ export const ConfirmDialog = forwardRef<HTMLDivElement, ConfirmDialogProps>(
     const confirmButtonRef = useRef<HTMLButtonElement>(null);
     const cancelButtonRef = useRef<HTMLButtonElement>(null);
     const secondaryButtonRef = useRef<HTMLButtonElement>(null);
+    const pendingRef = useRef(false);
     const mountedRef = useRef(true);
     const [internalPendingAction, setInternalPendingAction] = useState<"confirm" | "secondary" | null>(null);
     // A controlled null owns the state: it must not lose to a stale internal
@@ -107,9 +113,13 @@ export const ConfirmDialog = forwardRef<HTMLDivElement, ConfirmDialogProps>(
     const secondaryAtStart = hasSecondary && secondaryActionPlacement === "start";
     const resolvedCancelText = cancelText ?? designSystem.messages.confirmCancel;
     const resolvedConfirmText = confirmText ?? designSystem.messages.confirmAction;
+    // Anchored confirmations are compact popovers beside their trigger.
+    const anchored = Boolean(anchor);
+    const buttonSize = anchored ? "sm" : undefined;
 
-    useEffect(() => () => {
-      mountedRef.current = false;
+    useEffect(() => {
+      mountedRef.current = true;
+      return () => { mountedRef.current = false; };
     }, []);
 
     useEffect(() => {
@@ -120,7 +130,8 @@ export const ConfirmDialog = forwardRef<HTMLDivElement, ConfirmDialogProps>(
       actionName: "confirm" | "secondary",
       action: ConfirmDialogAction | undefined,
     ) => {
-      if (!action || busy) return;
+      if (!action || busy || pendingRef.current) return;
+      pendingRef.current = true;
       try {
         const result = action();
         if (result && typeof result.then === "function") {
@@ -130,6 +141,7 @@ export const ConfirmDialog = forwardRef<HTMLDivElement, ConfirmDialogProps>(
       } catch (error) {
         onActionError?.(error, actionName);
       } finally {
+        pendingRef.current = false;
         if (mountedRef.current) setInternalPendingAction(null);
       }
     }, [busy, onActionError]);
@@ -140,7 +152,7 @@ export const ConfirmDialog = forwardRef<HTMLDivElement, ConfirmDialogProps>(
     }, [busy, onOpenChange]);
 
     const cancelButton = showCancel ? (
-      <Button disabled={busy} onClick={() => requestClose("cancel-button")} ref={cancelButtonRef} variant="fill">
+      <Button ref={cancelButtonRef} disabled={busy} onClick={() => requestClose("cancel-button")} size={buttonSize} variant="fill">
         {resolvedCancelText}
       </Button>
     ) : null;
@@ -151,6 +163,7 @@ export const ConfirmDialog = forwardRef<HTMLDivElement, ConfirmDialogProps>(
         loading={pendingAction === "secondary"}
         onClick={() => void runAction("secondary", onSecondary)}
         ref={secondaryButtonRef}
+        size={buttonSize}
         variant={secondaryAtStart ? "text" : "outline"}
       >
         {secondaryText}
@@ -164,6 +177,7 @@ export const ConfirmDialog = forwardRef<HTMLDivElement, ConfirmDialogProps>(
             loading={pendingAction === "confirm"}
             onClick={() => void runAction("confirm", onConfirm)}
             ref={confirmButtonRef}
+            size={buttonSize}
             tone={confirmDanger || type === "error" ? "danger" : "neutral"}
             variant="primary"
           >
@@ -177,7 +191,11 @@ export const ConfirmDialog = forwardRef<HTMLDivElement, ConfirmDialogProps>(
     // hidden — including mid-life, when a failed action removes it from an
     // open dialog — the first remaining action takes over so the dialog never
     // loses its focus anchor.
-    const initialFocusRef = showConfirm
+    //
+    // An anchored confirmation replaces an in-place menu action, so it opens on
+    // Cancel instead: a destructive confirm must not sit under the pointer and
+    // keyboard the moment the confirmation appears.
+    const initialFocusRef = showConfirm && !anchored
       ? confirmButtonRef
       : showCancel ? cancelButtonRef : secondaryButtonRef;
 
@@ -197,6 +215,7 @@ export const ConfirmDialog = forwardRef<HTMLDivElement, ConfirmDialogProps>(
 
     return (
       <Dialog
+        anchor={anchor}
         closeOnEscape={!busy && closeOnEscape}
         closeOnPointerOutside={!busy && closeOnPointerOutside}
         data-testid={testId}
@@ -209,7 +228,7 @@ export const ConfirmDialog = forwardRef<HTMLDivElement, ConfirmDialogProps>(
       >
         <DialogHeader>
           <DialogHeading>
-            <DialogTitle>{title}</DialogTitle>
+            <DialogTitle lines={anchored ? ANCHORED_TITLE_LINES : undefined}>{title}</DialogTitle>
           </DialogHeading>
           {showCloseButton ? <DialogClose disabled={busy} /> : null}
         </DialogHeader>

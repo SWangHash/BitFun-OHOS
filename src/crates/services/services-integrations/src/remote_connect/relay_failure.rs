@@ -187,7 +187,11 @@ mod tests {
             "relay_session_history_retired",
             "This relay does not store session history; update BitFun on every device to continue.",
         ] {
-            assert_eq!(classify_relay_failure(message), RelayFailureKind::ClientOutdated, "{message}");
+            assert_eq!(
+                classify_relay_failure(message),
+                RelayFailureKind::ClientOutdated,
+                "{message}"
+            );
         }
     }
 
@@ -244,9 +248,17 @@ mod tests {
     #[test]
     fn the_configured_endpoint_of_another_official_release_counts_as_retired() {
         assert_eq!(classify_relay_endpoint(DEFAULT_RELAY_URL), None);
-        let older = DEFAULT_RELAY_URL.replace("/v/1.0.2", "/v/1.0.1");
+        // `/v/1.0.2` and `/relay` are live aliases of one deployment; any other
+        // `/v/<release>` path belongs to a retired deployment.
+        for live in [
+            "https://remote.openbitfun.com/relay",
+            "https://remote.openbitfun.com/v/1.0.2",
+        ] {
+            assert_eq!(classify_relay_endpoint(live), None, "{live}");
+        }
+        let older = "https://remote.openbitfun.com/v/1.0.1";
         assert_eq!(
-            classify_relay_endpoint(&older),
+            classify_relay_endpoint(older),
             Some(RelayFailureKind::RelayVersionRetired)
         );
         assert_eq!(classify_relay_endpoint("https://example.com/relay"), None);
