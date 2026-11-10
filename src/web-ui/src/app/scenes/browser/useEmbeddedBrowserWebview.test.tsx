@@ -752,6 +752,32 @@ it('rejects adoption without an exact native page identity', async () => {
   expect(showCount()).toBe(0);
 });
 
+it.each(['https://www.bitfun.work/docs.html', 'https://www.bitfun.work/Changelog.html'])(
+  'opens a help page in a manual session tab through its native command adapter: %s', async url => {
+    const label = 'embedded-browser-panel-view-manual-help';
+    let created = false;
+    mocks.invoke.mockImplementation(async command => {
+      if (command === 'browser_get_url') {
+        if (!created) throw webviewNotFound(label);
+        return url;
+      }
+      if (command === 'browser_webview_create') created = true;
+    });
+    await act(async () => root.render(<Harness active manual targetId={label} options={{ initialUrl: url }} />));
+    expect(browser.error).toBeNull();
+    expect(browser.currentUrl).toBe(url);
+    expect(showCount(label)).toBe(1);
+    expect(invokeCount('browser_webview_create')).toBe(1);
+    await act(async () => root.render(null));
+    await act(async () => root.render(<Harness active manual targetId={label} options={{ initialUrl: url }} />));
+    expect(browser.error).toBeNull();
+    expect(showCount(label)).toBe(2);
+    expect(invokeCount('browser_webview_create')).toBe(1);
+    expect(invokeCount('browser_webview_navigate')).toBe(0);
+    expect(closeCount()).toBe(0);
+  },
+);
+
 it('adopts a blank automation page before its first navigation without creating another page', async () => {
   const label = 'embedded-browser-panel-view-agent-blank';
   await act(async () => root.render(<Harness active options={{

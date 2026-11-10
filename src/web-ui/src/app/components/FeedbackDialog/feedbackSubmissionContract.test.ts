@@ -13,6 +13,7 @@ describe('OpenHarmony feedback submission contract', () => {
     expect(footer).toContain("systemInfo.platform === 'openharmony'");
     expect(footer).toContain('setShowFeedback(true)');
     expect(footer).toContain("systemAPI.openExternal('https://gitcode.com/OpenBitFun/bitfun_ade/issues')");
+    expect(footer).not.toContain('VITE_BITFUN_FEEDBACK_FORM_URL');
   });
 
   it('shows unread attention only for conversations that can be opened and acknowledged', () => {
@@ -136,6 +137,8 @@ describe('OpenHarmony feedback submission contract', () => {
     expect(styles).toContain('height: auto;');
     expect(completeStyles).not.toContain('min-height:');
     expect(completeStyles).not.toContain('flex: 1;');
+    expect(completeStyles).toContain('color: var(--bitfun-color-status-success-content)');
+    expect(completeStyles).not.toContain('color: var(--bf-appearance-token-color-success)');
   });
 
   it('makes the active view and session-correlation hierarchy explicit', () => {

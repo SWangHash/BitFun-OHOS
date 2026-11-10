@@ -20,7 +20,7 @@ const { outputText } = ts.transpileModule(serviceSource, {
   compilerOptions: { module: ts.ModuleKind.CommonJS },
 });
 
-function serviceHost(setBounds, onCreate = () => {}, runJavaScript = async () => '') {
+function serviceHost(setBounds, onCreate = () => {}, runJavaScript = async () => '', pageEvents = []) {
   const exports = {};
   const helper = {
     loadUrl() {},
@@ -39,7 +39,10 @@ function serviceHost(setBounds, onCreate = () => {}, runJavaScript = async () =>
   global.AppStorage = { get: () => controller };
   const modules = {
     '@kit.PerformanceAnalysisKit': { hilog: { info() {}, warn() {} } },
-    'libbitfun_desktop_lib.so': { default: { emitBrowserPageLoad() {} } },
+    'libbitfun_desktop_lib.so': { default: {
+      emitBrowserPageLoad: (...args) => pageEvents.push(args),
+      emitBrowserPageError: (...args) => pageEvents.push([args[0], 'failed', args[1], args[2]]),
+    } },
     '@ohos-rs/ability': {},
   };
   new Function('require', 'exports', outputText)(name => modules[name], exports);
@@ -102,6 +105,56 @@ test('script evaluation returns native results and failures to the caller', { ti
     const response = JSON.parse(await service.eval({ label: 'browser', script }));
     assert.match(response.error, /Controller is not attached/);
   }
+});
+
+test('a failed main document stays failed through onPageEnd and recovers on the next navigation', async () => {
+  let data;
+  const events = [];
+  const service = serviceHost(() => true, created => { data = created; }, undefined, events);
+  const url = 'https://www.bitfun.work/docs.html';
+  await service.create({ label: 'browser', url, x: 0, y: 0, width: 200, height: 100 });
+  data.onPageBegin(url);
+  data.onPageError(url, 'ERR_CERT_DATE_INVALID');
+  data.onPageEnd(url);
+  assert.deepEqual(events, [
+    ['browser', 'started', url],
+    ['browser', 'failed', url, 'ERR_CERT_DATE_INVALID'],
+  ]);
+  data.onPageBegin('https://example.test');
+  data.onPageEnd('https://example.test');
+  assert.deepEqual(events.slice(-2), [
+    ['browser', 'started', 'https://example.test'],
+    ['browser', 'finished', 'https://example.test'],
+  ]);
+});
+
+test('ArkWeb rejects invalid TLS and forwards only main document failures', () => {
+  const builderSource = webviewSource.match(/@Builder\s+(function WebBuilder[\s\S]*?)\nconst webViewWrap/)[1];
+  const builderJs = ts.transpileModule(builderSource, {
+    compilerOptions: { module: ts.ModuleKind.CommonJS },
+  }).outputText;
+  const callbacks = {};
+  const attributes = new Proxy({}, { get: (_, name) => value => {
+    if (typeof value === 'function') callbacks[name] = value;
+    return attributes;
+  } });
+  const build = new Function('Web', 'WebDarkMode', 'Visibility', 'SslError', `${builderJs}\nreturn WebBuilder;`)(
+    () => attributes, { Auto: 'auto' }, { Hidden: 'hidden', Visible: 'visible' }, { DateInvalid: 2 },
+  );
+  const errors = [];
+  let canceled = 0;
+  build({ onPageError: (...args) => errors.push(args) });
+  const ssl = { handler: { handleCancel: () => canceled++ }, error: 2, url: 'https://example.test', isMainFrame: true };
+  callbacks.onSslErrorEvent(ssl);
+  callbacks.onSslErrorEvent({ ...ssl, isMainFrame: false });
+  assert.equal(canceled, 2);
+  assert.deepEqual(errors, [['https://example.test', 'TLS certificate date is invalid (ERR_CERT_DATE_INVALID)']]);
+  const resource = { request: { isMainFrame: () => false, getRequestUrl: () => 'https://example.test/image' },
+    error: { getErrorInfo: () => 'Connection failed' } };
+  callbacks.onErrorReceive(resource);
+  assert.equal(errors.length, 1);
+  callbacks.onErrorReceive({ ...resource, request: { ...resource.request, isMainFrame: () => true } });
+  assert.deepEqual(errors.at(-1), ['https://example.test/image', 'Connection failed']);
 });
 
 test('bounds updates report whether the ArkUI node accepted the rectangle', async () => {

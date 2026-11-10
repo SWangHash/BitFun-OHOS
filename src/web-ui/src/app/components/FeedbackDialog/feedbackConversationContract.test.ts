@@ -137,6 +137,7 @@ describe('feedback conversation contract', () => {
     const dialog = readSource('./FeedbackDialog.tsx');
 
     expect(conversation).toContain('disabled={sending}');
+    expect(conversation).toContain('readOnly={sending}');
     expect(conversation).toContain("pendingAction={sending ? 'confirm' : null}");
     expect(dialog).toContain("setPendingReplyExit({ kind: 'close' })");
     expect(dialog).toContain("t('feedback.reply.discardConfirm')");
@@ -173,6 +174,7 @@ describe('feedback conversation contract', () => {
     expect(conversation).toContain('const replyInputRef = useRef<HTMLTextAreaElement>(null)');
     expect(conversation).toContain('ref={replyInputRef}');
     expect(conversation).toContain('focusReplyInput();');
+    expect(conversation).toContain('useLayoutEffect(() => {');
     expect(conversation).toContain('focusDraftVersionRef.current === focusDraftVersion');
     expect(dialog).toContain('setReplyFocusVersion(current => current + 1)');
     expect(dialog).toContain('focusDraftVersion={replyFocusVersion}');

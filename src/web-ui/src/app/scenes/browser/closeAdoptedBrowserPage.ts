@@ -7,8 +7,10 @@ let apiModule: Promise<typeof import('@/infrastructure/api/service-api/ApiClient
 
 /** Explicit resource/tab removal owns native close; presentation unmount only hides. */
 export function closeAdoptedBrowserPage(content: PanelContent, surfaceId = content.metadata?.resourceScope?.surfaceId ?? getActiveSurfaceId()): void {
-  if (content.type !== 'browser' || content.data?.adoptExisting !== true) return;
-  const label = content.data.webviewLabel;
+  if (content.type !== 'browser') return;
+  const label = content.data?.adoptExisting === true
+    ? content.data.webviewLabel
+    : content.data?.targetId;
   if (typeof label !== 'string' || !label) return;
   // Never use a label from an inactive peer on the controller or another host.
   if (surfaceId !== getActiveSurfaceId()) {
@@ -24,7 +26,7 @@ export function closeAdoptedBrowserPage(content: PanelContent, surfaceId = conte
 
 /** Reopening an explicitly closed page creates a new page, not a dead native handle. */
 export function closedBrowserContent(content: PanelContent): PanelContent {
-  if (content.type !== 'browser' || content.data?.adoptExisting !== true) return content;
-  const { webviewLabel: _label, automationId: _automation, adoptExisting: _adopt, openRequestId: _request, ...data } = content.data;
+  if (content.type !== 'browser' || (!content.data?.adoptExisting && !content.data?.targetId)) return content;
+  const { targetId: _target, webviewLabel: _label, automationId: _automation, adoptExisting: _adopt, openRequestId: _request, ...data } = content.data;
   return { ...content, data };
 }

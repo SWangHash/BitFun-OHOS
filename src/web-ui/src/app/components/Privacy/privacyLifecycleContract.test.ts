@@ -62,7 +62,6 @@ describe('OpenHarmony privacy lifecycle contract', () => {
     const privacy = readSource('../../../../../crates/services/services-integrations/src/privacy/mod.rs');
     const capabilitySources = [
       'agentic_api.rs',
-      'announcement_api.rs',
       'btw_api.rs',
       'commands.rs',
       'editor_ai_api.rs',
@@ -86,7 +85,7 @@ describe('OpenHarmony privacy lifecycle contract', () => {
   it('keeps calendar delegation and update checks out of the startup path', () => {
     const entryAbility = readSource('../../../../../apps/ohos/entry/src/main/ets/entryability/EntryAbility.ets');
     const startup = entryAbility.slice(
-      entryAbility.indexOf('onWindowStageCreate'),
+      entryAbility.indexOf('async onWindowStageCreate('),
       entryAbility.indexOf("registerArktsFunction('check_app_update_ohos'"),
     );
     const calendar = entryAbility.slice(
@@ -97,7 +96,33 @@ describe('OpenHarmony privacy lifecycle contract', () => {
     expect(startup).not.toContain('requestPermissionsFromUser');
     expect(startup).not.toContain('this.appUpdater.check');
     expect(calendar).toContain('createMeetingEvent(arg)');
-    expect(entryAbility).not.toContain('requestPermissionsFromUser');
+    // File export may request Download-directory access after a user action.
+    // Keep the privacy contract scoped to startup and calendar delegation.
+    expect(startup).not.toContain('ensureDownloadDirPermission(');
+    expect(calendar).not.toContain('requestPermissionsFromUser');
+  });
+
+  it('keeps the OHOS telemetry authorizer, privacy transitions and runtime injection connected', () => {
+    const desktop = readSource('../../../../../apps/desktop/src/lib.rs');
+    const privacy = readSource('../../../../../apps/desktop/src/api/privacy_api.rs');
+    const controller = readSource('../../../../../apps/desktop/src/api/telemetry_api.rs');
+    const authorizer = readSource('../../../../../apps/desktop/src/api/ohos/telemetry_authorizer.rs');
+    const startup = desktop.slice(
+      desktop.indexOf('let privacy_service_state = {'),
+      desktop.indexOf('let startup_observation ='),
+    );
+    expect(startup).toContain('FeedbackService::from_environment_with_shared_auth(');
+    expect(startup).toContain('TelemetryEndpointLayout::BitFunIngressV1');
+    expect(startup).toContain('TelemetryRuntimeHandle::new_with_authorizer(');
+    expect(startup).toContain('anonymous_auth.set_telemetry(runtime.telemetry())');
+    expect(startup).toContain('telemetry_controller.reconcile(initial_privacy_allowed)');
+    expect(desktop).toContain('init_agentic_system(telemetry_runtime.telemetry()).await');
+    expect(authorizer).toContain('.access_token("otel:write", force_refresh)');
+    expect(privacy).toContain('telemetry.reconcile(state.collection_allowed())');
+    expect(privacy).toContain('telemetry.reconcile(true)');
+    expect(privacy).toContain('telemetry.disable()');
+    expect(controller).toContain('CONSENTED_TELEMETRY_LEVEL: TelemetryLevel = TelemetryLevel::Diagnostic');
+    expect(controller).toContain('self.runtime.cancel_and_discard()');
   });
 
   it('initializes privacy state silently for management and collection policy', () => {

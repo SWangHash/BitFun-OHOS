@@ -53,6 +53,7 @@ export interface WebviewInitData {
   onTitleChange?: (title: string) => void;
   onPageBegin?: (url: string) => void;
   onPageEnd?: (url: string) => void;
+  onPageError?: (url: string, error: string) => void;
   contentLoaded?: boolean;
 }
 
@@ -523,6 +524,22 @@ function WebBuilder(data: WebviewNodeData) {
       if (typeof data?.onPageBegin === "function") {
         const url = event?.url ?? "";
         data.onPageBegin(url);
+      }
+    })
+    .onErrorReceive((event) => {
+      if (event?.request.isMainFrame() && typeof data.onPageError === "function") {
+        data.onPageError(event.request.getRequestUrl(), event.error.getErrorInfo());
+      }
+    })
+    .onSslErrorEvent((event) => {
+      // Keep ArkWeb's certificate rejection policy. Report the main document
+      // failure instead of leaving the browser panel on its URL placeholder.
+      event.handler.handleCancel();
+      if (event.isMainFrame && typeof data.onPageError === "function") {
+        const error = event.error === SslError.DateInvalid
+          ? 'TLS certificate date is invalid (ERR_CERT_DATE_INVALID)'
+          : `TLS certificate validation failed (SSL error ${event.error})`;
+        data.onPageError(event.url, error);
       }
     })
     .onPageEnd((event) => {

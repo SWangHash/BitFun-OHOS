@@ -8,6 +8,7 @@ export declare function setDesktopPetEnabled(enabled: boolean): boolean;
 export declare function notifySystemColorMode(mode: string): void;
 export declare function notifyMainWindowCloseRequested(): void;
 export declare function emitBrowserPageLoad(label: string, event: string, url: string): void;
+export declare function emitBrowserPageError(label: string, url: string, error: string): void;
 export declare function emitSpeechTranscription(sessionId: string, text: string, isFinal: boolean): void;
 export declare function miniappWindowCall(request: string): string;
 export declare function miniappWindowResult(requestId: string): string;

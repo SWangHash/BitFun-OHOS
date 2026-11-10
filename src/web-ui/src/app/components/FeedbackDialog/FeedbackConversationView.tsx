@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { LockKeyhole, RefreshCw, Send } from 'lucide-react';
 import { Button, ConfirmDialog, IconButton, Textarea } from '@bitfun/ui';
 import { usePrivacy } from '@/app/components/Privacy/PrivacyContext';
@@ -58,6 +58,7 @@ export const FeedbackConversationView: React.FC<FeedbackConversationViewProps> =
   const [showPrivacy, setShowPrivacy] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const replyInputRef = useRef<HTMLTextAreaElement>(null);
+  const [replyFocusRequest, setReplyFocusRequest] = useState(0);
   const focusDraftVersionRef = useRef(focusDraftVersion);
   const nativePasteTruncatedRef = useRef(false);
   const { armRejectedInsertionCaret, restoreRejectedInsertionCaret } = useRejectedInsertionCaret();
@@ -80,11 +81,19 @@ export const FeedbackConversationView: React.FC<FeedbackConversationViewProps> =
   const canReply = Boolean(draft.trim()) && !sending && record.status !== 'resolved';
 
   const focusReplyInput = useCallback(() => {
-    requestAnimationFrame(() => {
-      const input = replyInputRef.current;
-      if (mountedRef.current && input && !input.disabled) input.focus();
-    });
+    setReplyFocusRequest(current => current + 1);
   }, []);
+
+  useLayoutEffect(() => {
+    if (!replyFocusRequest || sending || showConsent || showPrivacy) return;
+    // Schedule after React commits the editable state. A frame queued directly
+    // after setSending(false) can run while ArkWeb still sees a disabled input.
+    const frame = requestAnimationFrame(() => {
+      const input = replyInputRef.current;
+      if (mountedRef.current && input?.isConnected && !input.readOnly) input.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [replyFocusRequest, sending, showConsent, showPrivacy]);
 
   useEffect(() => {
     onInteractionStateChange({ hasDraft: Boolean(draft.trim()), sending });
@@ -295,6 +304,10 @@ export const FeedbackConversationView: React.FC<FeedbackConversationViewProps> =
   };
 
   const handleReplyKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (sending) {
+      if (event.key === 'Enter') event.preventDefault();
+      return;
+    }
     if (
       !event.ctrlKey
       && !event.metaKey
@@ -361,6 +374,7 @@ export const FeedbackConversationView: React.FC<FeedbackConversationViewProps> =
   };
 
   const handleDraftChange = (textarea: HTMLTextAreaElement) => {
+    if (sending) return;
     const value = textarea.value;
     if (/^\s/.test(value) && value.replace(/^\s+/, '') === draft) {
       document.execCommand('undo');
@@ -378,6 +392,10 @@ export const FeedbackConversationView: React.FC<FeedbackConversationViewProps> =
   };
 
   const handleDraftPaste = (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    if (sending) {
+      event.preventDefault();
+      return;
+    }
     const textarea = event.currentTarget;
     const insertedText = event.clipboardData.getData('text/plain');
     const plan = planFeedbackPaste(
@@ -414,6 +432,10 @@ export const FeedbackConversationView: React.FC<FeedbackConversationViewProps> =
   };
 
   const handleDraftBeforeInput = (event: React.FormEvent<HTMLTextAreaElement>) => {
+    if (sending) {
+      event.preventDefault();
+      return;
+    }
     const nativeEvent = event.nativeEvent as InputEvent;
     const textarea = event.currentTarget;
     if (
@@ -590,7 +612,8 @@ export const FeedbackConversationView: React.FC<FeedbackConversationViewProps> =
             value={draft}
             maxLength={draftNativeMaxLength}
             rows={3}
-            disabled={sending}
+            readOnly={sending}
+            aria-busy={sending || undefined}
             aria-label={t('feedback.reply.input')}
             placeholder={t('feedback.reply.placeholder')}
             onKeyDown={handleReplyKeyDown}

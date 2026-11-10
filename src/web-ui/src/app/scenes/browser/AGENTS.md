@@ -4,6 +4,9 @@ Native child-view visibility combines the controller window state, active panel,
 toolbar transitions, and floating-surface occlusion. Keep native window event
 subscriptions in the infrastructure adapter and share them across cached panels.
 Do not use window focus alone as visibility: an unfocused window can remain visible.
+On OHOS, use ArkWeb document visibility for the host lifecycle. Tauri's window
+metadata exists there, but its window plugin rejects visibility/minimized queries
+on mobile targets; treating that metadata as desktop API support hides every page.
 
 For preview scheduling and native visibility changes, run:
 

@@ -248,7 +248,7 @@ impl ControlHubTool {
     #[cfg(target_env = "ohos")]
     fn builtin_disconnected_error() -> BitFunError {
         coded_tool_error(ErrorCode::NotAvailable,
-            "Built-in Browser Control was disconnected by the user in Settings. Reconnect it in Settings before controlling built-in pages again.")
+            "Built-in Browser Control was disconnected in Settings. Call browser.connect when the user next requests browser control before continuing with built-in pages.")
     }
 
     #[cfg(target_env = "ohos")]
@@ -1027,7 +1027,7 @@ impl ControlHubTool {
             let _ = (kind, port);
             return vec![
                 "OHOS defaults to BitFun's built-in ArkWeb through the app-local abstract CDP socket.".to_string(),
-                "Selecting Haitai in Settings uses its local TCP CDP endpoint; if that connection is unavailable, BitFun falls back to the built-in ArkWeb and updates the preference.".to_string(),
+                "Selecting Haitai in Settings uses its local TCP CDP endpoint; if unavailable, BitFun reports a per-request fallback to the built-in ArkWeb while preserving the selected preference.".to_string(),
                 "After connecting, use browser.tab_new or browser.connect { url } with the task URL, then browser.snapshot/click/fill to drive the page through CDP.".to_string(),
             ];
         }
@@ -1273,17 +1273,17 @@ Use this tool via `{ domain, action, params }` for browser automation, terminal 
 
 ### domain: "browser"  (shared browser automation)
 - Target selection:
-  * `params.target: "builtin" | "external"` selects BitFun's native built-in WebView or an external CDP browser. Existing calls default to `external`; a built-in `session_id` also selects `builtin` automatically.
+  * `params.target: "builtin" | "external"` selects BitFun's native built-in WebView or an external CDP browser. On OHOS, an existing ArkWeb page is the implicit default when `target` is omitted; a built-in `session_id` also selects `builtin` automatically.
   * Portable actions use one `BrowserActions` implementation on both targets, with the same parameters, @eN refs, results, and errors. The browser engine is the adapter, not a second action stack.
 - Default URL-opening policy:
   * If the user only asks to open/show BitFun's browser surface and provides no URL, use `BitFunControl` with `{ action: "open", capability_id: "feature.browser" }`. Do not invent `about:blank` or another URL.
   * For requests that only open, show, preview, or view a URL, use `open_builtin`. This is the default browser-opening action and keeps the page inside BitFun.
   * `open_builtin { url, title?, replace_existing? }` requires a real http(s) URL/domain, waits for the exact native WebView to become controllable, and returns its built-in `session_id`; the Agent can immediately snapshot/read/interact with it using `target: "builtin"`.
 - Shared workflow: `connect { target, target_url?, target_title? }` -> navigate -> snapshot (returns @e1, @e2 ... refs) -> click/fill with `{ target, selector: "@e1" }`. URL/title matching and exact `session_id` selection work on both targets; take a fresh snapshot after DOM mutations.
-- Automation modes (external browser):
-  * `connect { mode: "default" }` (default) — on Chrome 144+ and current Edge, request a user-approved connection to the currently running real profile so existing tabs and login state are preserved. Other supported Chromium browsers also reuse the real profile when it publishes DevToolsActivePort; otherwise BitFun starts or attaches its persistent managed profile on port 9222.
-  * `connect { mode: "headless" }` — attach to an already-running headless browser on the headless test port 9223. This mode never starts a browser; when nothing is listening it returns `NOT_AVAILABLE` together with the exact launch command.
-  * `params.port` overrides the CDP port for `connect` and for every other CDP action; after `connect`, actions reuse the connected session's port automatically.
+- Automation modes:
+  * `connect { mode: "default" }` follows the Settings preference on demand. Built-in ArkWeb uses BitFun's app-local abstract CDP socket. Haitai is the only external browser provider on OHOS and starts or attaches through the native host using local TCP CDP.
+  * `connect { mode: "headless" }` is unavailable on OHOS. Chrome/Edge executables and desktop ComputerUse providers are not needed for ArkWeb or Haitai browser control.
+  * `params.port` selects the external Haitai TCP port. Built-in ArkWeb accepts neither port nor user_data_dir; follow-up actions keep the connected target's transport.
 - Target-specific extensions:
   * Raw `cdp`, network/console/error tracing, native file-input injection, backend node ids, and true full-page capture require `target: "external"`. They return `NOT_AVAILABLE` on the built-in WebView instead of silently pretending to work.
 - Actions: open_builtin, connect, tab_new, navigate, back, forward, reload, snapshot, click, hover, fill, type, check, uncheck, select, press_key, scroll, auto_scroll, wait, get, get_text, get_url, get_title, get_html, screenshot, evaluate, fetch, cookies, set_cookies, set_file_input_files, cdp, network, console, errors, trace, dialog, read_article, close, list_pages, tab_query, switch_page, list_sessions.
@@ -1441,21 +1441,29 @@ Results: `{ok, domain, action, data? , error?: {code, message, hints}}`. Check o
     ) -> BitFunResult<Vec<ToolResult>> {
         match action {
             "capabilities" => {
-                // `terminal` (TerminalApi) is delivered through a global
-                // registry rather than a field on the context, so we can't be
-                // 100% sure here without round-tripping. We report "likely
-                // available iff a desktop host is present" because that bridge
-                // only exists in BitFun's desktop runtime; the actual call will
-                // surface a clean error if the bridge is offline.
-                let likely_terminal_available = context.computer_use_host.is_some();
-                let browser_default = browser_sessions().default_id().await;
-                let browser_session_count = browser_sessions().list().await.len();
+                let is_remote = context.is_remote();
+                let likely_terminal_available =
+                    !is_remote && crate::service::terminal::TerminalApi::from_singleton().is_ok();
+                let external_sessions = if is_remote {
+                    Vec::new()
+                } else {
+                    browser_sessions().list_for_port(DEFAULT_CDP_PORT).await
+                };
+                let browser_default = browser_sessions()
+                    .default_id()
+                    .await
+                    .filter(|id| external_sessions.contains(id));
+                let browser_session_count = external_sessions.len();
                 #[cfg(target_env = "ohos")]
-                let builtin_host_available = arkweb_browser_host_available();
+                let builtin_host_available = !is_remote && arkweb_browser_host_available();
                 #[cfg(not(target_env = "ohos"))]
                 let builtin_host_available = builtin_browser_host_available();
                 #[cfg(target_env = "ohos")]
-                let builtin_targets = list_arkweb_automation_targets();
+                let builtin_targets = if builtin_host_available {
+                    list_arkweb_automation_targets()
+                } else {
+                    Vec::new()
+                };
                 #[cfg(not(target_env = "ohos"))]
                 let builtin_targets = if builtin_host_available {
                     list_builtin_browser_targets().await.unwrap_or_default()
@@ -1464,11 +1472,12 @@ Results: `{ok, domain, action, data? , error?: {code, message, hints}}`. Check o
                 };
                 let builtin_target_count = builtin_targets.len();
                 #[cfg(target_env = "ohos")]
-                let builtin_default =
-                    default_arkweb_automation_target().map(|target| target.target_id);
+                let builtin_default = default_arkweb_automation_target()
+                    .filter(|_| builtin_host_available)
+                    .map(|target| target.target_id);
                 #[cfg(not(target_env = "ohos"))]
                 let builtin_default = default_builtin_browser_target_id();
-                let os = std::env::consts::OS;
+                let os = "openharmony";
                 let arch = std::env::consts::ARCH;
 
                 // Probe which browser the host considers default. We surface
@@ -1496,7 +1505,6 @@ Results: `{ok, domain, action, data? , error?: {code, message, hints}}`. Check o
                     local_system.desktop_environment,
                 );
 
-                let is_remote = context.is_remote();
                 let workspace_execution = if is_remote {
                     json!({
                         "is_remote": true,
@@ -1512,7 +1520,7 @@ Results: `{ok, domain, action, data? , error?: {code, message, hints}}`. Check o
                 let body = json!({
                     "domains": {
                         "browser":  {
-                            "available": true,
+                            "available": !is_remote,
                             "shared_actions": SHARED_BROWSER_ACTIONS,
                             "targets": {
                                 "builtin": {
@@ -1524,7 +1532,7 @@ Results: `{ok, domain, action, data? , error?: {code, message, hints}}`. Check o
                                     "readiness": "host_correlated_target",
                                 },
                                 "external": {
-                                    "available": true,
+                                    "available": !is_remote,
                                     "action_contract": "shared",
                                     "default_session_id": browser_default,
                                     "session_count": browser_session_count,
@@ -1534,7 +1542,7 @@ Results: `{ok, domain, action, data? , error?: {code, message, hints}}`. Check o
                                     "capture_extensions": ["full_page_screenshot", "backend_node_ids"],
                                 },
                             },
-                            "default_target": "external",
+                            "default_target": if browser_default.is_some() { "external" } else if builtin_host_available { "builtin" } else { "external" },
                             "shared_action_contract": true,
                         },
                         "terminal": { "available": likely_terminal_available, "reason": if likely_terminal_available { Value::Null } else { json!("TerminalApi is only available in contexts that registered it") } },
@@ -1554,7 +1562,7 @@ Results: `{ok, domain, action, data? , error?: {code, message, hints}}`. Check o
                         } else if is_remote {
                             json!("Not available in remote workspace sessions")
                         } else {
-                            json!("Computer Use is disabled (ai.computer_use_enabled = false) or no desktop host is present")
+                            json!("Native ComputerUse is unavailable on this OHOS host. ArkWeb and Haitai browser control are independent; this does not mean that the device has no GUI.")
                         },
                     },
                     "schema_version": "1.5",
@@ -2331,9 +2339,10 @@ Results: `{ok, domain, action, data? , error?: {code, message, hints}}`. Check o
             .as_ref()
             .map(|session| session.backend.is_builtin_arkweb())
             .unwrap_or(false);
-        // A new connect without an exact target follows the current preference;
+        // A new connect/navigation without an exact target follows the preference;
         // previous ArkWeb tabs must not override a newly selected Haitai browser.
-        let requested_backend = if action == "connect" && !target_was_explicit {
+        let requested_backend = if matches!(action, "connect" | "navigate") && !target_was_explicit
+        {
             match Self::configured_browser_connect_backend(params).await {
                 Ok(backend) => Some(backend),
                 Err(error) => return Ok(err_response("browser", action, error)),
@@ -2424,6 +2433,76 @@ Results: `{ok, domain, action, data? , error?: {code, message, hints}}`. Check o
                 object.remove("browser_target");
             }
             return Self::connect_builtin_arkweb("open_builtin", &arkweb_params, context).await;
+        }
+
+        // The shared schema advertises navigate as a first browser operation.
+        // OHOS must select or create the ArkWeb page before running it too.
+        if action == "navigate" && use_builtin_backend {
+            // A caller cannot turn an invalid built-in transport request into
+            // success by letting navigation strip its port/profile settings.
+            if params.get("observe").is_some_and(|value| {
+                !matches!(value.as_str(), Some("none" | "snapshot" | "article"))
+            }) {
+                return Ok(err_response(
+                    "browser",
+                    action,
+                    ControlHubError::new(
+                        ErrorCode::InvalidParams,
+                        "observe must be 'none', 'snapshot', or 'article'.",
+                    ),
+                ));
+            }
+            let raw_url = params.get("url").and_then(Value::as_str).unwrap_or("");
+            let url = match Self::normalize_builtin_browser_url(
+                raw_url,
+                Self::computer_use_available(context).await,
+            ) {
+                Ok(url) => url,
+                Err(error) => return Ok(err_response("browser", action, error)),
+            };
+            let mut connect_params = params.clone();
+            connect_params["url"] = json!(url);
+            let mut results =
+                Self::connect_builtin_arkweb("connect", &connect_params, context).await?;
+            for result in &mut results {
+                if let ToolResult::Result {
+                    data,
+                    result_for_assistant,
+                    ..
+                } = result
+                {
+                    let Some(id) = data.get("session_id").and_then(Value::as_str) else {
+                        continue;
+                    };
+                    let session = Self::resolve_browser_session(Some(id)).await?;
+                    let actions = BrowserActions::new(session.client.as_ref());
+                    data["url"] = json!(url);
+                    let observation = match params.get("observe").and_then(Value::as_str) {
+                        Some("snapshot") => Some(actions.snapshot().await),
+                        Some("article") => Some(actions.read_article().await),
+                        _ => None,
+                    };
+                    if let Some(observation) = observation {
+                        match observation {
+                            Ok(observation) => {
+                                *result_for_assistant = Some(format!(
+                                    "{}\n{}",
+                                    result_for_assistant
+                                        .as_deref()
+                                        .unwrap_or("Navigated in ArkWeb"),
+                                    browser_observation_summary(&observation)
+                                ));
+                                data["observation"] = observation;
+                            }
+                            Err(error) => {
+                                data["observation_error"] =
+                                    map_dispatch_error("browser", action, error).to_value();
+                            }
+                        }
+                    }
+                }
+            }
+            return Ok(results);
         }
 
         match action {
@@ -3831,37 +3910,10 @@ Results: `{ok, domain, action, data? , error?: {code, message, hints}}`. Check o
             }
 
             _ => {
-                // Resolve a target adapter, then run every portable operation
-                // through the one shared BrowserActions implementation.
-                let target = if use_desktop_builtin_host {
-                    match connect_builtin_browser(session_id_param.as_deref()).await {
-                        Ok(client) => ResolvedBrowserTarget::BuiltIn(client),
-                        Err(error) => {
-                            let code = if session_id_param.is_some() {
-                                ErrorCode::WrongTab
-                            } else {
-                                ErrorCode::NotAvailable
-                            };
-                            return Ok(err_response(
-                                "browser",
-                                action,
-                                ControlHubError::new(code, error.to_string()).with_hints([
-                                    "Call browser.list_pages with target='builtin' to inspect current built-in pages",
-                                    "Open a page with browser.open_builtin first, then retry with target='builtin'",
-                                ]),
-                            ));
-                        }
-                    }
-                } else {
-                    ResolvedBrowserTarget::External(
-                        browser_sessions().get(session_id_param.as_deref()).await?,
-                    )
-                };
-                let actions = BrowserActions::new(target.client());
-                // Resolve a session: explicit `session_id` if present, else
-                // the registry's default. This replaces the prior "global
-                // singleton" pattern that was racy across concurrent tasks.
+                // Reattach the exact ArkWeb target before requiring a live
+                // connection. A preliminary registry.get skips recovery.
                 let session = Self::resolve_browser_session(session_id_param.as_deref()).await?;
+                let target = ResolvedBrowserTarget::External(session.clone());
                 let actions = BrowserActions::new(session.client.as_ref());
 
                 match action {
@@ -7089,6 +7141,9 @@ impl Tool for ControlHubTool {
     ) -> BitFunResult<String> {
         let mut base = Self::description_text();
         if !context.is_some_and(ToolUseContext::is_remote) {
+            #[cfg(target_env = "ohos")]
+            base.push_str("\n\nOHOS browser control is independent of ComputerUse and Linux display-server variables. Use browser.connect to attach on demand to the Settings preference: built-in ArkWeb uses the app-local abstract socket; Haitai is the only supported external browser and uses local TCP CDP. Chrome/Edge installation and a native ComputerUse provider are not required. A failed connection is a browser/host error, not evidence that this device has no GUI.");
+            #[cfg(not(target_env = "ohos"))]
             if let Some(kind) = CdpClient::authorized_browser_kind(DEFAULT_CDP_PORT).await {
                 base.push_str(&format!("\n\nAvailable user-authorized external browser: {kind}. Prefer target='external' for account/login-dependent tasks; connect/select an existing tab without replacing it."));
             } else {
@@ -7985,8 +8040,48 @@ mod control_hub_tests {
                 .and_then(|h| h.get("os"))
                 .and_then(|v| v.as_str())
                 .map(|s| s.to_string()),
-            Some(std::env::consts::OS.to_string())
+            Some(
+                if cfg!(target_env = "ohos") {
+                    "openharmony"
+                } else {
+                    std::env::consts::OS
+                }
+                .to_string()
+            )
         );
+    }
+
+    #[cfg(target_env = "ohos")]
+    #[tokio::test]
+    async fn ohos_browser_guidance_uses_arkweb_and_haitai_without_a_native_computer_use_provider() {
+        let tool = ControlHubTool::new();
+        let description = tool
+            .description_with_context(Some(&empty_context()))
+            .await
+            .unwrap();
+        assert!(description.contains("Haitai is the only supported external browser"));
+        assert!(description.contains("independent of ComputerUse"));
+        assert!(!description.contains("No user-authorized external browser is currently available"));
+    }
+
+    #[cfg(target_env = "ohos")]
+    #[tokio::test]
+    async fn ohos_first_navigation_validates_observation_before_creating_a_page() {
+        let results = ControlHubTool::new()
+            .dispatch(
+                "browser",
+                "navigate",
+                &json!({ "target": "builtin", "url": "https://example.com", "observe": "invalid" }),
+                &empty_context(),
+            )
+            .await
+            .unwrap();
+        let result = results.first().unwrap().content();
+        assert_eq!(result["error"]["code"], "INVALID_PARAMS");
+        assert!(result["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("observe"));
     }
 
     #[cfg(target_env = "ohos")]

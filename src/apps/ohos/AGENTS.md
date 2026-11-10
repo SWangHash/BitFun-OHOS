@@ -179,7 +179,8 @@ ArkTS registrations across upstream merges; the Rust side is
 
 Run `node --test src/apps/ohos/tests/browser-webview.test.cjs` for browser
 creation, initial storage configuration, evaluation failures, bounds updates,
-and drag handling.
+drag handling, and main-document/TLS failure delivery. Keep certificate rejection
+enabled and do not let `onPageEnd` turn a failed navigation into a successful load.
 These tests mock ArkUI and do not verify webpage rendering on a device.
 
 ## MiniApp independent windows

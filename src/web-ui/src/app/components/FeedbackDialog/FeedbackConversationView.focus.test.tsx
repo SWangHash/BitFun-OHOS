@@ -170,6 +170,42 @@ describe('FeedbackConversationView reply focus', () => {
     expect(document.activeElement).toBe(textarea);
   });
 
+  it('keeps the native input focused through a delayed send and permits a second Enter reply', async () => {
+    await render(0);
+    const textarea = container.querySelector('textarea')!;
+    let complete!: (value: unknown) => void;
+    mocks.replyFeedback.mockImplementationOnce(() => new Promise(resolve => { complete = resolve; }));
+    await act(async () => {
+      textarea.focus();
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(textarea, 'First');
+      textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await act(async () => {
+      textarea.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    });
+    // ArkWeb releases native text focus when a textarea is disabled. Read-only
+    // retains its focus while preventing edits until the reply has completed.
+    expect(textarea.disabled).toBe(false);
+    expect(textarea.readOnly).toBe(true);
+    const newline = new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true, bubbles: true, cancelable: true });
+    await act(async () => textarea.dispatchEvent(newline));
+    expect(newline.defaultPrevented).toBe(true);
+    expect(textarea.value).toBe('First');
+    await act(async () => complete({
+      message: { messageId: 'first', sender: 'user', content: 'First', createdAt: '2026-07-28T03:00:00Z' },
+      feedbackStatus: 'in_progress',
+    }));
+    await act(async () => new Promise<void>(resolve => requestAnimationFrame(() => resolve())));
+    expect(textarea.readOnly).toBe(false);
+    expect(document.activeElement).toBe(textarea);
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(textarea, 'Second');
+      textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await act(async () => textarea.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })));
+    expect(mocks.replyFeedback).toHaveBeenNthCalledWith(2, 'feedback-1', 'Second');
+  });
+
   it('focuses the reply field when continue-editing advances the focus version', async () => {
     await render(0);
     const textarea = container.querySelector('textarea')!;

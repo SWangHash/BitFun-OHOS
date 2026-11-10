@@ -15,6 +15,24 @@ use log::{error, info};
 #[cfg(target_env = "ohos")]
 use serde_json::json;
 
+/// ArkWeb failures have to reach the browser panel; onPageEnd also fires for
+/// error documents and cannot distinguish a loaded page from a TLS failure.
+#[cfg(target_env = "ohos")]
+#[napi_derive_ohos::napi]
+pub fn emit_browser_page_error(label: String, url: String, error: String) {
+    tauri::async_runtime::spawn(async move {
+        use bitfun_core::infrastructure::events::{emit_global_event, BackendEvent};
+        if let Err(error) = emit_global_event(BackendEvent::Custom {
+            event_name: "browser-webview-page-load".to_string(),
+            payload: json!({ "label": label, "event": "failed", "url": url, "error": error }),
+        })
+        .await
+        {
+            log::warn!("Failed to emit browser page error: {error}");
+        }
+    });
+}
+
 #[cfg(target_env = "ohos")]
 #[derive(Debug, Default)]
 pub struct HaitaiBrowserLaunchHost;
