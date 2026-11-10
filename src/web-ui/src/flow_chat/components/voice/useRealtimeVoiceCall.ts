@@ -22,7 +22,7 @@ import { createLogger } from '@/shared/utils/logger';
 import { RealtimePcmPlayer } from './realtimeVoiceAudio';
 import { applyRealtimeAsrSnapshot } from './realtimeVoiceTranscript';
 import { systemVoiceBins } from './realtimeVoiceLevel';
-import { isLikelySpokenEcho, voiceTextKey } from './realtimeVoiceEcho';
+import { isLikelySpokenEcho, voiceTextKey, voiceTokenCount } from './realtimeVoiceEcho';
 import {
   runBitFunVoiceTask,
   runBoundVoiceTask,
@@ -63,7 +63,7 @@ const SPOKEN_PROGRESS_RETRY_DELAY_MS = 400;
  * the host guard would start the same task again. The controller keeps its own
  * short memory of what it spoke and what it already acted on.
  */
-const TASK_TEXT_SUPPRESS_MS = 15_000;
+const TASK_TEXT_SUPPRESS_MS = 8_000;
 
 export type RealtimeVoiceCallPhase = 'idle' | 'connecting' | 'live' | 'ending' | 'error';
 
@@ -808,7 +808,12 @@ export function useRealtimeVoiceCallController(disabled = false): RealtimeVoiceC
         setUserTranscript('');
         setAssistantTranscript('');
         setStatus(t('voiceCall.call.status.listening'));
-        void speechAPI.cancelRealtimeResponse(session.sessionId).catch(() => undefined);
+        // A client-side provider detects barge-in on the device and has already
+        // silenced its own playback. Sending a cancel there would only make the
+        // host reset the utterance the user just started.
+        if (!systemVoiceRef.current) {
+          void speechAPI.cancelRealtimeResponse(session.sessionId).catch(() => undefined);
+        }
         break;
       case 'user_transcript_delta':
         // Volcengine ASR deltas are revised partial snapshots (the official
@@ -821,10 +826,13 @@ export function useRealtimeVoiceCallController(disabled = false): RealtimeVoiceC
         }
         break;
       case 'user_transcript_completed': {
-        // Second line of defense against self-echo: the host already filters
-        // what it hears while speaking, but a misjudged tail here would start a
-        // task from the assistant's own words and the call would talk to itself.
+        // Second line of defense against self-echo, and only while the provider
+        // is actually speaking. Comparing later input against the last spoken
+        // text dropped legitimate short requests whose words happened to appear
+        // in the previous answer, which read as "recognized but never sent".
         if (systemVoiceRef.current && event.text
+          && assistantSpeakingRef.current
+          && voiceTokenCount(event.text) >= 2
           && isLikelySpokenEcho(event.text, lastSpokenRef.current)) {
           log.info('Ignored a transcript that repeats the spoken answer', {
             length: event.text.length,
@@ -848,6 +856,10 @@ export function useRealtimeVoiceCallController(disabled = false): RealtimeVoiceC
             break;
           }
           if (key) recentTaskTextRef.current.push({ key, at: now });
+          log.info('Dispatching a system voice task', {
+            length: task.length,
+            replacingRunningTask: Boolean(activeTaskRef.current),
+          });
           void (async () => {
             // Speaking again while a task runs is a correction, not an
             // addition: interrupting to say something new cancels the task the

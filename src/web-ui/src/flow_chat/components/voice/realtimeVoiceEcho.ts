@@ -59,6 +59,11 @@ export function voiceTextKey(text: string): string {
   return normalizeVoiceTokens(text).join(' ');
 }
 
+/** Number of comparable tokens, so callers can ignore one-word snapshots. */
+export function voiceTokenCount(text: string): number {
+  return normalizeVoiceTokens(text).length;
+}
+
 function tokenCoverage(candidate: string[], reference: string[]): number {
   if (candidate.length === 0) return 0;
   const remaining = new Map<string, number>();

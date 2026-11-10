@@ -3,7 +3,8 @@ import { audio } from '@kit.AudioKit';
 import { speechRecognizer, textToSpeech } from '@kit.CoreSpeechKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import RustModule from 'libbitfun_desktop_lib.so';
-import { buildTranscript, normalizeRecognizedText } from './SpeechTranscript';
+import { normalizeRecognizedText } from './SpeechTranscript';
+import { VoiceTranscriptAssembler } from './VoiceTranscriptAssembler';
 import { classifyVoiceSignal, VoiceSignalKind } from './VoiceEchoGuard';
 import { ensureMicrophonePermission } from './VoiceInputService';
 
@@ -23,16 +24,19 @@ import { ensureMicrophonePermission } from './VoiceInputService';
  * means the engine itself finished, so the service reopens it and the call
  * continues.
  *
- * Barge-in is intentionally limited: speech synthesis is audible, so feeding
- * microphone frames back into the recognizer while it speaks would make the
- * assistant transcribe itself and cut its own answer. Capture keeps running for
- * the particle meter but recognition input is paused until playback ends.
+ * Barge-in is guarded rather than disabled: microphone frames keep reaching the
+ * recognizer while the system voice speaks, and `VoiceEchoGuard.ets` separates
+ * the assistant hearing itself from a real interruption. After playback ends a
+ * short window still drops the answer's tail, but only when the result resembles
+ * the text that was just spoken.
  */
 
 const REALTIME_DOMAIN: number = 0x0000;
 const REALTIME_TAG: string = 'BitFunRealtimeVoice';
 const AUDIO_CHUNK_BYTES = 1280;
 const HALF_AUDIO_CHUNK_BYTES = 640;
+/** Two seconds of 16 kHz PCM16: how much audio may wait for a reopened engine. */
+const MAX_PENDING_AUDIO_BYTES = 64000;
 const DEFAULT_LANGUAGE = 'zh-CN';
 const ENGINE_VAD_BEGIN = 2000;
 const ENGINE_VAD_END = 3000;
@@ -54,12 +58,6 @@ const TTS_PERSON = 0;
  * a task from the assistant's own words and the call begins talking to itself.
  */
 const SPEECH_COOLDOWN_MS = 1200;
-/**
- * Pause that separates two clauses of the same sentence. The platform
- * recognizer revises one clause at a time, so a gap means the previous clause is
- * finished and must be kept in the transcript.
- */
-const CLAUSE_GAP_MS = 600;
 /**
  * Silence after which the current sentence is submitted. This is the primary
  * end-of-utterance signal: long-session recognition does not guarantee a final
@@ -102,7 +100,12 @@ export class RealtimeVoiceService {
   private captureGeneration: number = 0;
   private recognitionReady: boolean = false;
   private pendingAudio: Uint8Array = new Uint8Array(0);
-  private clauseCommitted: string = '';
+  /**
+   * Sentence being built from the current engine session. Clauses and takes are
+   * kept apart there; a single accumulating string cannot tell a revision from
+   * a new clause and repeats text already submitted.
+   */
+  private transcript: VoiceTranscriptAssembler = new VoiceTranscriptAssembler();
   private utteranceActive: boolean = false;
   private frameCounter: number = 0;
   private ttsEngine?: textToSpeech.TextToSpeechEngine;
@@ -114,9 +117,12 @@ export class RealtimeVoiceService {
   private ttsPollTimer?: number;
   /** Recognition results before this timestamp belong to the previous answer. */
   private speechCooldownUntil: number = 0;
-  /** Latest clause snapshot, promoted into `clauseCommitted` when a new clause starts. */
-  private lastSnapshot: string = '';
-  private lastResultAt: number = 0;
+  /**
+   * Text of the answer that just finished. During the post-playback window only
+   * a result that resembles this is dropped; a user who starts talking right
+   * away keeps their words instead of losing the first second of every reply.
+   */
+  private cooldownReferenceText: string = '';
   private sentenceTimer?: number;
   private ttsUtteranceCounter: number = 0;
   private ttsWaitStartedAt: number = 0;
@@ -133,9 +139,8 @@ export class RealtimeVoiceService {
     const request: RealtimeStartRequest = JSON.parse(arg);
     this.language = this.resolveLanguage(request.language);
     this.sessionId = this.newSessionId();
-    this.clauseCommitted = '';
-    this.lastSnapshot = '';
-    this.lastResultAt = 0;
+    this.transcript.reset();
+    this.cooldownReferenceText = '';
     this.utteranceActive = false;
     this.frameCounter = 0;
     this.pendingAudio = new Uint8Array(0);
@@ -193,8 +198,19 @@ export class RealtimeVoiceService {
     return '';
   }
 
+  /**
+   * Stop playback only.
+   *
+   * The web-ui calls this whenever a new user utterance starts; it cannot tell
+   * whether the answer is still audible. Treating it as a full stop reset the
+   * utterance buffers and armed the post-playback cooldown, so every sentence
+   * lost its first 1.2s of recognized audio (the "chopped" transcript) and its
+   * pending commit timer was cancelled (nothing was ever submitted). Barge-in
+   * detection already stops playback with its own policy, so this path must not
+   * touch recognition state at all.
+   */
   stopSpeechNow(_arg: string): Promise<string> {
-    this.stopSpeech(false);
+    this.stopPlayback();
     return Promise.resolve('');
   }
 
@@ -220,7 +236,6 @@ export class RealtimeVoiceService {
     });
     this.engine = engine;
     engine.setListener(this.buildRecognitionListener());
-    this.capturer = await this.createCapturer();
     engine.startListening({
       sessionId: this.sessionId,
       audioInfo: {
@@ -236,13 +251,18 @@ export class RealtimeVoiceService {
         maxAudioDuration: ENGINE_MAX_AUDIO_DURATION
       }
     });
-    const capturer: audio.AudioCapturer | undefined = this.capturer;
-    if (capturer) {
+    // A reopen replaces only the engine: keeping the capturer and its read loop
+    // alive means the audio spoken while the engine initializes is buffered and
+    // flushed on `onStart` instead of being lost with the old capturer.
+    let capturer: audio.AudioCapturer | undefined = this.capturer;
+    if (capturer === undefined) {
+      capturer = await this.createCapturer();
+      this.capturer = capturer;
       await capturer.start();
+      this.reading = true;
+      this.captureGeneration += 1;
+      this.captureLoop(this.sessionId, this.captureGeneration);
     }
-    this.reading = true;
-    this.captureGeneration += 1;
-    this.captureLoop(this.sessionId, this.captureGeneration);
   }
 
   /**
@@ -264,12 +284,15 @@ export class RealtimeVoiceService {
       return;
     }
     this.lastRestartAt = now;
-    await this.releaseRecognition();
+    // Keep the microphone and its read loop: releasing them truncated every
+    // sentence that was being spoken while the new engine started up.
+    this.releaseRecognitionEngine();
     if (!this.listening || this.sessionId !== sessionId) {
       return;
     }
     this.recognitionReady = false;
     this.pendingAudio = new Uint8Array(0);
+    this.transcript.reset();
     try {
       await this.openRecognition();
       hilog.info(REALTIME_DOMAIN, REALTIME_TAG,
@@ -342,17 +365,29 @@ export class RealtimeVoiceService {
   private handleResult(result: speechRecognizer.SpeechRecognitionResult): void {
     const snapshot: string = normalizeRecognizedText(result.result);
     const isFinal: boolean = result.isFinal;
-    const engineClosed: boolean = result.isLast;
     hilog.info(REALTIME_DOMAIN, REALTIME_TAG,
       'recognition onResult: isFinal=%{public}d isLast=%{public}d rawText=%{public}s',
-      isFinal ? 1 : 0, engineClosed ? 1 : 0, result.result);
-    const coolingDown: boolean = Date.now() < this.speechCooldownUntil;
-    if (snapshot.length > 0 && coolingDown) {
-      // The engine was still draining the previous answer. Acting on it would
-      // start a task from our own words, so the tail is dropped outright.
+      isFinal ? 1 : 0, result.isLast ? 1 : 0, result.result);
+    if (snapshot.length === 0) {
+      return;
+    }
+    if (Date.now() < this.speechCooldownUntil) {
+      // The engine is still draining the tail of the answer. Only a result that
+      // resembles what was just spoken is that tail; a user who starts talking
+      // right away must not lose the beginning of the sentence.
+      const signal: VoiceSignalKind = this.cooldownReferenceText.length > 0
+        ? classifyVoiceSignal(snapshot, this.cooldownReferenceText)
+        : VoiceSignalKind.Echo;
+      if (signal !== VoiceSignalKind.Speech) {
+        hilog.info(REALTIME_DOMAIN, REALTIME_TAG,
+          'dropped post-playback tail: rawText=%{public}s', result.result);
+        return;
+      }
+      this.speechCooldownUntil = 0;
       hilog.info(REALTIME_DOMAIN, REALTIME_TAG,
-        'dropped post-playback tail: rawText=%{public}s', result.result);
-    } else if (snapshot.length > 0 && this.ttsSpeaking) {
+        'post-playback window released by user speech: rawText=%{public}s', result.result);
+    }
+    if (this.ttsSpeaking) {
       // Playback is audible and capture keeps running so the user can interrupt.
       // The echo guard separates the assistant hearing itself from a real
       // barge-in; only the latter stops the answer.
@@ -360,69 +395,60 @@ export class RealtimeVoiceService {
       if (signal === VoiceSignalKind.Echo) {
         hilog.info(REALTIME_DOMAIN, REALTIME_TAG,
           'dropped synthesized echo: rawText=%{public}s', result.result);
-      } else if (signal === VoiceSignalKind.Speech) {
+        return;
+      }
+      if (signal !== VoiceSignalKind.Speech) {
         hilog.info(REALTIME_DOMAIN, REALTIME_TAG,
-          'barge-in detected, stopping playback: rawText=%{public}s', result.result);
-        // A real interruption must not arm the cooldown, or the rest of the
-        // sentence the user is currently speaking would be dropped.
-        this.stopSpeech(true, false);
-        // The frame that proved the interruption is not transcribed: a marginal
-        // match must not leak into the new task description. Recognition revises
-        // the clause on the following result.
-        this.utteranceActive = true;
-        this.clauseCommitted = '';
-        this.lastSnapshot = '';
-        this.emit('user_speech_started', '', -1);
+          'dropped ambiguous snapshot during playback: rawText=%{public}s', result.result);
+        return;
       }
-    } else if (snapshot.length > 0) {
-      const now: number = Date.now();
-      if (!this.utteranceActive) {
-        this.utteranceActive = true;
-        this.clauseCommitted = '';
-        this.lastSnapshot = '';
-        this.emit('user_speech_started', '', -1);
-      } else if (this.lastSnapshot.length > 0 && now - this.lastResultAt >= CLAUSE_GAP_MS) {
-        // The engine moved on to a new clause after a pause. Keep the finished
-        // clause in the transcript so the next snapshot extends it instead of
-        // replacing it; that replacement is what made speech look chopped up.
-        this.clauseCommitted = buildTranscript(this.clauseCommitted, this.lastSnapshot);
-      }
-      this.lastSnapshot = snapshot;
-      this.lastResultAt = now;
-      this.emit('user_transcript_delta', buildTranscript(this.clauseCommitted, snapshot), -1);
-      if (isFinal) {
-        this.commitUtterance();
-      } else {
-        this.scheduleSentenceEnd();
-      }
+      hilog.info(REALTIME_DOMAIN, REALTIME_TAG,
+        'barge-in detected, stopping playback: rawText=%{public}s', result.result);
+      // A real interruption must not arm the cooldown, or the rest of the
+      // sentence the user is currently speaking would be dropped.
+      this.stopSpeech(true, false);
+      this.resetUtterance();
+      this.utteranceActive = true;
+      this.emit('user_speech_started', '', -1);
+      // The frame that proved the interruption is not transcribed: a marginal
+      // match must not leak into the new task description.
+      return;
     }
-    if (engineClosed) {
-      // `isLast` reports the end of the engine's session, not the end of a
-      // sentence, so restarting here dropped audio on every utterance. Commit
-      // the pending sentence instead and let `onComplete` decide whether the
-      // engine really stopped.
-      this.commitUtterance();
+
+    // The assembler replaces the clause being revised and appends a new clause;
+    // it also removes text this engine session already submitted, which is what
+    // put the previous sentence in front of the new one.
+    const display: string = this.transcript.apply(result.result, isFinal);
+    if (display.length === 0) {
+      // The take only repeated an already submitted sentence.
+      return;
     }
+    if (!this.utteranceActive) {
+      this.utteranceActive = true;
+      this.emit('user_speech_started', '', -1);
+    }
+    hilog.info(REALTIME_DOMAIN, REALTIME_TAG,
+      'transcript updated: chars=%{public}d isFinal=%{public}d',
+      display.length, isFinal ? 1 : 0);
+    this.emit('user_transcript_delta', display, -1);
+    // Submission is decided only by silence. `isFinal` and `isLast` are not
+    // reliable end-of-sentence signals on this engine, and treating them as one
+    // submitted a fragment per take (or nothing at all).
+    this.scheduleSentenceEnd();
   }
 
   /**
-   * Commit the sentence being spoken as one request.
+   * Submit the accumulated sentence as one request.
    *
-   * The engine does not reliably mark the end of an utterance: `isFinal` may
-   * never arrive in long-session mode, and `isLast` only reports that the engine
-   * stopped. A silence window is therefore the primary signal, so a spoken
-   * sentence is submitted even when no final result is delivered.
+   * The platform recognizer revises clause by clause and does not guarantee a
+   * final result, so silence is the only dependable end-of-utterance signal.
    */
   private commitUtterance(): void {
     this.clearSentenceTimer();
     if (!this.utteranceActive) {
       return;
     }
-    const transcript: string = normalizeRecognizedText(
-      buildTranscript(this.clauseCommitted, this.lastSnapshot)
-    );
-    this.clauseCommitted = '';
-    this.lastSnapshot = '';
+    const transcript: string = this.transcript.takeSentence();
     this.utteranceActive = false;
     if (transcript.length === 0) {
       return;
@@ -430,6 +456,10 @@ export class RealtimeVoiceService {
     hilog.info(REALTIME_DOMAIN, REALTIME_TAG,
       'committed utterance: chars=%{public}d', transcript.length);
     this.emit('user_transcript_completed', transcript, -1);
+  }
+
+  private resetUtterance(): void {
+    this.transcript.resetUtterance();
   }
 
   private scheduleSentenceEnd(): void {
@@ -532,7 +562,13 @@ export class RealtimeVoiceService {
         offset += AUDIO_CHUNK_BYTES;
       }
     }
-    this.pendingAudio = data.slice(offset);
+    let pending: Uint8Array = data.slice(offset);
+    if (!this.recognitionReady && pending.length > MAX_PENDING_AUDIO_BYTES) {
+      // Capture keeps running while an engine reopens. Bounded buffering keeps
+      // the sentence's beginning without holding minutes of stale audio.
+      pending = pending.slice(pending.length - MAX_PENDING_AUDIO_BYTES);
+    }
+    this.pendingAudio = pending;
   }
 
   private flushPendingAudio(finalFlush: boolean): void {
@@ -619,14 +655,16 @@ export class RealtimeVoiceService {
     this.clearTtsPollTimer();
     this.clearSentenceTimer();
     this.ttsSpeaking = false;
+    // Keep the spoken text for the post-playback window: it is the reference
+    // that tells the answer's tail apart from the user's next sentence.
+    this.cooldownReferenceText = this.ttsCurrentText;
     this.ttsCurrentText = '';
     this.ttsRequestId = '';
     // Playback ended on its own: hold recognition for the length of the tail
     // still inside the engine, then resume listening.
     this.speechCooldownUntil = Date.now() + SPEECH_COOLDOWN_MS;
     this.utteranceActive = false;
-    this.clauseCommitted = '';
-    this.lastSnapshot = '';
+    this.transcript.resetUtterance();
     this.emit('assistant_audio_completed', '', -1);
   }
 
@@ -659,6 +697,29 @@ export class RealtimeVoiceService {
   }
 
   /**
+   * Silence the answer without deciding what happens to the user's speech.
+   * Used by the web-ui cancel path, which only means "stop talking".
+   */
+  private stopPlayback(): void {
+    this.clearTtsPollTimer();
+    const engine: textToSpeech.TextToSpeechEngine | undefined = this.ttsEngine;
+    const wasSpeaking: boolean = this.ttsSpeaking;
+    this.ttsSpeaking = false;
+    this.ttsCurrentText = '';
+    this.ttsRequestId = '';
+    if (engine) {
+      try {
+        engine.stop();
+      } catch (_err) {
+      }
+    }
+    if (wasSpeaking) {
+      hilog.info(REALTIME_DOMAIN, REALTIME_TAG,
+        'realtime speech stopped by the controller: session=%{public}s', this.sessionId);
+    }
+  }
+
+  /**
    * Stop playback. `armCooldown` keeps the trailing recognition of the answer
    * out of the next request; a barge-in passes `false` so the sentence the user
    * is already speaking survives.
@@ -669,14 +730,14 @@ export class RealtimeVoiceService {
     const engine: textToSpeech.TextToSpeechEngine | undefined = this.ttsEngine;
     const wasSpeaking: boolean = this.ttsSpeaking;
     this.ttsSpeaking = false;
-    this.ttsCurrentText = '';
     this.ttsRequestId = '';
     if (armCooldown) {
+      this.cooldownReferenceText = this.ttsCurrentText;
       this.speechCooldownUntil = Date.now() + SPEECH_COOLDOWN_MS;
       this.utteranceActive = false;
-      this.clauseCommitted = '';
-      this.lastSnapshot = '';
+      this.transcript.resetUtterance();
     }
+    this.ttsCurrentText = '';
     if (engine) {
       try {
         engine.stop();
@@ -703,9 +764,8 @@ export class RealtimeVoiceService {
     this.stopSpeech(false);
     await this.releaseRecognition();
     this.releaseTtsEngine();
-    this.clauseCommitted = '';
-    this.lastSnapshot = '';
-    this.lastResultAt = 0;
+    this.transcript.reset();
+    this.cooldownReferenceText = '';
     this.utteranceActive = false;
     this.recognitionReady = false;
     this.pendingAudio = new Uint8Array(0);
@@ -715,24 +775,31 @@ export class RealtimeVoiceService {
     }
   }
 
-  private async releaseRecognition(): Promise<void> {
+  /** Drop the engine only; the microphone and its read loop keep running. */
+  private releaseRecognitionEngine(): void {
     const engine: speechRecognizer.SpeechRecognitionEngine | undefined = this.engine;
     const sessionId: string = this.sessionId;
     this.engine = undefined;
-    this.captureGeneration += 1;
     this.recognitionReady = false;
+    if (!engine || sessionId.length === 0) {
+      return;
+    }
+    try {
+      engine.cancel(sessionId);
+    } catch (_err) {
+    }
+    try {
+      engine.shutdown();
+    } catch (_err) {
+    }
+  }
+
+  private async releaseRecognition(): Promise<void> {
+    this.captureGeneration += 1;
+    this.reading = false;
     this.pendingAudio = new Uint8Array(0);
     await this.releaseCapturer();
-    if (engine && sessionId.length > 0) {
-      try {
-        engine.cancel(sessionId);
-      } catch (_err) {
-      }
-      try {
-        engine.shutdown();
-      } catch (_err) {
-      }
-    }
+    this.releaseRecognitionEngine();
   }
 
   private releaseTtsEngine(): void {

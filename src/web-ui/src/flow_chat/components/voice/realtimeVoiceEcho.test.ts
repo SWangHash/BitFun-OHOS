@@ -3,6 +3,7 @@ import {
   isLikelySpokenEcho,
   normalizeVoiceTokens,
   voiceTextKey,
+  voiceTokenCount,
 } from './realtimeVoiceEcho';
 
 const SPOKEN = '正在创建新的 BitFun 会话。';
@@ -18,6 +19,12 @@ describe('normalizeVoiceTokens', () => {
 
   it('gives the same key to text that differs only in punctuation', () => {
     expect(voiceTextKey('帮我看看这个报错。')).toBe(voiceTextKey('帮我 看看 这个报错'));
+  });
+
+  it('counts tokens so a one-word snapshot can be excluded', () => {
+    expect(voiceTokenCount('停')).toBe(1);
+    expect(voiceTokenCount('继续')).toBe(2);
+    expect(voiceTokenCount('  。')).toBe(0);
   });
 });
 

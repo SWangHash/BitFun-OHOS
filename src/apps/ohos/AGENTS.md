@@ -230,10 +230,33 @@ Rules that are easy to break:
 - End of utterance is a silence window, not a result flag. `isLast` on a result
   does not mean the sentence ended — treating it that way reopened the engine
   after every clause, which dropped audio (chopped transcript) and never
-  submitted anything. `commitUtterance()` decides on a 1.2s pause, with
-  `isFinal` as an early signal, and `onComplete` is the only place that reopens
-  recognition. A clause is promoted into `clauseCommitted` after a 600ms gap so
-  the display extends instead of replacing the previous clause.
+  submitted anything. `commitUtterance()` decides on a 1.2s pause
+  (`SENTENCE_END_SILENCE_MS`); `isFinal` only closes the current clause, and only
+  `onComplete` reopens recognition.
+- `ohos_realtime_stop_speech` (the web-ui's `cancelRealtimeResponse`, sent on
+  every `user_speech_started`) means "stop talking", nothing more. It must go
+  through `stopPlayback()`: resetting the utterance and arming the post-playback
+  cooldown there dropped the first 1.2s of every sentence and cancelled the
+  pending commit, which read as a chopped transcript that was never sent.
+  `VoiceEchoGuard` already owns the audible barge-in case. Keep a case in
+  `src/apps/ohos/tests/realtime-voice-stop-speech.test.cjs`.
+- `VoiceTranscriptAssembler` keeps the finalized clauses (`committed`) apart
+  from the latest take of the clause being recognized (`partial`). An
+  intermediate result replaces `partial`; `isFinal` closes the clause. Never
+  merge them into one accumulating string and never decide a revision by a time
+  window: that repeated a clause or dropped the clause before it.
+- The engine session outlives a submitted sentence. A result may carry text that
+  was already emitted as `user_transcript_completed`, so the assembler records
+  what it submitted (`takeSentence`) and strips that prefix from later results.
+  Without it the next sentence starts with the previous one.
+- The post-playback window drops only results that resemble the answer
+  (`cooldownReferenceText` + `VoiceEchoGuard`). Dropping every result for 1.2s
+  truncated the beginning of a reply spoken right after the assistant.
+- A recognition reopen replaces the engine only. Releasing the capturer and its
+  read loop lost every word spoken while the new engine initialized, and
+  `MAX_PENDING_AUDIO_BYTES` bounds what waits for `onStart`.
+- Keep cases for these in `src/apps/ohos/tests/realtime-voice-transcript.test.cjs`
+  and `src/apps/ohos/tests/realtime-voice-stop-speech.test.cjs`.
 - The call needs no hosted-provider credential. `speech_save_realtime_config`
   stores `provider: ohos-system` with an empty key, and the web-ui hides the
   credential fields for that provider.
