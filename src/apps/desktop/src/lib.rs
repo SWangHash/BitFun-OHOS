@@ -1014,6 +1014,18 @@ pub async fn _run() {
                     std::env::set_var("PATH", format!("{HNP_BIN}:{current_path}"));
                     log::info!("Prepended HNP bin directory to PATH: {}", HNP_BIN);
                 }
+
+                // Keep the on-device model service resident: the system reclaims
+                // the 端侧大模型服务 when no client is using it, which made local
+                // model calls depend on the settings page or another model app
+                // being open. The probe counts as use and doubles as a soft
+                // start for socket-activated daemons.
+                tauri::async_runtime::spawn(
+                    bitfun_core::service::local_model_client::keepalive_loop(
+                        bitfun_core::service::local_model_client::default_port(),
+                        std::time::Duration::from_secs(30),
+                    ),
+                );
             }
 
             #[cfg(target_os = "macos")]

@@ -50,6 +50,21 @@ pub(crate) fn is_https_endpoint(raw: &str, host: &str, path: &str) -> bool {
     })
 }
 
+/// Returns true when the endpoint is a local inference server (localhost /
+/// 127.0.0.1 / [::1] on any port). Local servers often validate more tightly
+/// than the OpenAI spec (the on-device model foundation service rejects
+/// `stream_options`, `tool` role messages, and `max_tokens`), so the request
+/// builder uses this to skip fields they do not understand.
+pub(crate) fn is_local_inference_endpoint(_client: &crate::client::AIClient, url: &str) -> bool {
+    reqwest::Url::parse(url).ok().is_some_and(|parsed| {
+        let is_loopback = matches!(
+            parsed.host_str(),
+            Some("localhost") | Some("127.0.0.1") | Some("[::1]")
+        );
+        is_loopback && parsed.scheme() == "http"
+    })
+}
+
 /// Session affinity is a protocol requirement, independent of OAuth. API-key
 /// clients opt into this header alone at the official Zen/Go inference routes.
 fn uses_opencode_affinity(client: &AIClient, url: &str) -> bool {

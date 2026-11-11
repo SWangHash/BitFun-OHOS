@@ -12,6 +12,7 @@ export type LocalModelStatus =
   | 'downloaded'
   | 'undownloaded'
   | 'downloading'
+  | 'verifying'
   | 'paused'
   | 'failed';
 
@@ -48,6 +49,8 @@ export interface LocalModelPullProgress {
   digest?: string | null;
   total: number;
   completed: number;
+  /** Web-side receive time, used to expire stale progress overrides. */
+  receivedAt?: number;
 }
 
 const DEFAULT_PORT = 0; // 0 means the backend uses its default (11434)

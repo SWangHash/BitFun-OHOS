@@ -10,6 +10,7 @@
   "status": {
     "downloaded": "Downloaded",
     "downloading": "Downloading",
+    "verifying": "Verifying",
     "paused": "Paused",
     "failed": "Failed",
     "undownloaded": "Not Downloaded",

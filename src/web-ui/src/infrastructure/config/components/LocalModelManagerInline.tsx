@@ -57,6 +57,8 @@ function StatusIcon({ status }: { status: LocalModelStatus }) {
       return <CheckCircle size={16} className="local-model-manager__status-icon local-model-manager__status-icon--downloaded" />;
     case 'downloading':
       return <Loader size={16} className="local-model-manager__status-icon local-model-manager__status-icon--downloading" />;
+    case 'verifying':
+      return <Loader size={16} className="local-model-manager__status-icon local-model-manager__status-icon--verifying" />;
     case 'paused':
       return <Pause size={16} className="local-model-manager__status-icon local-model-manager__status-icon--paused" />;
     case 'failed':
@@ -127,6 +129,19 @@ export const LocalModelManagerInline: React.FC<LocalModelManagerInlineProps> = (
             ) {
               next.delete(name);
               activePulls.current.delete(name);
+              // The backend status is authoritative: once it reports a
+              // terminal state, drop the progress entry so a stale
+              // downloading event can no longer override the display
+              // (the terminal success event may be dropped by the OHOS
+              // event bridge).
+              setProgressMap((progressPrev) => {
+                if (!(name in progressPrev)) {
+                  return progressPrev;
+                }
+                const progressNext = { ...progressPrev };
+                delete progressNext[name];
+                return progressNext;
+              });
             }
           }
           return next;
@@ -197,8 +212,15 @@ export const LocalModelManagerInline: React.FC<LocalModelManagerInlineProps> = (
             completed: progress.completed,
           });
 
-          // Always update progress map for visual feedback
-          setProgressMap((prev) => ({ ...prev, [progress.modelName]: progress }));
+          // Always update progress map for visual feedback. receivedAt lets
+          // the display-status derivation expire stale overrides: on OHOS
+          // the terminal success event can be dropped by the event bridge,
+          // and without an age check the last downloading event would
+          // override the backend's downloaded status forever.
+          setProgressMap((prev) => ({
+            ...prev,
+            [progress.modelName]: { ...progress, receivedAt: Date.now() },
+          }));
 
           // On terminal states, refresh the model list to get authoritative status
           if (progress.status === 'success' || progress.status === 'failed' || progress.status === 'paused') {
@@ -323,10 +345,32 @@ export const LocalModelManagerInline: React.FC<LocalModelManagerInlineProps> = (
   // pullingModels is resynced to the backend status by refreshModels, so it
   // never sticks in "downloading" once the backend reports otherwise.
   const getEffectiveStatus = useCallback((model: LocalModel): LocalModelStatus => {
-    // If we have a progress event showing "downloading", trust that
+    // Progress events override the backend only while they are FRESH. On
+    // OHOS the terminal success event can be dropped by the event bridge;
+    // without the age gate the last downloading event would override the
+    // backend's downloaded status forever, keeping the UI on "downloading"
+    // even though the 2 s polling already reports the model available.
     const progress = progressMap[model.name];
-    if (progress && (progress.status === 'downloading' || progress.status === 'pulling')) {
-      return 'downloading';
+    const progressFresh = !!progress?.receivedAt
+      && Date.now() - progress.receivedAt < 15000;
+    // If we have a fresh progress event showing "verifying sha256 digest",
+    // the download is complete and the service is checking integrity —
+    // show a distinct status instead of "downloading".
+    if (progress && progressFresh && progress.status.startsWith('verifying')) {
+      return 'verifying';
+    }
+    // Byte-complete but not yet confirmed: per the host protocol the service
+    // hashes the file (sha256) between the last download chunk and success.
+    // Derive the verifying phase locally so it shows even when the host
+    // skips the verifying status object or the event is dropped.
+    if (
+      progress
+      && progressFresh
+      && progress.total > 0
+      && progress.completed >= progress.total
+      && (progress.status === 'downloading' || progress.status === 'pulling')
+    ) {
+      return 'verifying';
     }
     // Optimistic: a pull we initiated is in flight -> show as downloading
     if (pullingModels.has(model.name)) {
@@ -350,8 +394,10 @@ export const LocalModelManagerInline: React.FC<LocalModelManagerInlineProps> = (
           ? Math.round((model.completed / model.size) * 100)
           : 0;
 
-    // Determine if progress bar should show: downloading OR paused with partial progress
+    // Determine if progress bar should show: downloading, verifying, OR
+    // paused with partial progress
     const hasProgress = effectiveStatus === 'downloading'
+      || effectiveStatus === 'verifying'
       || (effectiveStatus === 'paused' && (downloadPercent > 0 || (progress && progress.total > 0)));
     // Indeterminate: a download is in flight but no byte progress is known yet
     // (events/polling haven't reported total/completed). Show a shimmer instead
@@ -359,6 +405,9 @@ export const LocalModelManagerInline: React.FC<LocalModelManagerInlineProps> = (
     const isIndeterminate = effectiveStatus === 'downloading'
       && downloadPercent === 0
       && !(progress && progress.total > 0);
+    // Verifying: the download bytes are complete (100%), the service is
+    // checking sha256 integrity. Show full progress with a distinct label.
+    const isVerifying = effectiveStatus === 'verifying';
 
     return (
       <div key={model.name} className="local-model-manager__model-row" data-bitfun-component="local-model-manager" data-bitfun-part="modelRow">
@@ -443,15 +492,19 @@ export const LocalModelManagerInline: React.FC<LocalModelManagerInlineProps> = (
                 className={
                   isIndeterminate
                     ? 'local-model-manager__progress-fill local-model-manager__progress-fill--indeterminate'
-                    : `local-model-manager__progress-fill${effectiveStatus === 'paused' ? ' local-model-manager__progress-fill--paused' : ''}`
+                    : isVerifying
+                      ? 'local-model-manager__progress-fill local-model-manager__progress-fill--verifying'
+                      : `local-model-manager__progress-fill${effectiveStatus === 'paused' ? ' local-model-manager__progress-fill--paused' : ''}`
                 }
-                style={isIndeterminate ? undefined : { width: `${downloadPercent}%` }}
+                style={isIndeterminate ? undefined : { width: isVerifying ? '100%' : `${downloadPercent}%` }}
               />
             </div>
             <span className="local-model-manager__progress-text">
-              {isIndeterminate
-                ? t('status.downloading')
-                : `${downloadPercent}%${progress && progress.total > 0 ? ` (${formatBytes(progress.completed)} / ${formatBytes(progress.total)})` : ''}`}
+              {isVerifying
+                ? t('status.verifying')
+                : isIndeterminate
+                  ? t('status.downloading')
+                  : `${downloadPercent}%${progress && progress.total > 0 ? ` (${formatBytes(progress.completed)} / ${formatBytes(progress.total)})` : ''}`}
             </span>
           </div>
         )}

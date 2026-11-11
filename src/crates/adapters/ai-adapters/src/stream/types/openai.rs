@@ -68,8 +68,14 @@ struct Choice {
     /// frame also carries the only authoritative `usage` block. Default the
     /// field so such frames deserialize cleanly and the top-level usage flows
     /// through.
+    ///
+    /// The on-device model foundation service sends `delta: null` on the
+    /// final chunk (finish_reason frame) instead of an empty object. serde's
+    /// `#[serde(default)]` only covers missing fields, not null values, so
+    /// the field must be `Option<Delta>` and flattened with `unwrap_or_default`
+    /// to accept both cloud (`{}`) and local (`null`) shapes.
     #[serde(default)]
-    delta: Delta,
+    delta: Option<Delta>,
     finish_reason: Option<String>,
 }
 
@@ -154,7 +160,7 @@ impl OpenAISSEData {
     pub fn first_choice_tool_call_count(&self) -> usize {
         self.choices
             .first()
-            .and_then(|choice| choice.delta.tool_calls.as_ref())
+            .and_then(|choice| choice.delta.as_ref().and_then(|d| d.tool_calls.as_ref()))
             .map(|tool_calls| tool_calls.len())
             .unwrap_or(0)
     }
@@ -186,7 +192,7 @@ impl OpenAISSEData {
             content,
             tool_calls,
             ..
-        } = delta;
+        } = delta.unwrap_or_default();
 
         // Treat empty strings the same as absent fields for assistant text (MiniMax sends
         // `content: ""` in reasoning-only chunks). Keep empty reasoning content so downstream

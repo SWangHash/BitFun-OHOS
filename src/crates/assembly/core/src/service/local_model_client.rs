@@ -295,6 +295,7 @@ pub async fn pull_model(
         // very high rate; forwarding every duplicate flooded the progress
         // channel and the web-ui event stream. Forward only state changes.
         let mut last_emitted: Option<(String, u64, u64)> = None;
+        let mut last_progress: Option<LocalModelPullProgress> = None;
 
         let mut stream = Box::pin(response.bytes_stream());
 
@@ -307,6 +308,21 @@ pub async fn pull_model(
 
                     if chunk_count <= 5 {
                         info!("[local-model] Pull chunk #{}: {} bytes, buffer len: {}", chunk_count, chunk.len(), buffer.len());
+                    }
+
+                    // Guard against unbounded buffer growth when the stream
+                    // produces non-JSON data (a server error page, a preamble
+                    // line) with no balanced-brace object ever appearing: the
+                    // framer would accumulate forever and silently stop
+                    // reporting progress (review finding on PR #196).
+                    const MAX_PULL_BUFFER_BYTES: usize = 10 * 1024 * 1024;
+                    if buffer.len() > MAX_PULL_BUFFER_BYTES {
+                        warn!(
+                            "[local-model] Pull stream buffer exceeded {} bytes without a complete JSON object; discarding",
+                            MAX_PULL_BUFFER_BYTES
+                        );
+                        buffer.clear();
+                        continue;
                     }
 
                     // Process complete JSON objects from the buffer. Some
@@ -339,6 +355,7 @@ pub async fn pull_model(
                                     continue;
                                 }
                                 last_emitted = Some(fingerprint);
+                                last_progress = Some(progress.clone());
                                 progress_sent_count += 1;
                                 if progress_sent_count <= 5 || is_success || is_paused {
                                     info!(
@@ -375,6 +392,30 @@ pub async fn pull_model(
                     warn!("[local-model] Error reading pull stream chunk #{}: {}", chunk_count + 1, e);
                     break;
                 }
+            }
+        }
+
+        // The host can close the pull stream without a terminal status
+        // object; when the bytes are complete the service is hashing the
+        // file (sha256) before the model becomes usable. Surface the
+        // verifying phase so the web UI leaves the downloading state even
+        // when the terminal events never arrive.
+        if let Some(last) = last_progress {
+            let terminal_seen = last.status == "success"
+                || last.status == "paused"
+                || last.status.starts_with("error");
+            let bytes_complete = last.total > 0 && last.completed >= last.total;
+            if !terminal_seen && bytes_complete {
+                info!(
+                    "[local-model] Pull stream ended mid-verify for '{}'; synthesizing verifying status",
+                    model_name_owned
+                );
+                let _ = tx
+                    .send(LocalModelPullProgress {
+                        status: "verifying sha256 digest".to_string(),
+                        ..last
+                    })
+                    .await;
             }
         }
 
@@ -573,9 +614,26 @@ fn parse_pull_progress_line(
         total: u64,
         #[serde(default)]
         completed: u64,
+        /// Only present when the download fails (the service sends
+        /// `{"error": "..."}` instead of progress data).
+        #[serde(default)]
+        error: Option<String>,
     }
 
     let parsed: PullLine = serde_json::from_str(line)?;
+
+    // Surface download failures: the service sends an error object instead
+    // of progress data, and without this check the failure would look like
+    // a stalled 0/0 download.
+    if let Some(error) = parsed.error {
+        return Ok(LocalModelPullProgress {
+            model_name: model_name.to_string(),
+            status: format!("error: {}", error),
+            digest: parsed.digest,
+            total: parsed.total,
+            completed: parsed.completed,
+        });
+    }
 
     Ok(LocalModelPullProgress {
         model_name: model_name.to_string(),
@@ -619,6 +677,47 @@ fn find_json_object_end(buffer: &str) -> Option<usize> {
 /// Returns the default local model service port.
 pub fn default_port() -> u16 {
     DEFAULT_LOCAL_PORT
+}
+
+/// Keeps the on-device model service resident (OHOS).
+///
+/// The 端侧大模型服务 is reclaimed by the system when no client is actively
+/// using it, so BitFun's model calls only succeed while the system settings
+/// page or another model app happens to hold it open. A lightweight version
+/// probe on a fixed interval counts as use and keeps the service resident;
+/// if the daemon is socket-activated, the first probe also serves as the
+/// start attempt. Probe failures are normal (the service being down is a
+/// valid state) and only logged when the reachability flips.
+pub async fn keepalive_loop(port: u16, interval: Duration) {
+    let url = format!("http://localhost:{}/api/version", port);
+    let client = match reqwest::Client::builder()
+        .timeout(Duration::from_secs(2))
+        .build()
+    {
+        Ok(client) => client,
+        Err(e) => {
+            warn!("[local-model] Keepalive client build failed: {}", e);
+            return;
+        }
+    };
+    let mut was_available: Option<bool> = None;
+    loop {
+        let available = client
+            .get(&url)
+            .send()
+            .await
+            .map(|response| response.status().is_success())
+            .unwrap_or(false);
+        if was_available != Some(available) {
+            info!(
+                "[local-model] Keepalive probe: service {} on port {}",
+                if available { "reachable" } else { "unreachable" },
+                port
+            );
+            was_available = Some(available);
+        }
+        tokio::time::sleep(interval).await;
+    }
 }
 
 /// Attempts to fetch service name and version from `/api/version`.

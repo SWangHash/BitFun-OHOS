@@ -26,6 +26,15 @@ export class LocalModelKeepAliveService {
   start(context: common.UIAbilityContext): void {
     this.context = context;
     this.disposed = false;
+    // Idempotency guard: repeated start() calls must not leak the previous
+    // connection or stack reconnect timers. If already connected, the call
+    // is a no-op; if a reconnect timer is pending, cancel it before
+    // reconnecting so the timer cannot produce a second connection.
+    this.cancelReconnect();
+    if (this.connection !== undefined) {
+      hilog.info(0, 'LocalModel', 'Model service connection already established');
+      return;
+    }
     this.connect();
   }
 

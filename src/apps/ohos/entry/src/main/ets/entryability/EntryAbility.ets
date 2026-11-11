@@ -315,7 +315,10 @@ export default class EntryAbility extends RustAbility implements StatusBarTrayHo
     try { this.desktopSystem.dispose(); } catch (error) {
       hilog.error(DOMAIN, 'DesktopSystem', 'Failed to release idle sleep lock: %{public}s', String(error));
     }
+<<<<<<< HEAD
     this.releaseScheduledJobKeepAlive();
+=======
+>>>>>>> ef2dd6f649 (feat(local-model): hold the on-device model service via a service-ability connection)
     this.localModelKeepAlive.dispose();
     this.statusBarTray?.remove();
     RustModule.ohosMarkCleanShutdown();

@@ -10,6 +10,7 @@
   "status": {
     "downloaded": "已下载",
     "downloading": "下载中",
+    "verifying": "校验中",
     "paused": "已暂停",
     "failed": "下载失败",
     "undownloaded": "未下载",
