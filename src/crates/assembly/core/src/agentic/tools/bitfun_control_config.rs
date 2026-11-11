@@ -227,7 +227,8 @@ impl SharedProductControlExecutor {
     ) -> Result<Value, String> {
         let _mutation = self.mutation_lock.lock().await;
         let applied =
-            apply_legacy_config_mutation(&self.config_service, path, value, expected_models).await?;
+            apply_legacy_config_mutation(&self.config_service, path, value, expected_models)
+                .await?;
         let revision = if applied.changed {
             self.revision.fetch_add(1, Ordering::AcqRel) + 1
         } else {
@@ -535,7 +536,7 @@ pub async fn apply_legacy_config_mutation_with_model_snapshot(
     // without changing anything, and those writes must keep failing loudly.
     let effective_value = match config_service.get_config(Some(path)).await {
         Ok(value) => value,
-        Err(crate::util::errors::OpenBitFunError::NotFound(_)) if changed => Value::Null,
+        Err(crate::util::errors::BitFunError::NotFound(_)) if changed => Value::Null,
         Err(error) => return Err(error.to_string()),
     };
     Ok(AppliedLegacyProductConfig {

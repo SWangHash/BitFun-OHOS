@@ -4,5 +4,10 @@ import type { AppearanceSurfaceDescriptor } from '@/infrastructure/appearance';
 export const configPageAppearanceDescriptor: AppearanceSurfaceDescriptor = {
   id: 'config-page',
   componentAttribute: 'data-bitfun-product-component',
-  parts: [{ id: 'root', propertyProfile: 'paint' }, { id: 'sectionBody', propertyProfile: 'paint' }],
+  parts: [
+    { id: 'root', propertyProfile: 'paint' },
+    { id: 'sectionBody', propertyProfile: 'paint' },
+    { id: 'loading' },
+    { id: 'message' },
+  ],
 };
