@@ -911,7 +911,7 @@ const AgentsHomeView: React.FC = () => {
             </Button>
           )}
         >
-          <div className="bitfun-agents-scene__catalog-toolbar" data-bitfun-scene="agents" data-bitfun-part="filters">
+          <div className="bitfun-agents-scene__catalog-toolbar" data-bitfun-reading-surface="before" data-bitfun-scene="agents" data-bitfun-part="filters">
             <SearchField
               className="bitfun-agents-scene__search"
               value={searchQuery}

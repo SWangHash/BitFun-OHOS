@@ -11,7 +11,8 @@ export const markdownAppearanceDescriptor: AppearanceSurfaceDescriptor = {
     { id: 'codePre', propertyProfile: 'paint', visualRole: 'content' },
     { id: 'codeContent', propertyProfile: 'paint', visualRole: 'content' },
     { id: 'fileLink' }, { id: 'visualizationLink' }, { id: 'tabLink' }, { id: 'canvasLink' },
-    { id: 'table' }, { id: 'blockquote' }, { id: 'math' },
+    { id: 'table' }, { id: 'tableSurface', propertyProfile: 'paint' },
+    { id: 'tableHeadingCell', propertyProfile: 'paint' }, { id: 'blockquote' }, { id: 'math' },
     { id: 'reproduction' }, { id: 'reproductionHeader' }, { id: 'reproductionContent' }, { id: 'reproductionActions' },
   ],
   states: [

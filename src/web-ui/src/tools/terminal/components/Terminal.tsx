@@ -1,3 +1,4 @@
+import { VisualSkinSurfacePaint } from '@/infrastructure/visual-skin/VisualSkinSurfacePaint';
 /**
  * Terminal base component built on xterm.js.
  * Optimizations include debounced resize and visibility-aware refresh.
@@ -1173,6 +1174,8 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
       className={`bitfun-terminal ${className}`}
       data-bitfun-component="terminal-tool"
       data-bitfun-part="root"
+      data-bitfun-surface="terminal"
+      data-bitfun-skin-slot="terminal-background"
       data-shortcut-scope="terminal"
       data-terminal-id={terminalId}
       data-session-id={sessionId}
@@ -1180,6 +1183,7 @@ const Terminal = forwardRef<TerminalRef, TerminalProps>(({
       data-command-id={sessionId}
       data-supports-copy-paste={supportsCopyPaste?'true':'false'}
     >
+      <VisualSkinSurfacePaint />
       <div 
         ref={containerRef} 
         className="bitfun-terminal__container"

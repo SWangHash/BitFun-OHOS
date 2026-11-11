@@ -119,13 +119,150 @@
   padding: 0;
 }
 
-.appearance-package-config {
+.visual-skin-config {
   width: 100%;
   min-width: 0;
 
-  &__file-input {
-    display: none;
+  &__body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--bitfun-space-3);
   }
+
+  &__grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--bitfun-space-3);
+    container-type: inline-size;
+  }
+
+  &__card {
+    display: grid;
+    grid-template-columns: 144px minmax(0, 1fr);
+    column-gap: var(--bitfun-space-4);
+    row-gap: var(--bitfun-space-3);
+    min-width: 0;
+    padding: var(--bitfun-space-4);
+    border: 1px solid var(--bitfun-color-border-subtle);
+    border-radius: var(--bitfun-radius-md);
+    background: var(--bitfun-color-surface-panel);
+    color: var(--bitfun-color-content-primary);
+  }
+
+  &__card[data-active='true'] {
+    border-color: var(--bitfun-color-accent-default);
+    box-shadow: 0 0 0 var(--bitfun-focus-width) var(--bitfun-color-accent-surface);
+  }
+
+  &__card[data-previewing='true'] {
+    border-style: dashed;
+    border-color: var(--bitfun-color-accent-border);
+  }
+
+  &__preview {
+    grid-row: span 2;
+    display: grid;
+    place-items: center;
+    align-self: stretch;
+    min-height: 112px;
+    overflow: hidden;
+    border-radius: var(--bitfun-radius-sm);
+    background: var(--bitfun-color-surface-workbench);
+    background-position: center;
+    background-size: cover;
+    color: var(--bitfun-color-content-muted);
+  }
+
+  &__copy {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: var(--bitfun-space-2);
+
+    strong, p, small {
+      overflow-wrap: anywhere;
+    }
+
+    p {
+      margin: 0;
+      color: var(--bitfun-color-content-secondary);
+    }
+
+    small {
+      color: var(--bitfun-color-content-muted);
+      font-size: var(--bitfun-type-meta-font-size);
+    }
+  }
+
+  &__heading {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--bitfun-space-2);
+
+    strong { flex: 1 1 160px; }
+  }
+
+  &__status {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--bitfun-space-1);
+    padding: var(--bitfun-space-1) var(--bitfun-space-2);
+    border-radius: var(--bitfun-radius-sm);
+    background: var(--bitfun-color-accent-surface);
+    color: var(--bitfun-color-content-primary);
+    font-size: var(--bitfun-type-meta-font-size);
+  }
+
+  &__actions {
+    grid-column: 2;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--bitfun-space-2);
+  }
+
+  &__actions > :last-child { margin-inline-start: auto; }
+
+  @container (max-width: 480px) {
+    &__card {
+      grid-template-columns: 88px minmax(0, 1fr);
+      column-gap: var(--bitfun-space-3);
+      padding: var(--bitfun-space-3);
+    }
+
+    &__preview { grid-row: 1; min-height: 88px; }
+    &__actions { grid-column: 1 / -1; }
+  }
+
+  @container (max-width: 280px) {
+    &__card { grid-template-columns: minmax(0, 1fr); }
+    &__preview { min-height: 112px; }
+  }
+
+  &__empty {
+    display: flex;
+    align-items: center;
+    gap: var(--bitfun-space-2);
+    min-height: 72px;
+    color: var(--bitfun-color-content-secondary);
+  }
+
+  &__invalid {
+    padding: var(--bitfun-space-3);
+    border: 1px solid var(--bitfun-color-status-danger-border);
+    border-radius: var(--bitfun-radius-md);
+  }
+
+  &__error {
+    margin: 0;
+    color: var(--bitfun-color-status-danger-content);
+  }
+}
+
+.appearance-package-config {
+  width: 100%;
+  min-width: 0;
 
   &__gallery {
     display: grid;
@@ -183,7 +320,6 @@
   }
 
   &__card-preview {
-    position: relative;
     display: flex;
     flex: 0 0 160px;
     align-items: center;
@@ -227,7 +363,6 @@
     flex-direction: column;
     justify-content: center;
     min-width: 0;
-    padding: 0;
   }
 
   &__card-body--inline {
@@ -1902,10 +2037,6 @@
   .appearance-package-config {
     > [data-bitfun-part='header'] {
       flex-direction: column;
-    }
-
-    &__actions {
-      justify-content: flex-start;
     }
 
     &__card {

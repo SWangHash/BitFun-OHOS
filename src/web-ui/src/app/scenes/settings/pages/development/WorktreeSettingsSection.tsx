@@ -732,7 +732,7 @@ const WorktreeSettingsSection: React.FC = () => {
     if (projects.length === 0 && !projectsMessage) {
       return (
         <ConfigEmptyState
-          className="bitfun-worktree-settings__empty"
+          className="bitfun-worktree-settings__empty" data-bitfun-reading-surface="before"
           icon={<FolderGit2 aria-hidden />}
           title={t('management.empty.title')}
           description={null}
@@ -747,7 +747,7 @@ const WorktreeSettingsSection: React.FC = () => {
       <div className="bitfun-worktree-settings__projects">
         {projects.map(project => (
           <section
-            className="bitfun-worktree-settings__project"
+            className="bitfun-worktree-settings__project" data-bitfun-reading-surface="before"
             data-bitfun-component="worktree-settings"
             data-bitfun-part="project"
             key={project.projectWorkspacePath}

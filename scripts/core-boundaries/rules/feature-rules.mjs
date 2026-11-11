@@ -399,8 +399,8 @@ export const optionalDependencyFeatureOwnerRules = [
     dependencies: [
       { depName: 'dirs', ownerFeatures: ['miniapp'] },
       { depName: 'log', ownerFeatures: ['function-agents'] },
-      { depName: 'hex', ownerFeatures: ['appearance-market', 'external-sources', 'miniapp', 'plugin-source'] },
-      { depName: 'sha2', ownerFeatures: ['appearance-market', 'external-sources', 'miniapp', 'plugin-source'] },
+      { depName: 'hex', ownerFeatures: ['external-sources', 'miniapp', 'plugin-source'] },
+      { depName: 'sha2', ownerFeatures: ['external-sources', 'miniapp', 'plugin-source'] },
       { depName: 'which', ownerFeatures: ['miniapp'] },
     ],
   },
@@ -1989,7 +1989,6 @@ export const ownerCrateFeatureAssemblyRules = [
     manifestPath: 'src/crates/contracts/product-domains/Cargo.toml',
     reason: 'product-domains must keep product domain feature groups explicit and default-light',
     requiredProductFullFeatures: [
-      'appearance-market',
       'plugin-source',
       'miniapp',
       'function-agents',

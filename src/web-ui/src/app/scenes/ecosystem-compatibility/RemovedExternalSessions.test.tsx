@@ -88,6 +88,7 @@ describe('removed external source sessions', () => {
     await render();
     expect(api.listRemoved).not.toHaveBeenCalled();
     expect(container.textContent).toContain('sessions.removed.unsupportedSurface');
+    expect(container.querySelector('[role="alert"]')!.closest('[data-bitfun-product-part="sectionBody"]')).not.toBeNull();
     expect(container.querySelector('button')).toBeNull();
   });
 

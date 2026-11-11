@@ -72,7 +72,7 @@ const AssistantCard: React.FC<AssistantCardProps> = ({
       role="listitem"
       style={style}
     >
-      <Card
+      <Card data-bitfun-reading-surface="self"
         className="assistant-card__surface"
         appearance="subtle"
         radius="md"

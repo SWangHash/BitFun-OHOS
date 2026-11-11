@@ -962,7 +962,7 @@ const MiniAppLibraryContent: React.FC<MiniAppLibraryViewProps> = ({
             className="gallery-zones"
           >
             <section className="gallery-zone" aria-label={t('allApps')}>
-              <div className="miniapp-gallery__filters" data-bitfun-component="miniapp-gallery-view" data-bitfun-part="tools">
+              <div className="miniapp-gallery__filters" data-bitfun-reading-surface="before" data-bitfun-component="miniapp-gallery-view" data-bitfun-part="tools">
                 <SearchField
                   className="miniapp-gallery__search"
                   leadingIcon={<Icon name="search" size="sm" aria-hidden />}

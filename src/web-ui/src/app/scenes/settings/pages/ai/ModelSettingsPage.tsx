@@ -4854,7 +4854,8 @@ const ModelSettingsPage: React.FC = () => {
             ) : <span className="bitfun-model-settings__pool-caption">{t('acquisition.noneConfigured')}</span>}
           </ConfigPageRow>
           <MagpieSourceSection models={aiModels} ready={modelConfigReady} onModelsChange={setAiModels}
-            onManual={() => requestEditorOpen('new-provider:magpie', () => handleSelectProvider('magpie'))} />
+            onManual={() => requestEditorOpen('new-provider:magpie', () => handleSelectProvider('magpie'))}
+            onRemoveModel={(config, trigger) => { void requestDelete(config, trigger); }} />
           <ConfigPageRow multiline className="bitfun-model-settings__acquisition-row"
             label={(
               <div className="bitfun-model-settings__import-row">

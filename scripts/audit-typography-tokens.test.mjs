@@ -297,6 +297,7 @@ test('rejects a backend FlowChat font snapshot', () => {
   ]);
 });
 
+
 test('rejects retired FlowChat typography in the distributed Appearance registry', () => {
   const issues = auditTypographyFileContractText(`{
     "components": [{ "id": "font-preference", "parts": [{ "id": "flowChatControls" }] }]

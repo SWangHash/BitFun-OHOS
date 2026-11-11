@@ -84,7 +84,6 @@ test('build version projection updates every release-owned version file', () => 
     'src/mobile-web/package.json',
     'src/mobile-web/package-lock.json',
     'src/miniapp-market-web/package.json',
-    'src/skin-market-web/package.json',
   ];
   for (const relative of jsonFiles) {
     const file = path.join(root, relative);

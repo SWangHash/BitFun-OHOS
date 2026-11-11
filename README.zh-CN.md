@@ -16,6 +16,14 @@ BitFun 是一个开源的跨平台 Agent 工作台：高效稳健的 **Rust Agen
 [![官网](https://img.shields.io/badge/%E5%AE%98%E7%BD%91-bitfun.work-0b7285?style=flat-square)](https://www.bitfun.work/)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20HarmonyOS-blue?style=flat-square)](https://www.bitfun.work/)
 
+## 加入社区群
+
+使用微信扫描下方二维码，添加好友后申请加入 OpenBitFun 社区群。
+
+<a href="./png/openbitfun-community-wechat.png">
+  <img src="./png/openbitfun-community-wechat.png" alt="OpenBitFun 社区微信二维码" width="147" />
+</a>
+
 </div>
 
 ![BitFun 桌面界面](./png/bitfun_desktop.jpg)
@@ -82,4 +90,72 @@ BitFun 不是本地单机应用。工作区、执行任务的运行时、以及�
 
 ## 许可证
 
-BitFun 通过 GitCode 分发。核心代码采用 [MIT License](./LICENSE)，第三方依赖与资源遵循各自的许可证。漏洞报告方式见[安全策略](./SECURITY_CN.md)。
+BitFun 通过 GitCode 分发。描述需求，让 Agent 创建应用。每个 Mini App 都有自己的界面和 Agent 会话：你可以操作界面处理任务，也可以通过对话调整功能，让工具在使用中不断完善。
+
+做好的应用可以安装、反复使用。你也可以去 [Mini App 市场](https://market.bitfun.com/miniapp/)发现适合自己的工具。
+
+## 用 BitFun，创造 BitFun
+
+**从角色、工具到界面和源码，都可以按需定制。** 从贴合工作习惯的专属 Agent 开始，逐步扩展你的工作台：
+
+- **定制专属 Agent。** 围绕漫剧创作、视觉设计、代码评审等领域，选择模型、设定角色，组合需要的工具与工作方法。
+- **接入工具与流程。** 通过 MCP 连接专业工具，把常用工作方法保存为 Skills，用 Hooks 扩展任务执行流程。
+- **改变界面与源码。** 选择内置主题调整外观，也可以修改 UI、工具与 Runtime 源码，构建自己的 BitFun。
+
+**你可以直接让 BitFun 的 Code Agent 修改和扩展 BitFun 本身。**
+
+扩展方式见 [Agent 管理](./docs/interactive-capabilities/capabilities/feature.agents.md)、[Hooks 契约与兼容范围](./docs/features/agent-hooks.zh-CN.md)和[产品架构](./docs/architecture/product-architecture.md)。
+
+## 持续执行，也认真对待效率
+
+Rust Agent Runtime 承载会话状态、上下文管理与工具执行。持久会话、中断恢复、长期记忆与长程任务支持工作接续；上下文压缩和缓存复用帮助控制持续执行的资源开销。
+
+在这组 **DeepSWE v1.1** 评测中，BitFun 的表现：
+
+- **GLM-5.3-Flash**：通过率 **64.6%**，耗时 P50 **42.9 分钟**。
+- **DeepSeek-V4-Flash**：通过率 **56.6%**，耗时 P50 **19.6 分钟**。
+
+![DeepSWE v1.1 评测：通过率、耗时 P50 与 Token P50 对比](./png/openbitfun-deepswe-v1.1.png)
+
+## 功能墙
+
+**图中只是 BitFun 的部分功能。** 还有更多工具、工作流与扩展能力，等你在真实任务中探索。
+
+![BitFun 功能墙](./png/openbitfun-feature-wall.jpg)
+
+## 我们想走向的未来
+
+BitFun 仍在演进，我们希望继续探索三个方向：
+
+- **黑灯工厂**：白天讨论与设计，让任务在服务器上持续推进，第二天回到成果与验收。
+- **无限半径**：从桌面与手机继续走向穿戴和嵌入式设备，让工作在更多地方接续。
+- **应用进化**：从个人小工具到面向专业领域的定制版本，让更多人参与塑造软件。
+
+更可靠的长任务、更高效的 Runtime、更从容的桌面体验，是这些探索共同的基础。
+
+## 用它创造，也一起创造它
+
+**欢迎用作品、反馈和代码参与 BitFun 的未来。**
+
+你可以分享真实任务与使用经验，贡献 Agent、Skills、Mini App 和皮肤，也可以从一处文档、一项交互或一个 Runtime 问题开始。想法与问题欢迎在本仓库的 Issues 和 Discussions 中讨论，开发流程见[贡献指南](./CONTRIBUTING_CN.md)。
+
+<details>
+<summary>下载、使用与源码运行</summary>
+
+前往[官方下载页](https://bitfun.com/zh/download)，选择 Windows、macOS 或 Linux 安装包。安装后配置模型，打开工作区即可开始；操作说明见[使用手册](https://playbook.bitfun.com)，安装包签名见[下载校验](./docs/verify-downloads.zh-CN.md)。
+
+**数据迁移提醒：** BitFun 1.0.0 与 0.2.x 旧版数据不互通。需要迁移旧版数据时，请使用
+[BitFun 数据工具](src/apps/data-tools/README.zh-CN.md)，当前支持 0.2.17～0.2.19 正式版。
+
+从源码运行需准备 [Node.js](https://nodejs.org/) 22.12+、[pnpm](https://pnpm.io/) 10.15.0、[Rust 工具链](https://rustup.rs/)和 [Tauri 前置依赖](https://v2.tauri.app/start/prerequisites/)。克隆本仓库后运行：
+
+```bash
+pnpm install
+pnpm run desktop:dev
+```
+
+桌面开发环境支持前端热更新与 Rust 自动重编译。CLI 入口见 [CLI 使用说明](./src/apps/cli/README.md)。
+
+</details>
+
+核心代码采用 [MIT License](./LICENSE)，第三方依赖与资源遵循各自的许可证。BitFun 通过 GitCode 分发。感谢所有开源作者与贡献者。漏洞报告方式见[安全策略](./SECURITY_CN.md)。

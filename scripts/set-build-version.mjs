@@ -20,7 +20,6 @@ export function setBuildVersion(root, version) {
     'src/mobile-web/package.json',
     'src/mobile-web/package-lock.json',
     'src/miniapp-market-web/package.json',
-    'src/skin-market-web/package.json',
   ]) {
     const file = path.join(root, relative);
     const data = JSON.parse(readFileSync(file, 'utf8'));

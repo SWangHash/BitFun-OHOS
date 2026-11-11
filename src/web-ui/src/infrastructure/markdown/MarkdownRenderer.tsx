@@ -1671,7 +1671,7 @@ const MarkdownSurface = React.memo<MarkdownRendererProps & { thinking?: boolean;
     table({ children }: any) {
       return (
         <div className="table-wrapper" data-bitfun-component="markdown" data-bitfun-part="table">
-          <table>{children}</table>
+          <table data-bitfun-component="markdown" data-bitfun-part="tableSurface">{children}</table>
         </div>
       );
     },
@@ -1736,6 +1736,7 @@ const MarkdownSurface = React.memo<MarkdownRendererProps & { thinking?: boolean;
     th({ node: _node, children, className, align, style, ...props }: any) {
       return (
         <th {...props} className={['markdown-header-cell', className].filter(Boolean).join(' ')}
+          data-bitfun-component="markdown" data-bitfun-part="tableHeadingCell"
           style={align ? { ...style, textAlign: align } : style}>
           <div className="markdown-table-cell-content">
             <div className="markdown-table-cell-body">{children}</div>

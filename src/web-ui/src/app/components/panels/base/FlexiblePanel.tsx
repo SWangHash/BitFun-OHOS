@@ -41,7 +41,7 @@ const ImageViewer = lazyWithRecovery(() =>
 );
 
 const PdfViewer = lazyWithRecovery(() =>
-  import('@/tools/editor/components/PdfViewer').then(module => ({
+  import('@/tools/editor/pdf-review/PdfReviewEditor').then(module => ({
     default: module.default,
   }))
 );
@@ -452,6 +452,7 @@ const FlexiblePanel: React.FC<ExtendedFlexiblePanelProps> = memo(({
                 isActiveTab={isActive}
                 filePath={pdfViewerData.filePath || ''}
                 fileName={content.title}
+                onDirtyStateChange={onDirtyStateChange}
                 className="bitfun-flexible-panel__pdf-viewer"
               />
             )}

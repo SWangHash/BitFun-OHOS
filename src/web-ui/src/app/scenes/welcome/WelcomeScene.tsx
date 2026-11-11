@@ -1,3 +1,4 @@
+import { VisualSkinSurfacePaint } from '@/infrastructure/visual-skin/VisualSkinSurfacePaint';
 /**
  * WelcomeScene — the lightweight, tabless landing surface shown by
  * SceneViewport until the user opens a scene.
@@ -145,6 +146,8 @@ const WelcomeScene: React.FC = () => {
     <section
       ref={sceneRef}
       className="welcome-scene"
+      data-bitfun-surface="empty-state"
+      data-bitfun-skin-slot="empty-state"
       data-testid="welcome-scene"
       data-bitfun-scene="welcome"
       data-bitfun-part="root"
@@ -153,6 +156,7 @@ const WelcomeScene: React.FC = () => {
       data-startup-pending={startupPending ? '' : undefined}
       aria-labelledby="welcome-scene-title"
     >
+      <VisualSkinSurfacePaint />
       <div className="welcome-scene__content" data-bitfun-scene="welcome" data-bitfun-part="content">
         <div
           className="welcome-scene__greeting"

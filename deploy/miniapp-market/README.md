@@ -502,7 +502,7 @@ API 的 Relay/客户端。两个市场各自的网页仍在所属 Compose 项目
 ## 邮箱验证码发布补充
 
 邮箱登录与 GitHub 登录是独立账号，不自动绑定或合并。部署前需同时验证身份服务、
-当前版本 Relay 和 Skin 身份消费者；保留旧 GitHub 数字账号及旧授权启动行为。
+当前版本 Relay 身份消费者；保留旧 GitHub 数字账号及旧授权启动行为。
 客户端使用 `methods=all` 主动选择统一登录页，旧客户端继续走原 GitHub URL。
 
 SMTP 配置单独存放在 `/etc/bitfun-miniapp-market/smtp.env`，root:root 0600，

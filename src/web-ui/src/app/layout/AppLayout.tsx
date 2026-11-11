@@ -1,3 +1,4 @@
+import { VisualSkinSurfacePaint } from '@/infrastructure/visual-skin/VisualSkinSurfacePaint';
 import { lazyWithRecovery } from '@/shared/utils/lazyWithRecovery';
 import { OverflowText } from '@bitfun/ui';
 /**
@@ -692,9 +693,12 @@ const AppLayout: React.FC<AppLayoutProps> = ({ className = '' }) => {
           data-testid="app-layout"
           data-bitfun-component="app-layout"
           data-bitfun-part="root"
+          data-bitfun-surface="shell"
+          data-bitfun-skin-slot="shell-background"
           data-bitfun-state="toolbar"
           data-bitfun-background-media={backgroundMedia?.url ? 'video' : undefined}
         >
+          <VisualSkinSurfacePaint />
           <AppearanceBackgroundMediaLayer
             media={backgroundMedia}
             revision={currentAppearance?.revision}
@@ -719,9 +723,12 @@ const AppLayout: React.FC<AppLayoutProps> = ({ className = '' }) => {
         data-testid="app-layout"
         data-bitfun-component="app-layout"
         data-bitfun-part="root"
+        data-bitfun-surface="shell"
+        data-bitfun-skin-slot="shell-background"
         data-bitfun-state={isFullscreen ? 'fullscreen' : undefined}
         data-bitfun-background-media={backgroundMedia?.url ? 'video' : undefined}
       >
+        <VisualSkinSurfacePaint />
         <AppearanceBackgroundMediaLayer
           media={backgroundMedia}
           revision={currentAppearance?.revision}

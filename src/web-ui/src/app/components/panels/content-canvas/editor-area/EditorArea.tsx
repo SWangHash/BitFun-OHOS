@@ -1,3 +1,4 @@
+import { VisualSkinSurfacePaint } from '@/infrastructure/visual-skin/VisualSkinSurfacePaint';
 import React, { useRef, useCallback } from 'react';
 import { EditorGroup } from './EditorGroup';
 import { SplitHandle } from './SplitHandle';
@@ -184,7 +185,8 @@ export const EditorArea: React.FC<EditorAreaProps> = ({
 
   if (splitMode === 'none') {
     return (
-      <div data-bitfun-component="canvas-editor-area" data-bitfun-part="root" data-bitfun-layout="none" ref={containerRef} className="canvas-editor-area">
+      <div data-bitfun-component="canvas-editor-area" data-bitfun-part="root" data-bitfun-layout="none" data-bitfun-surface="editor" data-bitfun-skin-slot="editor-background" ref={containerRef} className="canvas-editor-area">
+        <VisualSkinSurfacePaint />
         <div data-bitfun-component="canvas-editor-area" data-bitfun-part="primary" className="canvas-editor-area__primary">
           {renderEditorGroup('primary', primaryGroup)}
         </div>
@@ -194,7 +196,8 @@ export const EditorArea: React.FC<EditorAreaProps> = ({
 
   if (splitMode === 'horizontal') {
     return (
-      <div data-bitfun-component="canvas-editor-area" data-bitfun-part="root" data-bitfun-layout="horizontal" ref={containerRef} className="canvas-editor-area is-split is-horizontal">
+      <div data-bitfun-component="canvas-editor-area" data-bitfun-part="root" data-bitfun-layout="horizontal" data-bitfun-surface="editor" data-bitfun-skin-slot="editor-background" ref={containerRef} className="canvas-editor-area is-split is-horizontal">
+        <VisualSkinSurfacePaint />
         <div data-bitfun-component="canvas-editor-area" data-bitfun-part="primary" className="canvas-editor-area__primary" style={{ width: `${splitRatio * 100}%` }}>
           {renderEditorGroup('primary', primaryGroup)}
         </div>
@@ -213,7 +216,8 @@ export const EditorArea: React.FC<EditorAreaProps> = ({
 
   if (splitMode === 'vertical') {
     return (
-      <div data-bitfun-component="canvas-editor-area" data-bitfun-part="root" data-bitfun-layout="vertical" ref={containerRef} className="canvas-editor-area is-split is-vertical">
+      <div data-bitfun-component="canvas-editor-area" data-bitfun-part="root" data-bitfun-layout="vertical" data-bitfun-surface="editor" data-bitfun-skin-slot="editor-background" ref={containerRef} className="canvas-editor-area is-split is-vertical">
+        <VisualSkinSurfacePaint />
         <div data-bitfun-component="canvas-editor-area" data-bitfun-part="primary" className="canvas-editor-area__primary" style={{ height: `${splitRatio * 100}%` }}>
           {renderEditorGroup('primary', primaryGroup)}
         </div>
@@ -232,7 +236,8 @@ export const EditorArea: React.FC<EditorAreaProps> = ({
 
   if (splitMode === 'grid') {
     return (
-      <div data-bitfun-component="canvas-editor-area" data-bitfun-part="root" data-bitfun-layout="grid" ref={containerRef} className="canvas-editor-area is-grid">
+      <div data-bitfun-component="canvas-editor-area" data-bitfun-part="root" data-bitfun-layout="grid" data-bitfun-surface="editor" data-bitfun-skin-slot="editor-background" ref={containerRef} className="canvas-editor-area is-grid">
+        <VisualSkinSurfacePaint />
         <div data-bitfun-component="canvas-editor-area" data-bitfun-part="topRow" ref={topRowRef} className="canvas-editor-area__top-row" style={{ flex: `0 0 calc(${splitRatio * 100}% - 2px)` }}>
           <div data-bitfun-component="canvas-editor-area" data-bitfun-part="primary" className="canvas-editor-area__primary" style={{ flex: `0 0 calc(${splitRatio2 * 100}% - 2px)` }}>
             {renderEditorGroup('primary', primaryGroup)}

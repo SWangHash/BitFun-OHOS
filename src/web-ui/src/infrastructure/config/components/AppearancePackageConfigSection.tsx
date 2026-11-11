@@ -1,4 +1,4 @@
-import { captureConfirmationAnchor, ActionCard } from '@bitfun/ui';
+﻿import { captureConfirmationAnchor, ActionCard } from '@bitfun/ui';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';

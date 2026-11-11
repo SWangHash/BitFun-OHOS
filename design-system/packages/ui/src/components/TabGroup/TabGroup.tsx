@@ -164,6 +164,8 @@ export const TabGroup = forwardRef<HTMLDivElement, TabGroupProps>(function TabGr
               // keep their own tooltips instead of re-triggering the label's.
               data-overflow-trigger
               data-bitfun-part="tab"
+              data-bitfun-paint-layer="before"
+              data-bitfun-edge-layer="before"
               data-bitfun-value={item.value}
               data-testid={item.tabProps?.["data-testid"] ?? `tab-${item.value}`}
               disabled={item.disabled}

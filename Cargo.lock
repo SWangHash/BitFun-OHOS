@@ -873,6 +873,7 @@ name = "bitfun-ai-adapters"
 version = "2.0.0"
 dependencies = [
  "anyhow",
+ "apple-native-keyring-store",
  "async-trait",
  "axum",
  "base64 0.22.1",

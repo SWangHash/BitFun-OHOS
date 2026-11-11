@@ -686,7 +686,7 @@ export function getToolItemCardConfig(
     ? getBitFunControlInput(effective)
     : effective.toolName === 'ControlHub' ? getControlHubInput(effective)
       : isSemanticBuiltinTool(effective.toolName) ? getBuiltinToolInput(effective) : effective.toolCall?.input);
-  // Approval is a grouping boundary, but does not change an ambient card's skin.
+  // Approval is a grouping boundary, but does not change an ambient card's appearance.
   const attention = isShellToolName(effective.toolName) && effective.status === 'rejected'
     ? 'prominent'
     : effective.toolName === 'Task' && effective.status === 'cancelled'

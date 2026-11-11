@@ -215,7 +215,7 @@ describe('personal overview data isolation', () => {
     activateSurface(surface);
     const user: SkillInfo = {
       key: 'user', name: 'user', description: '', path: '/host/skills/user',
-      level: 'user', sourceSlot: 'openbitfun-user', dirName: 'user', isBuiltin: false,
+      level: 'user', sourceSlot: 'bitfun-user', dirName: 'user', isBuiltin: false,
     };
     const project: SkillInfo = { ...user, key: 'project', level: 'project', path: '/remote/work/.agents/skills/project' };
     const report = { skills: [user, project], diagnostics: [], diagnosticsAvailable: true };

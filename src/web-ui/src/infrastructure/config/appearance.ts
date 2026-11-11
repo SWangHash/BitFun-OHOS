@@ -11,7 +11,6 @@ export const configAppearanceDescriptor: AppearanceSurfaceDescriptor = {
     { id: 'sectionHeader' },
     { id: 'sectionTitle' },
     { id: 'sectionDescription' },
-    { id: 'sectionBody' },
     { id: 'row' },
     { id: 'rowLabel' },
     { id: 'required' },
@@ -40,6 +39,9 @@ export const configAppearanceDescriptor: AppearanceSurfaceDescriptor = {
     { id: 'pageHeaderTitle' },
     { id: 'pageHeaderSubtitle' },
     { id: 'pageHeaderExtra' },
+  ],
+  states: [
+    { id: 'toolbar', selector: { kind: 'self', suffix: '[data-bitfun-state~="toolbar"]' } },
   ],
   facets: [
     { id: 'align', attribute: 'data-bitfun-align', values: ['start', 'center'] },

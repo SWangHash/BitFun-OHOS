@@ -27,13 +27,13 @@ BitFun Playbook currently contains **24 features**, **22 settings pages**, and *
 - Generated per-item interaction audit: `docs/interactive-capabilities/technical/product-control-open-audit.json`
 - Generated low-level audit map: `docs/interactive-capabilities/technical/tauri-command-map.json`
 
-说明书、网站、搜索和智能体只看“功能 + 设置 + 子能力”。每项子能力都必须引用已注册 Tauri Command 或可解析的源码标记；这些证据不会进入公开目录。当前 **753** 个 Tauri 命令只用于实现覆盖审计。产品 UI 交互源码会在生成和检查时扫描并校验，但不会保存成随普通 UI 改动频繁变化的版本化快照。
+说明书、网站、搜索和智能体只看"功能 + 设置 + 子能力"。每项子能力都必须引用已注册 Tauri Command 或可解析的源码标记；这些证据不会进入公开目录。当前 **753** 个 Tauri 命令只用于实现覆盖审计。产品 UI 交互源码会在生成和检查时扫描并校验，但不会保存成随普通 UI 改动频繁变化的版本化快照。
 
 Docs, website, search, and agents see only features, settings, and documented sub-capabilities. Every sub-capability must reference a registered Tauri command or a resolvable source marker; evidence is stripped from public projections. The **753** Tauri commands remain implementation-audit evidence only. Product UI interaction sources are scanned and validated during generation and checks, but are not stored as a versioned snapshot that churns with ordinary UI changes.
 
 ## 控制边界 / Control boundary
 
-- 每个子能力都明确标记为直接控制、委托给专用智能体工具、需交互打开或不支持；“打开页面”不会再被统计成“智能体已控制”。当前覆盖：直接 **63**、委托 **79**、需交互 **205**、不支持 **0**。
+- 每个子能力都明确标记为直接控制、委托给专用智能体工具、需交互打开或不支持；"打开页面"不会再被统计成"智能体已控制"。当前覆盖：直接 **63**、委托 **79**、需交互 **205**、不支持 **0**。
 - 稳定行为声明为带 JSON 输入契约的 `operations` 或 `options`，并绑定原生产品控制 Provider；智能体不接触原始 Tauri Command。
 - `BitFunControl list` 和 `search` 都返回带 `nextCursor` 的精简分页结果；目录可持续增长，不靠固定总量上限。完整目录和 347 项子能力都不会写入 system prompt。
 - 目录发现与契约读取不依赖 React 或可见窗口。普通配置型 option 统一由 Product Assembly 的共享 ConfigService 执行器读、写并回读，因此 Desktop、CLI 与 Headless 表面走同一份实现；只有宿主原生 operation/provider option 和界面导航按表面注册适配器，缺失时必须明确返回不可用，禁止静默回退本机。只读智能体只能发现和读取目录。

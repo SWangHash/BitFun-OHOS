@@ -147,7 +147,6 @@ pub fn standard_harness_tools() -> Vec<String> {
         // further out than an hour, to Cron rather than holding the turn open
         // for the interval.
         "Cron".to_string(),
-        "PublishAppearance".to_string(),
         "PageManage".to_string(),
     ]
 }

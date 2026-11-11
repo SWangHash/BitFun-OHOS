@@ -24,7 +24,10 @@ export const ConfigPageLayout: React.FC<ConfigPageLayoutProps> = ({
   ...props
 }) => {
   return (
-    <ScrollArea className={`bitfun-config-page-layout ${className}`} data-bitfun-component="config" data-bitfun-part="root" {...props}>
+    <ScrollArea className={`bitfun-config-page-layout ${className}`} data-bitfun-component="config" data-bitfun-part="root" {...props}
+      data-bitfun-product-component="config-page"
+      data-bitfun-product-part="root"
+    >
       {children}
       {/* Real DOM spacer: keeps a guaranteed blank tail at the end of the scroll range. */}
       <div className="bitfun-config-page-layout__scroll-end-spacer" aria-hidden="true" />
@@ -140,7 +143,7 @@ export const ConfigPageSection: React.FC<ConfigPageSectionProps> = ({
         </span>
       ) : undefined}
       actions={extra ? (
-        <div className="bitfun-config-page-section__extra">{extra}</div>
+        <div className="bitfun-config-page-section__extra" data-bitfun-component="config" data-bitfun-part="actionBar" data-bitfun-state="toolbar">{extra}</div>
       ) : undefined}
       {...props}
     >
@@ -150,6 +153,9 @@ export const ConfigPageSection: React.FC<ConfigPageSectionProps> = ({
           className={bodyClassName}
           data-bitfun-component="config"
           data-bitfun-part="sectionBody"
+          data-bitfun-product-component="config-page"
+          data-bitfun-product-part="sectionBody"
+          data-bitfun-paint-layer={bodySurface ? undefined : 'none'}
           dividers={false}
           fieldSurface={fieldSurface ?? (bodySurface ? 'ambient' : 'default')}
         >

@@ -6216,16 +6216,15 @@
       "categoryId": "application",
       "titleZh": "外观与语言",
       "titleEn": "Appearance & language",
-      "summaryZh": "切换主题与语言，调整字体，并安装或导入外观包。",
-      "summaryEn": "Switch themes and languages, tune typography, and install or import appearance packs.",
+      "summaryZh": "切换内置主题与语言，调整字体。",
+      "summaryEn": "Switch built-in themes and languages, and tune typography.",
       "keywordsZh": [
         "外观",
         "主题",
         "深色模式",
         "浅色模式",
         "语言",
-        "字体",
-        "皮肤"
+        "字体"
       ],
       "keywordsEn": [
         "appearance",
@@ -6233,18 +6232,15 @@
         "dark mode",
         "light mode",
         "language",
-        "font",
-        "skin"
+        "font"
       ],
       "highlightsZh": [
         "系统、深色与浅色主题",
-        "界面语言与字号",
-        "本地与市场外观包"
+        "界面语言与字号"
       ],
       "highlightsEn": [
         "System, dark, and light themes",
-        "UI language and font size",
-        "Local and marketplace appearance packs"
+        "UI language and font size"
       ],
       "items": [
         {
@@ -6388,12 +6384,12 @@
       "stepsZh": [
         "打开设置",
         "进入“应用 > 外观”",
-        "选择主题、语言或外观包"
+        "选择内置主题或语言"
       ],
       "stepsEn": [
         "Open Settings",
         "Go to Application > Appearance",
-        "Choose a theme, language, or appearance package"
+        "Choose a built-in theme or language"
       ],
       "agentExamplesZh": [
         "切换成深色主题",
@@ -10626,9 +10622,6 @@
     },
     "review_platform": {
       "capabilityId": "feature.code-review"
-    },
-    "appearance_market": {
-      "capabilityId": "setting.application.appearance"
     },
     "speech": {
       "capabilityId": "feature.voice-input"

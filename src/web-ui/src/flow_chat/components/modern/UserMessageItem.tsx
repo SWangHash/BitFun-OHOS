@@ -705,7 +705,7 @@ export const UserMessageItem = React.memo<UserMessageItemProps>(
           data-status={submissionPhase === 'failed' ? 'error' : resolvedTurnStatus || ''}
           data-failed={isFailed || submissionPhase === 'failed' ? 'true' : 'false'}
         >
-        <span className="user-message-item__surface" aria-hidden="true" />
+        <span className="user-message-item__surface" aria-hidden="true" data-bitfun-product-component="user-message-item" data-bitfun-product-part="surface" />
         {isEditing ? (
           <div className="user-message-item__edit-layout">
             <UserMessageEditComposer

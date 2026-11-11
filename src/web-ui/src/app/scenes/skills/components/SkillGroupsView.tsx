@@ -131,7 +131,7 @@ export default function SkillGroupsView({ searchQuery, skills, collection, catal
 
   const renderSection = (label: string, sectionGroups: ResolvedSkillGroup[]) => (
     <section className="skill-groups__section" aria-label={label}>
-      <div className="skill-groups__list" role="table" aria-label={label}
+      <div className="skill-groups__list" data-bitfun-reading-surface="self" role="table" aria-label={label}
         data-bitfun-scene="skills" data-bitfun-part="groupTable">
         <div className="skill-groups__list-header" role="row"
           data-bitfun-scene="skills" data-bitfun-part="groupListHeader">
@@ -169,17 +169,17 @@ export default function SkillGroupsView({ searchQuery, skills, collection, catal
           {t('groups.create')}
         </Button>
       </header>
-      <div className="skills-main__toolbar" data-bitfun-scene="skills" data-bitfun-part="toolbar">
+      <div className="skills-main__toolbar" data-bitfun-reading-surface="before" data-bitfun-scene="skills" data-bitfun-part="toolbar">
         <IconButton aria-label={t('groups.refresh')} title={t('groups.refresh')} icon={<Icon name="refresh" />}
           size="sm" disabled={collection.saving || collection.loading || catalogLoading} onClick={onRefresh} />
       </div>
       {collection.loading && <LoadingState size="sm" role="status">{t('groups.loading')}</LoadingState>}
       {collection.error ? (
-        <p role="alert" className="skill-groups__notice">{skillGroupErrorMessage(collection.error, t, 'load')}</p>
+        <p role="alert" className="skill-groups__notice" data-bitfun-reading-surface="before">{skillGroupErrorMessage(collection.error, t, 'load')}</p>
       ) : null}
-      {actionError && <p role="alert" className="skill-groups__notice">{actionError}</p>}
+      {actionError && <p role="alert" className="skill-groups__notice" data-bitfun-reading-surface="before">{actionError}</p>}
       {!catalogLoading && (!catalogReady || catalogIncomplete) && (
-        <p role="status" className="skill-groups__notice">{t('groups.catalogUnavailable')}</p>
+        <p role="status" className="skill-groups__notice" data-bitfun-reading-surface="before">{t('groups.catalogUnavailable')}</p>
       )}
       {collection.ready && (
         <ScrollArea className="skill-groups__sections" data-bitfun-scene="skills" data-bitfun-part="groupList">

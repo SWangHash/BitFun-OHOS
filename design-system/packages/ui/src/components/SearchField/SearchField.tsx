@@ -38,6 +38,7 @@ export const SearchField = forwardRef<HTMLInputElement, SearchFieldProps>(functi
   onSearch,
   readOnly,
   shortcut,
+  size = "sm",
   trailing,
   trailingAction,
   variant = "default",
@@ -82,9 +83,10 @@ export const SearchField = forwardRef<HTMLInputElement, SearchFieldProps>(functi
       );
 
   return (
-    <span className={classNames(styles.root, className)} data-bitfun-component="search-field" data-variant={variant}>
+    <span className={classNames(styles.root, className)} data-bitfun-component="search-field" data-variant={variant} data-size={size} data-bitfun-paint-layer={variant === "panel" ? "self" : "none"}>
       <Input
         {...props}
+        data-bitfun-paint-layer={variant === "default" ? "self" : "none"}
         className={classNames(styles.field, hasTrailingAction && styles.fieldWithAction)}
         disabled={disabled}
         leading={leadingIcon === undefined ? undefined : (
@@ -93,6 +95,7 @@ export const SearchField = forwardRef<HTMLInputElement, SearchFieldProps>(functi
         onKeyDown={handleKeyDown}
         ref={ref}
         readOnly={readOnly}
+        size={size}
         trailing={trailingContent}
         type="search"
       />

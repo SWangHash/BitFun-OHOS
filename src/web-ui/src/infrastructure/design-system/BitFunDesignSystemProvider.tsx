@@ -18,6 +18,7 @@ import {
   hostWindowChromeInsetBlockStart,
   isOpenHarmonyRuntime,
 } from '@/infrastructure/runtime/environment';
+import { skinRuntime, useVisualSkin } from '@/infrastructure/visual-skin';
 
 const DENSITY: DensityMode = 'compact';
 const HIGH_CONTRAST_MEDIA_QUERY = '(prefers-contrast: more), (forced-colors: active)';
@@ -59,6 +60,11 @@ export function BitFunDesignSystemProvider({ children }: PropsWithChildren) {
   const colorScheme: ColorScheme = useAppearance().current?.mode ?? 'light';
   const contrast: ContrastMode = useHighContrastPreference() ? 'high' : 'standard';
   const { currentLanguage, t } = useI18n('components');
+  const { status: skinStatus } = useVisualSkin();
+
+  useEffect(() => {
+    void skinRuntime.initialize();
+  }, []);
 
   useLayoutEffect(() => {
     const root = document.documentElement;
@@ -102,6 +108,11 @@ export function BitFunDesignSystemProvider({ children }: PropsWithChildren) {
       });
     };
   }, [colorScheme, contrast]);
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-bitfun-skin-status', skinStatus);
+    return () => document.documentElement.removeAttribute('data-bitfun-skin-status');
+  }, [skinStatus]);
 
   return (
     <DesignSystemProvider

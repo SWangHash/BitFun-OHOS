@@ -8,7 +8,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { RotateCw, ZoomIn, ZoomOut } from 'lucide-react';
+import { Scan, RotateCw, ZoomIn, ZoomOut } from 'lucide-react';
 import { Button, Icon, IconButton, Input, Select, Toolbar, ToolbarGroup, ToolbarSeparator, Tooltip } from '@bitfun/ui';
 import {
   GlobalWorkerOptions,
@@ -31,6 +31,8 @@ import {
   TYPED_ARRAY_POLYFILL_SOURCE,
 } from '@/shared/utils/typedArrayPolyfills';
 import './PdfViewer.scss';
+import { PdfReviewLayer, type PdfReviewInteraction } from '../pdf-review/PdfReviewLayer';
+import type { PageViewport } from 'pdfjs-dist';
 
 const log = createLogger('PdfViewer');
 const MIN_ZOOM = 25;
@@ -99,6 +101,7 @@ interface PdfPageCanvasProps {
   zoom: number;
   onElementChange: (pageNumber: number, element: HTMLDivElement | null) => void;
   onRenderError: (pageNumber: number, error: unknown) => void;
+  review?: PdfReviewInteraction;
 }
 
 export interface PdfViewerProps {
@@ -110,6 +113,9 @@ export interface PdfViewerProps {
   className?: string;
   /** An in-memory build artifact for editors that keep preview output off disk. */
   pdfBase64?: string;
+  review?: PdfReviewInteraction;
+  onDocumentLoaded?: (document: PDFDocumentProxy) => void;
+  requestedPage?: number;
 }
 
 function decodePdfBase64(value: string): Uint8Array {
@@ -199,6 +205,7 @@ const PdfPageCanvas: React.FC<PdfPageCanvasProps> = ({
   zoom,
   onElementChange,
   onRenderError,
+  review,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const renderTaskRef = useRef<RenderTask | null>(null);
@@ -210,6 +217,7 @@ const PdfPageCanvas: React.FC<PdfPageCanvasProps> = ({
   // instead of being stretched across the swapped box (which read as "the
   // font squashes first, then it rotates").
   const renderedRotationRef = useRef(rotation);
+  const [reviewViewport, setReviewViewport] = useState<PageViewport>();
   const displaySize = displayedPageSize(size, zoom, rotation);
   const renderedDisplaySize = displayedPageSize(size, zoom, renderedRotationRef.current);
   // Derived at render time from the ref (not from the async `rendering`
@@ -302,6 +310,7 @@ const PdfPageCanvas: React.FC<PdfPageCanvasProps> = ({
         );
         textLayerContainer.replaceChildren(...stagingTextLayerContainer.childNodes);
         renderedRotationRef.current = rotation;
+        setReviewViewport(viewport);
         setRendering(false);
       } catch (error) {
         if (disposed || isRenderingCancelled(error)) {
@@ -356,6 +365,7 @@ const PdfPageCanvas: React.FC<PdfPageCanvasProps> = ({
             data-bitfun-part="textLayer"
             onCopy={copyAllowed ? undefined : event => event.preventDefault()}
           />
+          {review && reviewViewport && <PdfReviewLayer viewport={reviewViewport} pageNumber={pageNumber} review={review} />}
         </>
       )}
     </div>
@@ -367,7 +377,12 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({ isActiveTab = true,
   workspaceId,
   className = '',
   pdfBase64,
+  review,
+  onDocumentLoaded,
+  requestedPage,
 }) => {
+  const onDocumentLoadedRef = useRef(onDocumentLoaded);
+  onDocumentLoadedRef.current = onDocumentLoaded;
   const documentSession = useEditorDocument();
   const standaloneFiles = useMemo(() => standaloneEditorFileAccess(workspaceId), [workspaceId]);
   const documentFiles = documentSession?.files ?? standaloneFiles;
@@ -380,6 +395,9 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({ isActiveTab = true,
   const loadingTaskRef = useRef<PDFDocumentLoadingTask | null>(null);
   const readingAnchorRef = useRef<ReadingAnchor | null>(null);
   const wheelZoomDeltaRef = useRef(0);
+  const fitWidthRef = useRef(!!pdfBase64);
+  const loadedPathRef = useRef<string>();
+  const viewRef = useRef({ page: 1, zoom: 100, rotation: 0 });
   const [document, setDocument] = useState<PDFDocumentProxy | null>(null);
   const [pageSizes, setPageSizes] = useState<PageSize[]>([]);
   const [pageNumber, setPageNumber] = useState(1);
@@ -393,6 +411,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({ isActiveTab = true,
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const pageCount = pageSizes.length;
+  viewRef.current = { page: pageNumber, zoom, rotation };
 
   const loadDocument = useCallback(async () => {
     const loadEpoch = ++loadEpochRef.current;
@@ -408,12 +427,12 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({ isActiveTab = true,
       return;
     }
 
+    const previousView = loadedPathRef.current === filePath ? viewRef.current : undefined;
     setDocument(null);
     setPageSizes([]);
-    setPageNumber(1);
-    setPageNumberInput('1');
-    setZoom(100);
-    setRotation(0);
+    if (!previousView) {
+      setPageNumber(1); setPageNumberInput('1'); setZoom(100); setRotation(0);
+    }
     setCopyAllowed(true);
     setIntersectingRenderPages(new Set());
     pageElementsRef.current.clear();
@@ -452,9 +471,12 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({ isActiveTab = true,
         return;
       }
 
+      onDocumentLoadedRef.current?.(loadedDocument);
       setDocument(loadedDocument);
       setPageSizes(measuredPageSizes);
-      if (pdfBase64 && containerRef.current?.clientWidth && measuredPageSizes[0]) {
+      loadedPathRef.current = filePath;
+      if (previousView) setPageNumber(Math.min(previousView.page, loadedDocument.numPages));
+      if (!previousView && pdfBase64 && containerRef.current?.clientWidth && measuredPageSizes[0]) {
         const container = containerRef.current;
         const styles = window.getComputedStyle(container);
         const width = container.clientWidth - (parseFloat(styles.paddingLeft) || 0) - (parseFloat(styles.paddingRight) || 0);
@@ -633,6 +655,10 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({ isActiveTab = true,
   }, [pageCount]);
 
   useEffect(() => {
+    if (requestedPage && document) scrollToPage(requestedPage);
+  }, [requestedPage, document, scrollToPage]);
+
+  useEffect(() => {
     setPageNumberInput(String(pageNumber));
   }, [pageNumber]);
 
@@ -674,6 +700,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({ isActiveTab = true,
       return;
     }
 
+    fitWidthRef.current = false;
     const direction = wheelZoomDeltaRef.current < 0 ? 1 : -1;
     wheelZoomDeltaRef.current -= Math.sign(wheelZoomDeltaRef.current)
       * stepCount
@@ -707,16 +734,19 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({ isActiveTab = true,
   }, [handleWheelZoom]);
 
   const zoomOut = useCallback(() => {
+    fitWidthRef.current = false;
     captureReadingAnchor();
     setZoom(current => Math.max(MIN_ZOOM, current - ZOOM_STEP));
   }, [captureReadingAnchor]);
 
   const zoomIn = useCallback(() => {
+    fitWidthRef.current = false;
     captureReadingAnchor();
     setZoom(current => Math.min(MAX_ZOOM, current + ZOOM_STEP));
   }, [captureReadingAnchor]);
 
   const selectZoom = useCallback((value: string | number) => {
+    fitWidthRef.current = false;
     const nextZoom = Number(value);
     if (!Number.isFinite(nextZoom) || nextZoom === zoom) {
       return;
@@ -724,6 +754,25 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({ isActiveTab = true,
     captureReadingAnchor();
     setZoom(Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, nextZoom)));
   }, [captureReadingAnchor, zoom]);
+
+  const fitWidth = useCallback(() => {
+    const container = containerRef.current;
+    const page = pageSizes[Math.max(0, pageNumber - 1)];
+    if (!container || !page || container.clientWidth <= 0) return;
+    const styles = window.getComputedStyle(container);
+    const available = container.clientWidth - (parseFloat(styles.paddingLeft) || 0) - (parseFloat(styles.paddingRight) || 0);
+    const width = rotation % 180 === 0 ? page.width : page.height;
+    setZoom(Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, Math.floor(100 * available / width))));
+  }, [pageNumber, pageSizes, rotation]);
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container || !document) return;
+    const measure = () => { if (fitWidthRef.current) fitWidth(); };
+    measure();
+    const observer = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(measure);
+    observer?.observe(container);
+    return () => observer?.disconnect();
+  }, [document, fitWidth]);
 
   const rotateClockwise = useCallback(() => {
     captureReadingAnchor();
@@ -855,6 +904,9 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({ isActiveTab = true,
             </ToolbarGroup>
             <ToolbarSeparator />
             <ToolbarGroup>
+              <Tooltip content={t('editor.pdfViewer.fitWidth')} placement="bottom"><IconButton size="sm" variant="quiet"
+                icon={<Scan size={14} />} aria-label={t('editor.pdfViewer.fitWidth')} disabled={loading}
+                onClick={() => { fitWidthRef.current = true; fitWidth(); }} /></Tooltip>
               <Tooltip content={t('editor.pdfViewer.rotate90')} placement="bottom">
                 <IconButton
                   aria-label={t('editor.pdfViewer.rotate90')}
@@ -914,6 +966,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({ isActiveTab = true,
                   zoom={zoom}
                   onElementChange={handlePageElementChange}
                   onRenderError={handleRenderError}
+                  review={review}
                 />
               );
             })}

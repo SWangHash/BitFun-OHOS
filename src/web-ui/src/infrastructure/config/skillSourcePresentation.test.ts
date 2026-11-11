@@ -61,8 +61,8 @@ describe('skill source presentation', () => {
     expect(getSkillSourceId(skill({ sourceId: 'future-agent', sourceLabel: 'Codex' }))).toBe('future-agent');
     // Legacy BitFun brand identifiers normalize to 'bitfun'
     expect(getSkillSourceId(skill({ sourceId: 'openbitfun' }))).toBe('bitfun');
-    expect(getSkillSourceId(skill({ sourceId: 'openbitfun-system' }))).toBe('bitfun');
-    expect(getSkillSourceId(skill({ sourceId: 'openbitfun-user' }))).toBe('bitfun');
+    expect(getSkillSourceId(skill({ sourceId: 'bitfun-system' }))).toBe('bitfun');
+    expect(getSkillSourceId(skill({ sourceId: 'bitfun-user' }))).toBe('bitfun');
   });
 
   it('uses the stable source label and falls back to source identity facts', () => {
@@ -87,7 +87,7 @@ describe('skill source presentation', () => {
     expect(canDeleteSkill(skill({ sourceId: '', sourceSlot: 'matrix' }))).toBe(true);
     // Legacy BitFun brand identifiers also allow deletion
     expect(canDeleteSkill(skill({ sourceId: 'openbitfun', isBuiltin: false }))).toBe(true);
-    expect(canDeleteSkill(skill({ sourceId: 'openbitfun-system', isBuiltin: false }))).toBe(true);
+    expect(canDeleteSkill(skill({ sourceId: 'bitfun-system', isBuiltin: false }))).toBe(true);
     expect(canDeleteSkill(skill({ sourceId: '', sourceSlot: 'openbitfun' }))).toBe(true);
     expect(canDeleteSkill(skill({ sourceId: 'opencode' }))).toBe(false);
     expect(canDeleteSkill(skill({ sourceId: '', sourceSlot: 'home.codex' }))).toBe(false);

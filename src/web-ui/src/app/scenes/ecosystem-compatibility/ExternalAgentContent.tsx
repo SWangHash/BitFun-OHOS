@@ -674,7 +674,9 @@ export default function ExternalAgentContent({ scopeKey, actionsRef, onActionSta
       )}
       {notice && !kind && !review && !undo && !batch && !batchUndo ? <Alert className="ecosystem-compatibility__notice ecosystem-compatibility__feedback" role="status" showIcon={false} message={notice} /> : null}
       {loading ? <LoadingState size="sm">{t('loading')}</LoadingState> : null}
-      <FieldGroup appearance="subtle" fieldSurface="ambient" dividers={false} className="ecosystem-compatibility__content-overview" role="table" aria-label={t('content.title', { name: runtime.spec.name })}>
+      <FieldGroup appearance="subtle" fieldSurface="ambient" dividers={false} className="ecosystem-compatibility__content-overview"
+        data-bitfun-product-component="config-page" data-bitfun-product-part="sectionBody"
+        role="table" aria-label={t('content.title', { name: runtime.spec.name })}>
         <div className="ecosystem-compatibility__content-summary ecosystem-compatibility__content-summary--header" role="row">
           <span role="columnheader">{t('import.columns.item')}</span>
           <span role="columnheader">{t('import.columns.state')}</span>

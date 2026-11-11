@@ -397,6 +397,7 @@ const SkillsScene: React.FC = () => {
       <div className="skills-scene__actions" data-bitfun-scene="skills" data-bitfun-part="pageActions">
         <Button
           className="skills-scene__market-button"
+          data-bitfun-reading-surface="self"
           variant="text"
           size="sm"
           leadingIcon={<Icon name={activeTab === 'installed' ? 'search' : 'arrow-left'} size="sm" />}
@@ -427,7 +428,7 @@ const SkillsScene: React.FC = () => {
             {t(activeTab === 'discover' ? 'market.title' : isMatrixView ? 'matrix.title' : 'nav.title')}
           </h1>
           {desktopConfigAvailable && (
-            <div className="skills-controls" data-bitfun-scene="skills" data-bitfun-part="controls">
+            <div className="skills-controls" data-bitfun-reading-surface="before" data-bitfun-scene="skills" data-bitfun-part="controls">
               <SearchField
                 className="skills-controls__search"
                 value={searchValue}
@@ -573,7 +574,7 @@ const SkillsScene: React.FC = () => {
                     />
                   )}
                   {!desktopConfigAvailable ? (
-                    <div className="skills-main__empty" data-testid="skills-management-unavailable" data-bitfun-scene="skills" data-bitfun-part="empty">
+                    <div className="skills-main__empty" data-bitfun-reading-surface="before" data-testid="skills-management-unavailable" data-bitfun-scene="skills" data-bitfun-part="empty">
                       <Icon name="book-open" size="lg" />
                       <span>{t(remoteConnectionActive ? 'list.remoteUnavailable' : 'list.desktopUnavailable')}</span>
                     </div>
@@ -618,7 +619,7 @@ const SkillsScene: React.FC = () => {
                         )}
 
                         {!installed.loading && installedLoadFailed && (
-                          <div className="skills-main__empty skills-main__empty--error" data-bitfun-scene="skills" data-bitfun-part="error">
+                          <div className="skills-main__empty skills-main__empty--error" data-bitfun-reading-surface="before" data-bitfun-scene="skills" data-bitfun-part="error">
                             <Icon name="book-open" size="lg" />
                             <span>{t('list.loadFailed')}</span>
                             <Button
@@ -632,7 +633,7 @@ const SkillsScene: React.FC = () => {
                         )}
 
                         {!installed.loading && !installedLoadFailed && installedFiltered.length === 0 && (
-                          <div className="skills-main__empty" data-testid="skill-list-empty" data-bitfun-scene="skills" data-bitfun-part="empty">
+                          <div className="skills-main__empty" data-bitfun-reading-surface="before" data-testid="skill-list-empty" data-bitfun-scene="skills" data-bitfun-part="empty">
                             <Icon name="book-open" size="lg" />
                             <span>
                               {installed.skills.length === 0
@@ -701,24 +702,24 @@ const SkillsScene: React.FC = () => {
               <div className="skills-discover" id="skills-panel-discover" role="region" aria-label={t('market.title')} data-bitfun-scene="skills" data-bitfun-part="discover">
                 <div className="skills-discover__content">
                   {!market.marketLoading && market.sourceErrors.length > 0 && (
-                    <div className="skills-discover__state" role="alert">
+                    <div className="skills-discover__state" data-bitfun-reading-surface="before" role="alert">
                       {market.sourceErrors.map(error => <p key={error}>{error}</p>)}
                     </div>
                   )}
                   {!market.marketLoading && !market.marketError && marketQuery && market.totalLoaded > 0 && (
-                    <div className="skills-discover__results-info" data-bitfun-scene="skills" data-bitfun-part="resultsInfo" role="status">
+                    <div className="skills-discover__results-info" data-bitfun-reading-surface="before" data-bitfun-scene="skills" data-bitfun-part="resultsInfo" role="status">
                       <OverflowText>{t('market.resultsInfo', { query: marketQuery, count: market.totalLoaded })}</OverflowText>
                     </div>
                   )}
                   {market.marketLoading && (
-                    <LoadingState className="skills-discover__state" role="status" size="sm" data-bitfun-scene="skills" data-bitfun-part="loading">
+                    <LoadingState className="skills-discover__state" data-bitfun-reading-surface="before" role="status" size="sm" data-bitfun-scene="skills" data-bitfun-part="loading">
                       {t('market.loading')}
                     </LoadingState>
                   )}
 
                   {!market.marketLoading && market.marketError && (
                     <Empty
-                      className="skills-discover__state"
+                      className="skills-discover__state" data-bitfun-reading-surface="before"
                       role="alert"
                       icon={<Icon name="book-open" />}
                       description={market.marketError}
@@ -730,7 +731,7 @@ const SkillsScene: React.FC = () => {
 
                   {!market.marketLoading && !market.marketError && !market.loadingMore && market.marketSkills.length === 0 && (
                     <Empty
-                      className="skills-discover__state"
+                      className="skills-discover__state" data-bitfun-reading-surface="before"
                       icon={<Icon name="book-open" />}
                       description={marketQuery ? t('market.empty.noMatch') : t('market.empty.noSkills')}
                       data-testid="skill-list-empty"

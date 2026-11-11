@@ -136,7 +136,7 @@ pub fn tool_feature_group(tool_name: &str) -> Option<ToolPackFeatureGroup> {
         "generate_image" => Some(ToolPackFeatureGroup::ImageGeneration),
         "GenOfficeFile" => Some(ToolPackFeatureGroup::OfficeDocuments),
         "GenerativeUI" | "InitMiniApp" | "FinalizeMiniApp" | "PublishMiniApp"
-        | "MiniAppBrowser" | "PublishAppearance" | "Playbook" => {
+        | "MiniAppBrowser" | "Playbook" => {
             Some(ToolPackFeatureGroup::MiniApp)
         }
         "PageManage" | "PageDeploy" | "PagePublish" => Some(ToolPackFeatureGroup::Pages),
@@ -305,7 +305,6 @@ const PRODUCT_TOOL_PROVIDER_GROUP_PLAN: &[ToolProviderGroupPlan] = &[
             "FinalizeMiniApp",
             "PublishMiniApp",
             "MiniAppBrowser",
-            "PublishAppearance",
             "Playbook",
         ],
     },
@@ -673,7 +672,6 @@ mod tests {
                 "FinalizeMiniApp",
                 "PublishMiniApp",
                 "MiniAppBrowser",
-                "PublishAppearance",
                 "Playbook",
                 "PageManage",
                 "PageDeploy",

@@ -367,7 +367,7 @@ const ExternalImportSection: React.FC = () => {
         const displayName = client.name || client.id;
 
         return (
-          <article className="ecosystem-compatibility__runtime-agent" key={client.id}>
+          <article className="ecosystem-compatibility__runtime-agent" data-bitfun-reading-surface="self" key={client.id}>
             <div className="ecosystem-compatibility__runtime-row">
               <div className="ecosystem-compatibility__runtime-copy">
                 <strong><OverflowText>{displayName}</OverflowText></strong>
@@ -574,7 +574,10 @@ const ExternalImportSection: React.FC = () => {
           data-bitfun-part="main"
         >
           <header
-            className="ecosystem-compatibility__product-header"
+            className="ecosystem-compatibility__product-header" data-bitfun-reading-surface="before"
+            data-bitfun-product-component="config-page"
+            data-bitfun-product-part="sectionBody"
+            data-bitfun-paint-layer="before"
             data-bitfun-scene="ecosystem-compatibility"
             data-bitfun-part="header"
           >

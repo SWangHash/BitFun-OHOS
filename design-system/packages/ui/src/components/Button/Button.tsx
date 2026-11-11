@@ -41,6 +41,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       className={classNames(styles.button, variant === "glass" && glassStyles.surface, className)}
       data-bitfun-component="button"
       data-bitfun-part="root"
+      data-bitfun-paint-layer={variant === 'glass' ? "self" : "before"}
       data-bitfun-tone={tone}
       data-bitfun-variant={variant}
       data-loading={loading ? "true" : "false"}

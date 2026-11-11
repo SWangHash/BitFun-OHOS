@@ -43,6 +43,7 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(functio
       aria-label={ariaLabel}
       className={classNames(styles.button, resolvedVariant === "glass" && glassStyles.surface, className)}
       data-bitfun-component="icon-button"
+      data-bitfun-paint-layer={resolvedVariant === 'glass' ? "self" : "before"}
       data-bitfun-shape={floating ? "circle" : shape}
       data-bitfun-tone={tone}
       data-bitfun-variant={resolvedVariant}

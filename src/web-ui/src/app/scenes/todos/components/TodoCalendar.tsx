@@ -110,71 +110,73 @@ const TodoCalendar: React.FC<TodoCalendarProps> = ({
         </div>
       </header>
 
-      <div className="bitfun-todos__calendar-weekdays" aria-hidden="true">
-        {weekdayLabels.map((label, index) => (
-          <span key={index} className="bitfun-todos__calendar-weekday">{label}</span>
-        ))}
-      </div>
+      <div className="bitfun-todos__calendar-body" data-bitfun-reading-surface="before">
+        <div className="bitfun-todos__calendar-weekdays" aria-hidden="true">
+          {weekdayLabels.map((label, index) => (
+            <span key={index} className="bitfun-todos__calendar-weekday">{label}</span>
+          ))}
+        </div>
 
-      <div className="bitfun-todos__calendar-grid" role="grid" data-bitfun-scene="todos" data-bitfun-part="calendarGrid">
-        {grid.map((day) => {
-          const dayKey = localDayKey(day.getTime());
-          const dayOccurrences = byDay.get(dayKey) ?? [];
-          const isCurrentMonth = day.getMonth() === anchorMonth;
-          const isToday = dayKey === todayKey;
-          const isSelected = dayKey === selectedDayKey;
-          const cellState = [
-            isSelected ? 'selected' : null,
-            isToday ? 'today' : null,
-            isCurrentMonth ? null : 'outside',
-          ].filter(Boolean).join(' ');
+        <div className="bitfun-todos__calendar-grid" role="grid" data-bitfun-scene="todos" data-bitfun-part="calendarGrid">
+          {grid.map((day) => {
+            const dayKey = localDayKey(day.getTime());
+            const dayOccurrences = byDay.get(dayKey) ?? [];
+            const isCurrentMonth = day.getMonth() === anchorMonth;
+            const isToday = dayKey === todayKey;
+            const isSelected = dayKey === selectedDayKey;
+            const cellState = [
+              isSelected ? 'selected' : null,
+              isToday ? 'today' : null,
+              isCurrentMonth ? null : 'outside',
+            ].filter(Boolean).join(' ');
 
-          return (
-            <button data-overflow-trigger
-              key={dayKey}
-              type="button"
-              role="gridcell"
-              className={[
-                'bitfun-todos__calendar-cell',
-                isCurrentMonth ? '' : 'bitfun-todos__calendar-cell--outside',
-                isToday ? 'bitfun-todos__calendar-cell--today' : '',
-                isSelected ? 'bitfun-todos__calendar-cell--selected' : '',
-                dayOccurrences.length > 0 ? 'bitfun-todos__calendar-cell--has-items' : '',
-              ].filter(Boolean).join(' ')}
-              data-bitfun-scene="todos"
-              data-bitfun-part="calendarCell"
-              data-bitfun-state={cellState || undefined}
-              data-testid="todos-calendar-cell"
-              data-day-key={dayKey}
-              aria-pressed={isSelected}
-              aria-label={`${formatDate(day, { year: 'numeric', month: 'long', day: 'numeric' })}, ${
-                t('calendar.dayCount', { total: dayOccurrences.length })
-              }`}
-              onClick={() => onSelectDay(isSelected ? null : dayKey)}
-            >
-              <span className="bitfun-todos__calendar-daynum">{day.getDate()}</span>
-              <span className="bitfun-todos__calendar-chips">
-                {dayOccurrences.slice(0, MAX_CHIPS_PER_DAY).map((occurrence, index) => (
-                  <span
-                    key={`${occurrence.job.id}-${occurrence.atMs}-${index}`}
-                    className="bitfun-todos__calendar-chip"
-                    title={`${formatTimeOfDay(occurrence.atMs, formatDate)} ${occurrence.job.name}`}
-                  >
-                    <span className="bitfun-todos__calendar-chip-time">
-                      {formatTimeOfDay(occurrence.atMs, formatDate)}
+            return (
+              <button data-overflow-trigger
+                key={dayKey}
+                type="button"
+                role="gridcell"
+                className={[
+                  'bitfun-todos__calendar-cell',
+                  isCurrentMonth ? '' : 'bitfun-todos__calendar-cell--outside',
+                  isToday ? 'bitfun-todos__calendar-cell--today' : '',
+                  isSelected ? 'bitfun-todos__calendar-cell--selected' : '',
+                  dayOccurrences.length > 0 ? 'bitfun-todos__calendar-cell--has-items' : '',
+                ].filter(Boolean).join(' ')}
+                data-bitfun-scene="todos"
+                data-bitfun-part="calendarCell"
+                data-bitfun-state={cellState || undefined}
+                data-testid="todos-calendar-cell"
+                data-day-key={dayKey}
+                aria-pressed={isSelected}
+                aria-label={`${formatDate(day, { year: 'numeric', month: 'long', day: 'numeric' })}, ${
+                  t('calendar.dayCount', { total: dayOccurrences.length })
+                }`}
+                onClick={() => onSelectDay(isSelected ? null : dayKey)}
+              >
+                <span className="bitfun-todos__calendar-daynum">{day.getDate()}</span>
+                <span className="bitfun-todos__calendar-chips">
+                  {dayOccurrences.slice(0, MAX_CHIPS_PER_DAY).map((occurrence, index) => (
+                    <span
+                      key={`${occurrence.job.id}-${occurrence.atMs}-${index}`}
+                      className="bitfun-todos__calendar-chip"
+                      title={`${formatTimeOfDay(occurrence.atMs, formatDate)} ${occurrence.job.name}`}
+                    >
+                      <span className="bitfun-todos__calendar-chip-time">
+                        {formatTimeOfDay(occurrence.atMs, formatDate)}
+                      </span>
+                      <OverflowText className="bitfun-todos__calendar-chip-name">{occurrence.job.name}</OverflowText>
                     </span>
-                    <OverflowText className="bitfun-todos__calendar-chip-name">{occurrence.job.name}</OverflowText>
-                  </span>
-                ))}
-                {dayOccurrences.length > MAX_CHIPS_PER_DAY ? (
-                  <span className="bitfun-todos__calendar-more">
-                    {t('calendar.moreCount', { total: dayOccurrences.length - MAX_CHIPS_PER_DAY })}
-                  </span>
-                ) : null}
-              </span>
-            </button>
-          );
-        })}
+                  ))}
+                  {dayOccurrences.length > MAX_CHIPS_PER_DAY ? (
+                    <span className="bitfun-todos__calendar-more">
+                      {t('calendar.moreCount', { total: dayOccurrences.length - MAX_CHIPS_PER_DAY })}
+                    </span>
+                  ) : null}
+                </span>
+              </button>
+            );
+          })}
+        </div>
       </div>
     </section>
   );

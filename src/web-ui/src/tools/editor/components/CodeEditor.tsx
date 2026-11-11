@@ -118,6 +118,8 @@ export interface CodeEditorProps {
   className?: string;
   /** Content change callback */
   onContentChange?: (content: string, hasChanges: boolean) => void;
+  /** Host actions operate on the retained editor instead of global focus. */
+  onEditorReady?: (editor: monaco.editor.IStandaloneCodeEditor | null) => void;
   /** Save callback */
   onSave?: (content: string) => void;
   /** Jump to line number (deprecated, use jumpToRange) */
@@ -231,6 +233,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
   className = '',
   onContentChange,
   onSave,
+  onEditorReady,
   jumpToLine,
   jumpToColumn,
   jumpToRange,
@@ -408,6 +411,8 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
   const showLineNumbersRuntimeRef = useRef(showLineNumbers);
   const showMinimapRuntimeRef = useRef(showMinimap);
   const onContentChangeRef = useRef(onContentChange);
+  const onEditorReadyRef = useRef(onEditorReady);
+  onEditorReadyRef.current = onEditorReady;
   const tRef = useRef(t);
   const contentRef = useRef(content);
   const loadingRef = useRef(loading);
@@ -939,6 +944,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
 
         editor = monacoApi.editor.create(container, editorOptions);
         editorRef.current = editor;
+        onEditorReadyRef.current?.(editor);
         container.addEventListener('dragover', interceptContextDrag, true);
         container.addEventListener('drop', interceptContextDrag, true);
         if (documentSession?.viewState) editor.restoreViewState(documentSession.viewState as monaco.editor.ICodeEditorViewState);
@@ -1208,6 +1214,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
       }
       
       if (editorRef.current) {
+        onEditorReadyRef.current?.(null);
         const snapshot = editorRef.current.saveViewState();
         if (documentSession) documentSession.viewState = snapshot;
         localViewStateRef.current = snapshot;
@@ -1221,7 +1228,9 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
         container.removeEventListener('drop', interceptContextDrag, true);
       }
 
-      monacoModelManager.releaseModel(modelKey);
+      // Cleanup can run before asynchronous Monaco initialization acquires a
+      // model. Release only the reference owned by this initialization.
+      if (model) monacoModelManager.releaseModel(modelKey);
 
     };
   }, [clearScheduledNavigationSettlement, detectedLanguage, detectLargeFileMode, documentSession, filePath, modelKey, viewResident]);
