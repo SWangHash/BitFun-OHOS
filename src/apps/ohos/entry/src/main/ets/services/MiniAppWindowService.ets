@@ -22,13 +22,15 @@ const PAGE: string = 'pages/MiniAppWindow';
 const MIN_WINDOW_WIDTH: number = 720;
 const MIN_WINDOW_HEIGHT: number = 520;
 const WINDOW_SCALE: number = 0.7;
+const FALLBACK_TITLE: string = 'MiniApp';
 
 export interface MiniAppWindowRequest {
   instanceId: string;
   viewId: string;
   nonce: string;
   appId: string;
-  title: string;
+  /** App name shown in the native title bar; Rust always sends it. */
+  title?: string;
   workspacePath?: string;
 }
 
@@ -57,6 +59,12 @@ interface WindowCallRequest {
   instanceId: string;
   viewId: string;
   nonce: string;
+}
+
+/** A created sub-window plus whether it was created with its native decor. */
+interface CreatedWindow {
+  handle: window.Window;
+  decorated: boolean;
 }
 
 function errorText(error: Object): string {
@@ -98,6 +106,17 @@ export class MiniAppWindowBridge {
   closeSelf(): void {
     MiniAppWindowService.getInstance().close(this.windowName);
   }
+
+  /**
+   * Publish the title the MiniApp document declares to the native title bar.
+   *
+   * The host only knows the app name when it creates the window; a MiniApp that
+   * carries `chrome.titlebar.title` (or a localized name) names itself later,
+   * during `bootstrap`.
+   */
+  setTitle(title: string): void {
+    MiniAppWindowService.getInstance().updateTitle(this.windowName, title);
+  }
 }
 
 export class MiniAppWindowService {
@@ -105,6 +124,7 @@ export class MiniAppWindowService {
   private windowStage: window.WindowStage | null = null;
   private sequence: number = 0;
   private readonly windows: Map<string, window.Window> = new Map();
+  private readonly handles: Map<string, window.Window> = new Map();
   private readonly requests: Map<string, MiniAppWindowRequest> = new Map();
   private readonly names: Map<string, string> = new Map();
   private readonly bridges: Map<string, MiniAppWindowBridge> = new Map();
@@ -158,10 +178,14 @@ export class MiniAppWindowService {
     }
     this.sequence += 1;
     const windowName: string = `bitfun-miniapp-${this.sequence}-${request.instanceId.slice(0, 8)}`;
+    const requestedTitle: string = request.title === undefined ? '' : request.title.trim();
+    const title: string = requestedTitle.length > 0 ? requestedTitle : FALLBACK_TITLE;
     try {
-      const subWindow: window.Window = await stage.createSubWindow(windowName);
-      await this.placeWindow(stage, subWindow);
+      const created: CreatedWindow =
+        await this.createWindow(stage, windowName, title, this.frameRect(stage));
+      const subWindow: window.Window = created.handle;
       this.windows.set(request.instanceId, subWindow);
+      this.handles.set(windowName, subWindow);
       this.requests.set(windowName, request);
       this.names.set(request.instanceId, windowName);
       this.bridges.set(windowName, new MiniAppWindowBridge(windowName));
@@ -174,6 +198,7 @@ export class MiniAppWindowService {
       storage.setOrCreate('bitfunMiniAppWindowName', windowName);
       await subWindow.loadContent(PAGE, storage);
       await subWindow.showWindow();
+      this.applyNativeChrome(subWindow, title, created.decorated);
       return opened();
     } catch (error) {
       hilog.error(DOMAIN, TAG, `create MiniApp window failed: ${errorText(error)}`);
@@ -218,6 +243,22 @@ export class MiniAppWindowService {
     }
   }
 
+  /**
+   * Replace the native title bar text with the title the document declares.
+   * The creation-time title is only the app name, which a MiniApp may override.
+   */
+  updateTitle(windowName: string, title: string): void {
+    const target = this.handles.get(windowName);
+    if (target === undefined) {
+      return;
+    }
+    const trimmed: string = title.trim();
+    const next: string = trimmed.length > 0 ? trimmed : FALLBACK_TITLE;
+    target.setWindowTitle(next).catch((error: BusinessError) => {
+      hilog.warn(DOMAIN, TAG, `setWindowTitle failed: ${errorText(error)}`);
+    });
+  }
+
   /** Close a window; the destroy path retires the host instance once. */
   async close(windowName: string): Promise<void> {
     const identity = this.requests.get(windowName);
@@ -245,6 +286,7 @@ export class MiniAppWindowService {
     this.requests.delete(windowName);
     this.bridges.delete(windowName);
     this.closing.delete(windowName);
+    this.handles.delete(windowName);
     if (identity === undefined) {
       return;
     }
@@ -274,25 +316,95 @@ export class MiniAppWindowService {
     }
   }
 
-  private async placeWindow(stage: window.WindowStage, subWindow: window.Window): Promise<void> {
+  /**
+   * Create the window with its native title bar from the first frame.
+   *
+   * A MiniApp window is a normal window: the user moves, resizes and closes it
+   * with the OS chrome, because the window does not render MiniApp custom
+   * chrome. `decorEnabled` must therefore be part of the creation call:
+   * `placeWindow` used to ask for the decor through `setWindowDecorVisible`
+   * before `showWindow`, which the platform rejects with `1300002 "window state
+   * abnormal"`, so the window ended up with neither a title nor a close button.
+   */
+  private async createWindow(
+    stage: window.WindowStage,
+    windowName: string,
+    title: string,
+    frame: window.Rect,
+  ): Promise<CreatedWindow> {
     try {
-      // A MiniApp window is a normal window: keep the native title/decor so the
-      // user can move, resize and close it without MiniApp-rendered chrome.
-      subWindow.setWindowDecorVisible(true);
+      const decorated: window.Window = await stage.createSubWindowWithOptions(windowName, {
+        title,
+        decorEnabled: true,
+        isModal: false,
+        windowRect: frame,
+      });
+      const created: CreatedWindow = { handle: decorated, decorated: true };
+      return created;
     } catch (error) {
-      hilog.warn(DOMAIN, TAG, `setWindowDecorVisible failed: ${errorText(error)}`);
+      hilog.warn(DOMAIN, TAG,
+        `decorated MiniApp sub-window unavailable, using an undecorated one: ${errorText(error)}`);
     }
+    const fallback: window.Window = await stage.createSubWindow(windowName);
     try {
-      const main = stage.getMainWindowSync();
-      const rect = main.getWindowProperties().windowRect;
-      const width: number = Math.max(MIN_WINDOW_WIDTH, Math.round(rect.width * WINDOW_SCALE));
-      const height: number = Math.max(MIN_WINDOW_HEIGHT, Math.round(rect.height * WINDOW_SCALE));
-      await subWindow.resize(width, height);
-      const x: number = rect.left + Math.round((rect.width - width) / 2);
-      const y: number = rect.top + Math.round((rect.height - height) / 2);
-      await subWindow.moveWindowTo(x, y);
+      await fallback.resize(frame.width, frame.height);
+      await fallback.moveWindowTo(frame.left, frame.top);
     } catch (error) {
       hilog.warn(DOMAIN, TAG, `place MiniApp window failed: ${errorText(error)}`);
+    }
+    const created: CreatedWindow = { handle: fallback, decorated: false };
+    return created;
+  }
+
+  /**
+   * Re-assert the native chrome once the window is shown.
+   *
+   * Chrome calls are rejected with `1300002` while the window is not in a normal
+   * state, so the decor is requested at creation time as well; this pass only
+   * repairs the undecorated fallback carrier. A decorated window keeps the
+   * creation-time title, because the shell republishes the MiniApp's own title
+   * through `updateTitle` and a late call here would overwrite it.
+   */
+  private applyNativeChrome(subWindow: window.Window, title: string, decorated: boolean): void {
+    if (!decorated) {
+      try {
+        subWindow.setWindowDecorVisible(true);
+      } catch (error) {
+        hilog.warn(DOMAIN, TAG, `setWindowDecorVisible failed: ${errorText(error)}`);
+      }
+      subWindow.setWindowTitle(title).catch((error: BusinessError) => {
+        hilog.warn(DOMAIN, TAG, `setWindowTitle failed: ${errorText(error)}`);
+      });
+    }
+    try {
+      subWindow.setWindowTitleButtonVisible(true, true, true);
+    } catch (error) {
+      hilog.warn(DOMAIN, TAG, `setWindowTitleButtonVisible failed: ${errorText(error)}`);
+    }
+  }
+
+  /** Centered rect over the main window; a sane fallback if the main window is unreadable. */
+  private frameRect(stage: window.WindowStage): window.Rect {
+    try {
+      const rect: window.Rect = stage.getMainWindowSync().getWindowProperties().windowRect;
+      const width: number = Math.max(MIN_WINDOW_WIDTH, Math.round(rect.width * WINDOW_SCALE));
+      const height: number = Math.max(MIN_WINDOW_HEIGHT, Math.round(rect.height * WINDOW_SCALE));
+      const frame: window.Rect = {
+        left: rect.left + Math.round((rect.width - width) / 2),
+        top: rect.top + Math.round((rect.height - height) / 2),
+        width,
+        height,
+      };
+      return frame;
+    } catch (error) {
+      hilog.warn(DOMAIN, TAG, `read the main window rect failed: ${errorText(error)}`);
+      const frame: window.Rect = {
+        left: 0,
+        top: 0,
+        width: MIN_WINDOW_WIDTH,
+        height: MIN_WINDOW_HEIGHT,
+      };
+      return frame;
     }
   }
 }

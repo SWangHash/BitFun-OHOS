@@ -185,11 +185,22 @@
       document.documentElement.style.colorScheme = bootstrap.appearanceMode;
       document.documentElement.dataset.appearanceMode = bootstrap.appearanceMode;
       document.documentElement.lang = bootstrap.locale;
-      document.title = (app.chrome && app.chrome.titlebar && app.chrome.titlebar.title)
+      const title = (app.chrome && app.chrome.titlebar && app.chrome.titlebar.title)
         || (app.i18n && app.i18n.locales && app.i18n.locales[bootstrap.locale]
           && app.i18n.locales[bootstrap.locale].name)
         || app.name
         || 'MiniApp';
+      document.title = title;
+      // The native title bar belongs to ArkTS. The host only knew the app name
+      // when it created the window, so publish the document's own title once the
+      // bootstrap reply names it.
+      if (host && typeof host.setTitle === 'function') {
+        try {
+          host.setTitle(title);
+        } catch (error) {
+          // The window may already be closing; the title is cosmetic.
+        }
+      }
       if (documentUrl) URL.revokeObjectURL(documentUrl);
       documentUrl = URL.createObjectURL(
         new Blob([app.compiled_html], { type: 'text/html;charset=utf-8' }),

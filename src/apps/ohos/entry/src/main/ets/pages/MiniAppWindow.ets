@@ -30,7 +30,7 @@ struct MiniAppWindow {
         .javaScriptProxy({
           object: this.bridge,
           name: 'ohosMiniAppHost',
-          methodList: ['call', 'result', 'closeSelf'],
+          methodList: ['call', 'result', 'closeSelf', 'setTitle'],
           controller: this.controller,
         })
     }

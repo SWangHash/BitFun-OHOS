@@ -26,6 +26,34 @@ test('the Rust adapter asks ArkTS to create the window', () => {
   assert.match(entryAbility, /MiniAppWindowService\.getInstance\(\)/);
 });
 
+test('the native title bar comes from the creation call, not a pre-show call', () => {
+  // `setWindowDecorVisible(true)` is rejected with 1300002 before the window is
+  // shown, so a window created without options had no title and no close button.
+  assert.match(service, /createSubWindowWithOptions\(windowName, \{/);
+  assert.match(service, /title,\r?\n\s*decorEnabled: true,/);
+  assert.match(service, /windowRect: frame,/);
+  // The decor is still re-asserted after show for the undecorated fallback.
+  assert.match(
+    service,
+    /await subWindow\.showWindow\(\);\r?\n\s*this\.applyNativeChrome\(subWindow, title, created\.decorated\);/,
+  );
+  assert.match(service, /setWindowTitleButtonVisible\(true, true, true\)/);
+  // The title comes from the host payload, with a fallback for an empty name.
+  assert.match(host, /"title": record\.name/);
+  assert.match(service, /FALLBACK_TITLE/);
+});
+
+test('the native title follows the title the MiniApp declares', () => {
+  // The creation call only knows the app name; the shell republishes the
+  // document's own title (`chrome.titlebar.title`, localized name, app name)
+  // through the bridge once bootstrap answers, so the title is not fixed.
+  assert.match(shell, /host\.setTitle\(title\)/);
+  assert.match(shell, /app\.chrome\.titlebar\.title/);
+  assert.match(service, /setTitle\(title: string\): void/);
+  assert.match(service, /updateTitle\(windowName: string, title: string\): void/);
+  assert.match(service, /target\.setWindowTitle\(next\)/);
+});
+
 test('the window page is registered and serves the shell document', () => {
   assert.ok(pages.src.includes('pages/MiniAppWindow'));
   // The window name arrives through the LocalStorage passed to loadContent, so
@@ -35,7 +63,7 @@ test('the window page is registered and serves the shell document', () => {
   assert.match(page, /MiniAppWindowService/);
   assert.match(page, /\$rawfile\('miniapp-window\/shell\.html'\)/);
   assert.match(page, /javaScriptProxy\(/);
-  assert.match(page, /methodList: \['call', 'result', 'closeSelf'\]/);
+  assert.match(page, /methodList: \['call', 'result', 'closeSelf', 'setTitle'\]/);
   assert.match(service, /const PAGE: string = 'pages\/MiniAppWindow'/);
 });
 

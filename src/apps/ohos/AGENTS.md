@@ -261,6 +261,18 @@ which a packaged HarmonyOS app cannot spawn.
 - `MiniAppWindowService.ets` creates one sub-window per MiniApp instance and
   loads `pages/MiniAppWindow`, which hosts
   `resources/rawfile/miniapp-window/shell.html` in an ArkWeb `Web`.
+- The window uses the native title bar, so the user moves, resizes and closes it
+  with the OS chrome (the window renders no MiniApp chrome). That decor must be
+  part of `createSubWindowWithOptions` (`decorEnabled: true`, `title`,
+  `windowRect`): a chrome call such as `setWindowDecorVisible(true)` before
+  `showWindow` is rejected with `1300002 "window state abnormal"`, which is how
+  the window previously ended up with no title and no close button. Only the
+  undecorated fallback carrier repairs the decor after `showWindow`.
+- The creation-time `title` is the app name from the host payload. A MiniApp
+  names itself later, so the shell republishes the document title it derives
+  (`chrome.titlebar.title`, localized name, app name) through the bridge's
+  `setTitle` method, which calls `setWindowTitle` on the shown window. Do not
+  make the ArkTS side the owner of the title text.
 - The shell page speaks the same JSON-RPC protocol as a tab and as the desktop
   shell (`bootstrap` / `ready` / `poll` / `rpc` / `local`), but reaches the host
   through the injected `window.ohosMiniAppHost` proxy
