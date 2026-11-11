@@ -4,7 +4,7 @@ const SOURCE_LABEL_BY_ID: Record<string, string> = {
   bitfun: 'BitFun',
   'bitfun-system': 'BitFun',
   openbitfun: 'BitFun',
-  'bitfun-system': 'BitFun',
+  'openbitfun-system': 'BitFun',
   'claude-code': 'Claude Code',
   'deveco-code': 'DevEco Code',
   claude: 'Claude Code',
@@ -68,7 +68,7 @@ export function getSkillSourceId(skill: SkillInfo): string {
   if (identity === 'bitfun-system' || identity === 'bitfun-user') return 'bitfun';
   // Handle the legacy BitFun brand identifiers so skills scanned by an
   // older binary (or cached from before the brand rename) are still recognized.
-  if (identity === 'openbitfun' || identity === 'bitfun-system' || identity === 'bitfun-user') return 'bitfun';
+  if (identity === 'openbitfun' || identity === 'openbitfun-system' || identity === 'openbitfun-user') return 'bitfun';
   if (identity.startsWith('opencode.')) return 'opencode';
   return identity;
 }

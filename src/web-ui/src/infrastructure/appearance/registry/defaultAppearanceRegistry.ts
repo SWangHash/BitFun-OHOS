@@ -15,7 +15,6 @@ import { badgeAppearanceDescriptor } from '@/component-library/components/Badge/
 import { tagAppearanceDescriptor } from '@/component-library/components/Tag/appearance';
 import { avatarAppearanceDescriptor } from '@/component-library/components/Avatar/appearance';
 import { codeEditorAppearanceDescriptor } from '@/component-library/components/CodeEditor/appearance';
-import { configPageAppearanceDescriptor } from '@/component-library/components/ConfigPage/appearance';
 import { cubeLoadingAppearanceDescriptor } from '@/component-library/components/CubeLoading/appearance';
 import { cubeLogoAppearanceDescriptor } from '@/component-library/components/CubeLogo/appearance';
 import { dotMatrixLoaderAppearanceDescriptor } from '@/component-library/components/DotMatrixLoader/appearance';
@@ -334,7 +333,6 @@ export function createDefaultAppearanceRegistry(): AppearanceRegistry {
     .registerComponent(tagAppearanceDescriptor)
     .registerComponent(avatarAppearanceDescriptor)
     .registerComponent(codeEditorAppearanceDescriptor)
-    .registerComponent(configPageAppearanceDescriptor)
     .registerComponent(cubeLoadingAppearanceDescriptor)
     .registerComponent(cubeLogoAppearanceDescriptor)
     .registerComponent(dotMatrixLoaderAppearanceDescriptor)

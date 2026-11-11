@@ -4,7 +4,7 @@
   "title": "BitFun Playbook",
   "origin": "https://playbook.bitfun.com",
   "source": "src/shared/interactive-capabilities/catalog.json",
-  "digest": "49a5bc1a9461bf6b3609a13c7a722f2525baeb9f603211962a1eb692424303dd",
+  "digest": "32046280aa0eac323e3e2e2c72139b73b995184588578045eb1131fe6eb033c6",
   "ownerDigest": "6e84a19b530f14a07e529107926039545ede20b4ca77fed7cac33020d849147f",
   "searchAcceptance": [
     {
@@ -28195,16 +28195,15 @@
       "categoryId": "application",
       "titleZh": "外观与语言",
       "titleEn": "Appearance & language",
-      "summaryZh": "切换主题与语言，调整字体，并安装或导入外观包。",
-      "summaryEn": "Switch themes and languages, tune typography, and install or import appearance packs.",
+      "summaryZh": "切换内置主题与语言，调整字体。",
+      "summaryEn": "Switch built-in themes and languages, and tune typography.",
       "keywordsZh": [
         "外观",
         "主题",
         "深色模式",
         "浅色模式",
         "语言",
-        "字体",
-        "皮肤"
+        "字体"
       ],
       "keywordsEn": [
         "appearance",
@@ -28212,18 +28211,15 @@
         "dark mode",
         "light mode",
         "language",
-        "font",
-        "skin"
+        "font"
       ],
       "highlightsZh": [
         "系统、深色与浅色主题",
-        "界面语言与字号",
-        "本地与市场外观包"
+        "界面语言与字号"
       ],
       "highlightsEn": [
         "System, dark, and light themes",
-        "UI language and font size",
-        "Local and marketplace appearance packs"
+        "UI language and font size"
       ],
       "items": [
         {
@@ -28332,12 +28328,12 @@
       "stepsZh": [
         "打开设置",
         "进入“应用 > 外观”",
-        "选择主题、语言或外观包"
+        "选择内置主题或语言"
       ],
       "stepsEn": [
         "Open Settings",
         "Go to Application > Appearance",
-        "Choose a theme, language, or appearance package"
+        "Choose a built-in theme or language"
       ],
       "agentExamplesZh": [
         "切换成深色主题",
@@ -28405,20 +28401,16 @@
         "浅色模式",
         "语言",
         "字体",
-        "皮肤",
         "appearance",
         "theme",
         "dark mode",
         "light mode",
         "language",
         "font",
-        "skin",
         "系统、深色与浅色主题",
         "界面语言与字号",
-        "本地与市场外观包",
         "System, dark, and light themes",
         "UI language and font size",
-        "Local and marketplace appearance packs",
         "选择跟随系统、浅色、深色、单色、Midnight、中国风、Cyber、Slate 或 Tokyo Night 等内置外观",
         "Choose system, light, dark, monochrome, Midnight, China, Cyber, Slate, Tokyo Night, and other built-in appearances",
         "切换简体中文、繁体中文、英文等受支持界面语言",

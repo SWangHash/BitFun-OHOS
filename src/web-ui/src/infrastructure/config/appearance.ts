@@ -11,6 +11,7 @@ export const configAppearanceDescriptor: AppearanceSurfaceDescriptor = {
     { id: 'sectionHeader' },
     { id: 'sectionTitle' },
     { id: 'sectionDescription' },
+    { id: 'sectionBody' },
     { id: 'row' },
     { id: 'rowLabel' },
     { id: 'required' },

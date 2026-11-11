@@ -19,7 +19,7 @@ export const ConfigPageMessage: React.FC<ConfigPageMessageProps> = ({
   if (!message) return null;
 
   return (
-    <div className={`bitfun-config-page-message ${className}`} data-bitfun-component="config-page" data-bitfun-part="message">
+    <div className={`bitfun-config-page-message ${className}`} data-bitfun-product-component="config-page" data-bitfun-product-part="message">
       <Alert type={message.type} message={message.text} />
     </div>
   );

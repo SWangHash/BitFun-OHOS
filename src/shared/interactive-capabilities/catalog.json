@@ -10599,6 +10599,9 @@
     "miniapp_web_host": {
       "capabilityId": "feature.miniapps"
     },
+    "appearance_market": {
+      "capabilityId": "setting.application.appearance"
+    },
     "market_image": {
       "capabilityId": null
     },

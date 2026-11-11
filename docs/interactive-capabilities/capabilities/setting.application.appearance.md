@@ -23,6 +23,16 @@ Switch built-in themes and languages, and tune typography.
   - Switch among Simplified Chinese, Traditional Chinese, English, and other supported UI languages
 - **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 调整全局界面字号，并支持自定义像素值
   - Adjust the global UI font size, including custom pixel values
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 导入、预览、应用、导出和删除本地外观包
+  - Import, preview, apply, export, and delete local appearance packages
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 浏览、搜索、筛选并安装或更新 Skin 市场外观
+  - Browse, search, filter, install, and update appearances from the Skin market
+- **由专用智能体工具控制 / Delegated Agent tool** · `PublishAppearance` · 在用户明确要求时由智能体提交本地外观包到 Skin 市场审核
+  - Let an agent submit a local Appearance package for Skin-market review when explicitly requested
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 查看和撤回自己的外观市场投稿
+  - Review and withdraw your appearance-market submissions
+- **智能体可定位入口，需交互完成 / Agent opens; interaction required** · 在具备权限时查看并批准或拒绝外观投稿
+  - When authorized, inspect and approve or reject appearance submissions
 
 ## 怎么用 / How to use it
 
