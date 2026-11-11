@@ -29,6 +29,12 @@ export const PET_RECT_EVENT: string = 'bitfun.agentCompanion.rect';
  * page's boot background.
  */
 export const PET_READY_EVENT: string = 'bitfun.agentCompanion.ready';
+/**
+ * AppStorage key holding the carrier that actually created the pet window
+ * (`float` / `main-topmost` / `subwindow` / `none`). The page uses it to pick a
+ * blur material the compositor can sample behind the window.
+ */
+export const PET_CARRIER_KEY: string = 'bitfunPetWindowCarrier';
 
 /** `{ event, payload }` — payload keeps its original JSON type. */
 export interface PetWindowDeliverEnvelope {

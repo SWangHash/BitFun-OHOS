@@ -8,6 +8,20 @@ import { DesktopCardActionPayload, DesktopCardWindowService } from '../services/
 const DOMAIN: number = 0x0000;
 const TAG: string = 'BitFunDesktopCardPage';
 
+/**
+ * Card material switch.
+ *
+ * `BACKGROUND_*` asks the compositor to sample what is behind the window. The
+ * card window is a transparent subwindow, so that is normally the main window's
+ * content; if a platform build cannot sample it, flip this to `false` to keep
+ * the opaque card surface instead. Never ship a translucent surface without a
+ * material: the text would sit on whatever happens to be behind the window.
+ */
+const CARD_MATERIAL_ENABLED: boolean = false;
+const CARD_MATERIAL_STYLE: BlurStyle = BlurStyle.BACKGROUND_THICK;
+/** How much of the theme surface stays on top of the material. */
+const CARD_TINT_OPACITY: number = 0.72;
+
 interface CardCountdownView {
   targetAtMs: number;
   startedAtMs?: number;
@@ -492,7 +506,10 @@ struct DesktopCardPage {
   @State private dark: boolean = false;
   @State private locale: string = 'en-US';
   @State private customReady: boolean = false;
+  /** Material light-up intensity, pulsed when the card receives new data. */
+  @State private glow: number = 0;
   private timerId: number = -1;
+  private glowTimerId: number = -1;
   private customBridge: DesktopCardCustomBridge | null = null;
   private readonly donutSettings: RenderingContextSettings = new RenderingContextSettings(true);
   private readonly donutContext: CanvasRenderingContext2D = new CanvasRenderingContext2D(this.donutSettings);
@@ -515,11 +532,40 @@ struct DesktopCardPage {
 
   aboutToDisappear(): void {
     this.stopTimer();
+    if (this.glowTimerId !== -1) {
+      clearTimeout(this.glowTimerId);
+      this.glowTimerId = -1;
+    }
   }
 
   onCardChanged(): void {
     this.applyCardJson();
     this.startTimer();
+    this.pulseGlow();
+  }
+
+  /**
+   * Short light-up pulse so a refreshed card is visible without a layout jump.
+   * It is intentionally subtle: the card updates on its own schedule, and a
+   * strong flash would be distracting next to the main window.
+   */
+  private pulseGlow(): void {
+    if (!CARD_MATERIAL_ENABLED) {
+      return;
+    }
+    if (this.glowTimerId !== -1) {
+      clearTimeout(this.glowTimerId);
+      this.glowTimerId = -1;
+    }
+    animateTo({ duration: 180, curve: Curve.EaseOut }, () => {
+      this.glow = 0.35;
+    });
+    this.glowTimerId = setTimeout(() => {
+      this.glowTimerId = -1;
+      animateTo({ duration: 500, curve: Curve.EaseInOut }, () => {
+        this.glow = 0;
+      });
+    }, 220);
   }
 
   private palette(): CardPalette {
@@ -1454,28 +1500,53 @@ struct DesktopCardPage {
   }
 
   build() {
-    Column() {
-      this.Header()
-      if (this.kind() === 'custom') {
-        this.CustomBody()
-      } else {
-        Scroll() {
-          Column() {
-            this.Body()
-          }
-          .width('100%')
-        }
-        .layoutWeight(1)
+    Stack() {
+      // Material layer. It carries no backgroundColor on purpose: a
+      // non-transparent fill would have to disable the blur.
+      Column()
         .width('100%')
-        .scrollBar(BarState.Off)
+        .height('100%')
+        .borderRadius(12)
+        .backgroundBlurStyle(
+          CARD_MATERIAL_ENABLED ? CARD_MATERIAL_STYLE : BlurStyle.NONE,
+          {
+            colorMode: ThemeColorMode.SYSTEM,
+            policy: BlurStyleActivePolicy.ALWAYS_ACTIVE,
+          }
+        )
+        .lightUpEffect(this.glow)
+      // Theme surface tint on top of the material, independent of the content so
+      // text opacity is never affected.
+      Column()
+        .width('100%')
+        .height('100%')
+        .borderRadius(12)
+        .backgroundColor(this.palette().surface)
+        .opacity(CARD_MATERIAL_ENABLED ? CARD_TINT_OPACITY : 1)
+      Column() {
+        this.Header()
+        if (this.kind() === 'custom') {
+          this.CustomBody()
+        } else {
+          Scroll() {
+            Column() {
+              this.Body()
+            }
+            .width('100%')
+          }
+          .layoutWeight(1)
+          .width('100%')
+          .scrollBar(BarState.Off)
+        }
+        this.Footer()
       }
-      this.Footer()
+      .width('100%')
+      .height('100%')
+      .borderRadius(12)
+      .border({ width: 1, color: this.palette().border })
+      .clip(true)
     }
     .width('100%')
     .height('100%')
-    .backgroundColor(this.palette().surface)
-    .borderRadius(12)
-    .border({ width: 1, color: this.palette().border })
-    .clip(true)
   }
 }

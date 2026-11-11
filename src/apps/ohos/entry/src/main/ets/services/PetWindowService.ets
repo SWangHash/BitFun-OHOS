@@ -2,7 +2,7 @@ import { common } from '@kit.AbilityKit';
 import { display, window } from '@kit.ArkUI';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
-import { PET_WINDOW_TAG } from './PetWindowChannel';
+import { PET_CARRIER_KEY, PET_WINDOW_TAG } from './PetWindowChannel';
 
 const DOMAIN: number = 0x0000;
 /**
@@ -168,15 +168,18 @@ export class PetWindowService {
     const floatWindow: window.Window | null = await this.createFloatWindow();
     if (floatWindow !== null) {
       this.carrier = 'float';
+      AppStorage.setOrCreate<string>(PET_CARRIER_KEY, this.carrier);
       return floatWindow;
     }
     const mainWindow: window.Window | null = await this.createTopmostMainWindow();
     if (mainWindow !== null) {
       this.carrier = 'main-topmost';
+      AppStorage.setOrCreate<string>(PET_CARRIER_KEY, this.carrier);
       return mainWindow;
     }
     const subWindow: window.Window | null = await this.createSubWindow();
     this.carrier = subWindow === null ? 'none' : 'subwindow';
+    AppStorage.setOrCreate<string>(PET_CARRIER_KEY, this.carrier);
     return subWindow;
   }
 
