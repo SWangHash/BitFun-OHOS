@@ -606,6 +606,7 @@ mod tests {
             "InitMiniApp",
             "FinalizeMiniApp",
             "PublishMiniApp",
+            "MiniAppInvoke",
             "FrontendWorkbench",
             "PublishAppearance",
             "PageDeploy",

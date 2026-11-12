@@ -157,6 +157,16 @@ pub const BUILTIN_APPS: &[BuiltinMiniAppBundle] = &[
         worker_js: include_str!("builtin/assets/ppt-live/worker.js"),
         esm_dependencies_json: include_str!("builtin/assets/ppt-live/esm_dependencies.json"),
     },
+    BuiltinMiniAppBundle {
+        id: "builtin-json-formatter",
+        version: 1,
+        meta_json: include_str!("builtin/assets/json-formatter/meta.json"),
+        html: include_str!("builtin/assets/json-formatter/index.html"),
+        css: include_str!("builtin/assets/json-formatter/style.css"),
+        ui_js: include_str!("builtin/assets/json-formatter/ui.js"),
+        worker_js: include_str!("builtin/assets/json-formatter/worker.js"),
+        esm_dependencies_json: "[]",
+    },
 ];
 
 pub fn builtin_content_hash(app: &BuiltinMiniAppBundle) -> String {
@@ -361,6 +371,7 @@ mod tests {
                 "builtin-regex-playground",
                 "builtin-coding-selfie",
                 "builtin-ppt-live",
+                "builtin-json-formatter",
             ]
         );
 

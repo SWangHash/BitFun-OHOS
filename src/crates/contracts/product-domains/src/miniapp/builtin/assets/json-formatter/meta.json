@@ -1,0 +1,66 @@
+{
+  "id": "builtin-json-formatter",
+  "name": "JSON 格式化",
+  "description": "JSON 校验、美化、压缩与键排序，错误定位到行列，支持缩进切换与一键复制。",
+  "icon": "braces",
+  "category": "developer",
+  "tags": [
+    "JSON",
+    "工具",
+    "开发",
+    "内置"
+  ],
+  "version": 6,
+  "created_at": 0,
+  "updated_at": 0,
+  "permissions": {
+    "fs": {
+      "read": [
+        "{appdata}",
+        "{workspace}"
+      ],
+      "write": [
+        "{appdata}",
+        "{workspace}"
+      ]
+    },
+    "host": {
+      "clipboard_write": true
+    }
+  },
+  "ai_context": null,
+  "i18n": {
+    "locales": {
+      "zh-CN": {
+        "name": "JSON 格式化",
+        "description": "JSON 校验、美化、压缩与键排序，错误定位到行列，支持缩进切换与一键复制。",
+        "tags": [
+          "JSON",
+          "工具",
+          "开发",
+          "内置"
+        ]
+      },
+      "en-US": {
+        "name": "JSON Formatter",
+        "description": "Validate, beautify, minify, and sort-key JSON with line/col error hints, indent options, and one-click copy.",
+        "tags": [
+          "json",
+          "tool",
+          "developer",
+          "built-in"
+        ]
+      },
+      "zh-TW": {
+        "name": "JSON 格式化",
+        "description": "JSON 校驗、美化、壓縮與鍵排序，錯誤定位到行列，支持縮進切換與一鍵複製。",
+        "tags": [
+          "JSON",
+          "工具",
+          "開發",
+          "內置"
+        ]
+      }
+    }
+  }
+}

@@ -55,6 +55,8 @@ pub mod miniapp_finalize_tool;
 #[cfg(feature = "tools-miniapp")]
 pub mod miniapp_init_tool;
 #[cfg(feature = "tools-miniapp")]
+pub mod miniapp_invoke_tool;
+#[cfg(feature = "tools-miniapp")]
 pub mod miniapp_publish_tool;
 pub mod bitfun_control_tool;
 #[cfg(feature = "tools-pages")]
@@ -144,6 +146,8 @@ pub use mcp_tools::{
 pub use miniapp_finalize_tool::FinalizeMiniAppTool;
 #[cfg(feature = "tools-miniapp")]
 pub use miniapp_init_tool::InitMiniAppTool;
+#[cfg(feature = "tools-miniapp")]
+pub use miniapp_invoke_tool::MiniAppInvokeTool;
 #[cfg(feature = "tools-miniapp")]
 pub use miniapp_publish_tool::PublishMiniAppTool;
 #[cfg(feature = "tools-pages")]
