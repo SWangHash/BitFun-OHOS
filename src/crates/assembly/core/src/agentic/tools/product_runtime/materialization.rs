@@ -79,7 +79,6 @@ const PRODUCT_TOOL_REGISTRATION_ORDER: &[&str] = &[
     "InitMiniApp",
     "FinalizeMiniApp",
     "PublishMiniApp",
-    "MiniAppInvoke",
     "FrontendWorkbench",
     "PublishAppearance",
     "PageDeploy",
@@ -201,8 +200,6 @@ impl StaticToolProviderFactory<dyn Tool> for ProductConcreteToolFactory {
             "FinalizeMiniApp" => Some(Arc::new(FinalizeMiniAppTool::new())),
             #[cfg(feature = "tools-miniapp")]
             "PublishMiniApp" => Some(Arc::new(PublishMiniAppTool::new())),
-            #[cfg(feature = "tools-miniapp")]
-            "MiniAppInvoke" => Some(Arc::new(MiniAppInvokeTool::new())),
             #[cfg(feature = "tools-creation")]
             "FrontendWorkbench" => Some(Arc::new(FrontendWorkbenchTool::new())),
             #[cfg(feature = "tools-miniapp")]

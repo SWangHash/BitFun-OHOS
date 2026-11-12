@@ -308,33 +308,6 @@ pub fn build_bridge_script(
   document.documentElement.setAttribute('data-bitfun-appearance-mode', _appearanceMode);
   window.parent.postMessage({{ method: 'bitfun/request-appearance' }}, '*');
   window.parent.postMessage({{ method: 'bitfun/request-locale' }}, '*');
-
-  // Readiness probe — `app.ready` resolves on the first host round-trip
-  // (os.info). During host startup, native calls queue or get lost; built-in
-  // tools gate their UI on this so early clicks are visibly queued instead of
-  // silently dropped. Falls back to ready after ~30s so an old host that
-  // never answers cannot lock the app's UI forever.
-  let _readyNotify = function() {{}};
-  window.app.readyState = 'initializing';
-  window.app.ready = new Promise(function(resolve) {{ _readyNotify = resolve; }});
-  (function _probeHost(attempts) {{
-    var id = 'probe-' + Math.random().toString(36).slice(2) + '-' + Date.now();
-    var timer = setTimeout(function() {{
-      window.removeEventListener('message', handler);
-      if (attempts <= 0) {{ window.app.readyState = 'timeout'; _readyNotify(); return; }}
-      _probeHost(attempts - 1);
-    }}, 500);
-    var handler = function(e) {{
-      if (!e.data || e.data.id !== id) return;
-      window.removeEventListener('message', handler);
-      clearTimeout(timer);
-      // Any reply (result or error) proves the host channel is alive.
-      window.app.readyState = 'ready';
-      _readyNotify();
-    }};
-    window.addEventListener('message', handler);
-    window.parent.postMessage({{ jsonrpc: '2.0', id: id, method: 'os.info', params: {{}} }}, '*');
-  }})(60);
 }})();
 "#,
         app_id_esc = app_id_esc,

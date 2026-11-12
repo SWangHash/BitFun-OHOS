@@ -49,9 +49,6 @@ impl ClawMode {
                 // agent/tool instead of being surfaced as a ControlHub domain.
                 "ControlHub".to_string(),
                 "BitFunControl".to_string(),
-                // Invocation of installed MiniApps is not a creation-only
-                // tool: daily tasks can drive an installed app's primitives.
-                "MiniAppInvoke".to_string(),
                 "PublishAppearance".to_string(),
                 "PageDeploy".to_string(),
                 "PagePublish".to_string(),
@@ -111,7 +108,6 @@ mod tests {
         assert!(!tools.contains(&"FinalizeMiniApp".to_string()));
         assert!(!tools.contains(&"PublishMiniApp".to_string()));
         assert!(!tools.contains(&"FrontendWorkbench".to_string()));
-        assert!(tools.contains(&"MiniAppInvoke".to_string()));
         assert!(tools.contains(&"ListModels".to_string()));
     }
 

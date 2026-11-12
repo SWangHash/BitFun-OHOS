@@ -56,9 +56,6 @@ impl CoworkMode {
                 // `wait` sends schedules here rather than pinning a turn open
                 // for the interval.
                 "Cron".to_string(),
-                // Invocation of installed MiniApps is not a creation-only
-                // tool: office work can drive an installed app's primitives.
-                "MiniAppInvoke".to_string(),
                 "PublishAppearance".to_string(),
             ],
         }
@@ -132,7 +129,6 @@ mod tests {
         assert!(!tools.contains(&"FinalizeMiniApp".to_string()));
         assert!(!tools.contains(&"PublishMiniApp".to_string()));
         assert!(!tools.contains(&"FrontendWorkbench".to_string()));
-        assert!(tools.contains(&"MiniAppInvoke".to_string()));
         assert!(tools.contains(&"ListModels".to_string()));
     }
 }
