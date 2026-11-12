@@ -96,19 +96,19 @@ on:
         default: false
         type: boolean
       release_tag:
-        description: 'Release 标签（如 v2.0.2）'
+        description: 'Release 标签（如 v2.0.3）'
         required: false
-        default: 'v2.0.2'
+        default: 'v2.0.3'
         type: string
       package_name:
-        description: '产物包名（文件名主干，如 bitfun-v2.0.2）'
+        description: '产物包名（文件名主干，如 bitfun-v2.0.3）'
         required: false
-        default: 'bitfun-v2.0.2'
+        default: 'bitfun-v2.0.3'
         type: string
       release_title:
         description: 'Release 标题；重跑想保留原 Release 标题时清空此框'
         required: false
-        default: 'BitFun ADE v2.0.2'
+        default: 'BitFun ADE v2.0.3'
         type: string
   schedule:
     # GitCode schedule uses Asia/Shanghai time. 00:10 instead of the exact
