@@ -47,10 +47,13 @@ const NavBar: React.FC<NavBarProps> = ({
   const goForward    = useNavSceneStore(s => s.goForward);
   const canGoBack    = showSceneNav && !!navSceneId;
   const canGoForward = !showSceneNav && !!navSceneId;
-  // Window drag starts on mousedown. While maximized, it is deferred until the
-  // pointer moves, because Windows restores a maximized window the moment a
-  // native drag begins — even for a plain click.
-  const { onMouseDown: handleChromeMouseDown } = useWindowChromeDrag({ isMaximized });
+  // Window drag starts on mouse down (pointer down for touch/pen). While
+  // maximized, it is deferred until the pointer moves, because Windows restores
+  // a maximized window the moment a native drag begins — even for a plain click.
+  const {
+    onMouseDown: handleChromeMouseDown,
+    onPointerDown: handleChromePointerDown,
+  } = useWindowChromeDrag({ isMaximized });
 
   const handleBarMouseDown = useCallback((e: React.MouseEvent) => {
     if (!canDragWindow) return;
@@ -61,6 +64,16 @@ const NavBar: React.FC<NavBarProps> = ({
     if (target.closest(INTERACTIVE_SELECTOR)) return;
     handleChromeMouseDown(e);
   }, [canDragWindow, handleChromeMouseDown]);
+
+  const handleBarPointerDown = useCallback((e: React.PointerEvent) => {
+    if (!canDragWindow) return;
+
+    if (e.button !== 0) return;
+    const target = e.target as HTMLElement | null;
+    if (!target) return;
+    if (target.closest(INTERACTIVE_SELECTOR)) return;
+    handleChromePointerDown(e);
+  }, [canDragWindow, handleChromePointerDown]);
 
   const handleBarDoubleClick = useCallback((e: React.MouseEvent) => {
     const target = e.target as HTMLElement | null;
@@ -73,7 +86,7 @@ const NavBar: React.FC<NavBarProps> = ({
 
   if (isCollapsed) {
     return (
-      <div data-bitfun-component="nav-bar" data-bitfun-part="root" data-bitfun-paint-layer="none" data-bitfun-state="collapsed" data-bitfun-theme-scope="chrome" className={rootClassName} role="toolbar" aria-label={t('nav.aria.navControl')} onMouseDown={handleBarMouseDown} onDoubleClick={handleBarDoubleClick}>
+      <div data-bitfun-component="nav-bar" data-bitfun-part="root" data-bitfun-paint-layer="none" data-bitfun-state="collapsed" data-bitfun-theme-scope="chrome" className={rootClassName} role="toolbar" aria-label={t('nav.aria.navControl')} onMouseDown={handleBarMouseDown} onPointerDown={handleBarPointerDown} onDoubleClick={handleBarDoubleClick}>
         <Tooltip content={t('header.expandLeftPanel')} placement="bottom" followCursor>
           <button
             type="button"
@@ -92,7 +105,7 @@ const NavBar: React.FC<NavBarProps> = ({
   }
 
   return (
-    <div data-bitfun-component="nav-bar" data-bitfun-part="root" data-bitfun-theme-scope="chrome" className={rootClassName} role="toolbar" aria-label={t('nav.aria.navControl')} onMouseDown={handleBarMouseDown} onDoubleClick={handleBarDoubleClick}>
+    <div data-bitfun-component="nav-bar" data-bitfun-part="root" data-bitfun-theme-scope="chrome" className={rootClassName} role="toolbar" aria-label={t('nav.aria.navControl')} onMouseDown={handleBarMouseDown} onPointerDown={handleBarPointerDown} onDoubleClick={handleBarDoubleClick}>
       <Tooltip content={t('header.collapseLeftPanel')} placement="bottom" followCursor>
         <button
           type="button"

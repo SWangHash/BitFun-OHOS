@@ -80,10 +80,13 @@ const SceneTopBar: React.FC<SceneTopBarProps> = ({
   // The OpenHarmony host paints its own minimize/maximize/close buttons in
   // this corner, so reserve the strip instead of drawing an overlapping set.
   const showHostWindowChromePlaceholder = usesHostWindowControls();
-  // Window drag starts on mousedown. While maximized, it is deferred until the
-  // pointer moves, because Windows restores a maximized window the moment a
-  // native drag begins — even for a plain click.
-  const { onMouseDown: handleChromeMouseDown } = useWindowChromeDrag({ isMaximized });
+  // Window drag starts on mouse down (pointer down for touch/pen). While
+  // maximized, it is deferred until the pointer moves, because Windows restores
+  // a maximized window the moment a native drag begins — even for a plain click.
+  const {
+    onMouseDown: handleChromeMouseDown,
+    onPointerDown: handleChromePointerDown,
+  } = useWindowChromeDrag({ isMaximized });
   const isLeadingTarget = (event: React.DragEvent<HTMLDivElement>) =>
     event.target instanceof Node && event.currentTarget
       .querySelector(':scope > [data-bitfun-part="leading"]')?.contains(event.target);
@@ -95,6 +98,11 @@ const SceneTopBar: React.FC<SceneTopBarProps> = ({
     handleChromeMouseDown(event);
   }, [handleChromeMouseDown, isSingleTab]);
 
+  const handlePointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    if (blocksWindowChromeInteraction(event, isSingleTab)) return;
+    handleChromePointerDown(event);
+  }, [handleChromePointerDown, isSingleTab]);
+
   const handleDoubleClick = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
     if (!canDragWindow || event.button !== 0 || blocksWindowChromeInteraction(event, isSingleTab)) return;
     onMaximize?.();
@@ -105,6 +113,7 @@ const SceneTopBar: React.FC<SceneTopBarProps> = ({
       bordered={hasTabs || panelOpen}
       className={`bitfun-scene-top-bar ${panelOpen && !panelMaximized ? columnClassName ?? '' : ''} ${className}`.trim()}
       onMouseDown={handleMouseDown}
+      onPointerDown={handlePointerDown}
       onDoubleClick={handleDoubleClick}
       onDragOverCapture={event => onTabDragOver?.(event, isLeadingTarget(event) ? 'leading' : 'trailing')}
       onDragLeave={onTabDragLeave}
