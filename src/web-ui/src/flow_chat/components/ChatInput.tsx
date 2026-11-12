@@ -6912,7 +6912,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                                 data-bitfun-part="boostSubmenuItem"
                                 data-bitfun-boost-item-kind="additional-mode"
                                 data-bitfun-additional-mode-id={item.id}
-                                data-testid={`chat-input-additional-mode-${item.id}`}
+                                data-testid="chat-input-additional-mode"
                                 title={item.title}
                                 leading={<Icon name="spark" size="xs" aria-hidden />}
                                 onClick={event => {

@@ -378,7 +378,7 @@ export const HarnessProfileSelector: React.FC<HarnessProfileSelectorProps> = ({
             </span>
           )}
           onClick={() => handleSelectAgent(agent)}
-          data-testid={`harness-agent-${agent.id}`}
+          data-testid="harness-agent"
         >
           {agent.name}
         </MenuItem>

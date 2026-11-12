@@ -71,9 +71,9 @@ export const VirtualItemRenderer = React.memo<VirtualItemRendererProps>(
         
         case 'model-round':
           return (
-            <ModelRoundItem 
-              round={item.data} 
-              turnId={item.turnId} 
+            <ModelRoundItem
+              round={item.data}
+              turnId={item.turnId}
               isLastRound={item.isLastRound}
               isTurnComplete={item.isTurnComplete}
               turnStartedAt={item.turnStartedAt}

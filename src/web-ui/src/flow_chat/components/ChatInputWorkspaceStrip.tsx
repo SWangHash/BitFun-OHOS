@@ -634,7 +634,7 @@ export const ChatInputWorkspaceStrip: React.FC<ChatInputWorkspaceStripProps> = (
                   data-bitfun-component="chat-input-workspace-strip"
                   data-bitfun-part="workspaceOption"
                   data-bitfun-state={isActive ? 'active' : undefined}
-                  data-testid={`chat-input-workspace-option-${workspace.id}`}
+                  data-testid="chat-input-workspace-option"
                   aria-label={workspaceDetail
                     ? `${workspaceName}, ${workspaceDetail}`
                     : workspaceName}

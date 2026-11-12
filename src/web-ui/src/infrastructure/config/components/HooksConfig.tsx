@@ -440,7 +440,7 @@ const HooksConfig: React.FC<HooksConfigProps> = ({ embedded = false }) => {
                     aria-label={t('imports.toggle', { name: item.source.displayName })}
                     checked={item.enabled}
                     disabled={!config.enabled || busyKey !== null}
-                    data-testid={`hooks-import-enabled-switch-${item.importId}`}
+                    data-testid="hooks-import-enabled-switch"
                     onChange={(event) => void mutateImport(
                       { kind: 'set_enabled', importId: item.importId, enabled: event.target.checked },
                       item.importId,
@@ -451,7 +451,7 @@ const HooksConfig: React.FC<HooksConfigProps> = ({ embedded = false }) => {
                     variant="outline"
                     size="sm"
                     disabled={busyKey !== null || item.state === 'source_missing'}
-                    data-testid={`hooks-import-update-${item.importId}`}
+                    data-testid="hooks-import-update"
                     onClick={() => void previewImport(item.source)}
                   >
                     {t('imports.update')}
@@ -461,7 +461,7 @@ const HooksConfig: React.FC<HooksConfigProps> = ({ embedded = false }) => {
                     tone="danger"
                     size="sm"
                     disabled={busyKey !== null}
-                    data-testid={`hooks-import-remove-${item.importId}`}
+                    data-testid="hooks-import-remove"
                     onClick={() => setConfirmation({ kind: 'remove', importId: item.importId })}
                   >
                     {t('imports.remove')}

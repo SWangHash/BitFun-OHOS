@@ -52,6 +52,8 @@ export interface FileOperationToolCardProps
     label: string;
   };
   error?: FileOperationToolCardError;
+  /** data-testid for the summary expand affordance button. */
+  expandAffordanceTestId?: string;
   inlineMessage?: ReactNode;
   isExpanded?: boolean;
   onOpenFile?: FileOperationToolCardAction;
@@ -64,6 +66,8 @@ export interface FileOperationToolCardProps
   requiresConfirmation?: boolean;
   status: FlowChatToolStatus;
   statusDetail?: ReactNode;
+  /** data-testid for the clickable summary surface (the body click-to-expand target). */
+  toggleTestId?: string;
 }
 
 const OPERATION_ICONS = {
@@ -85,6 +89,7 @@ export function FileOperationToolCard({
   changeSummary,
   className,
   error,
+  expandAffordanceTestId,
   inlineMessage,
   isExpanded = false,
   onOpenFile,
@@ -97,6 +102,7 @@ export function FileOperationToolCard({
   requiresConfirmation = false,
   status,
   statusDetail,
+  toggleTestId,
   ...props
 }: FileOperationToolCardProps) {
   const Icon = OPERATION_ICONS[operation];
@@ -175,6 +181,7 @@ export function FileOperationToolCard({
           <ProminentToolCardSummary
             action={actionLabel}
             actionTestId={actionTestId}
+            affordanceTestId={expandAffordanceTestId}
             trailingActions={onOpenFile ? (
               <ToolCardActions>
                 <IconButton
@@ -232,6 +239,7 @@ export function FileOperationToolCard({
         onToggle={hasExpandedContent && onToggle ? () => onToggle() : undefined}
         requiresConfirmation={requiresConfirmation}
         status={status}
+        toggleTestId={toggleTestId}
       />
     </div>
   );

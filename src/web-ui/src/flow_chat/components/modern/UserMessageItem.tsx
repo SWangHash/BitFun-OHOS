@@ -712,7 +712,7 @@ export const UserMessageItem = React.memo<UserMessageItemProps>(
                 <Tooltip content={rollbackTooltip}>
                   <IconButton
                     className="user-message-item__rollback-btn"
-                    data-testid={`user-message-rollback-btn-${turnId}`}
+                    data-testid="user-message-rollback-btn"
                     onClick={handleRollback}
                     disabled={!canRollback}
                     aria-label={rollbackTooltip}

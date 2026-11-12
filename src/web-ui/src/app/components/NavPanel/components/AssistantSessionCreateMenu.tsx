@@ -144,7 +144,7 @@ const AssistantSessionCreateMenu: React.FC<AssistantSessionCreateMenuProps> = ({
                   closeMenu();
                   void onCreateAssistant(workspace);
                 }}
-                data-testid={`nav-assistant-session-menu-item-${workspace.id}`}
+                data-testid="nav-assistant-session-menu-item"
               >
                 <OverflowText className="bitfun-nav-panel__assistant-session-menu-name">{assistantName}</OverflowText>
               </MenuItem>

@@ -78,6 +78,11 @@ const branches = [
   { name: 'feature', current: false, remote: false, ahead: 0, behind: 0 },
 ];
 
+function optionButton(name: string): HTMLButtonElement | undefined {
+  return [...document.querySelectorAll<HTMLButtonElement>('[data-testid="branch-quick-switch-option"]')]
+    .find(el => el.textContent?.trim() === name);
+}
+
 function Harness({ onSwitchSuccess }: { onSwitchSuccess: (branch: string) => void }) {
   const [open, setOpen] = useState(true);
   const anchorRef = useRef<HTMLButtonElement>(null);
@@ -139,12 +144,10 @@ describe('BranchQuickSwitch', () => {
       root.render(<Harness onSwitchSuccess={vi.fn()} />);
     });
     await vi.waitFor(() => expect(
-      document.querySelector('[data-testid="branch-quick-switch-option-main"]'),
+      optionButton('main'),
     ).not.toBeNull());
 
-    const currentBranch = document.querySelector<HTMLButtonElement>(
-      '[data-testid="branch-quick-switch-option-main"]',
-    );
+    const currentBranch = optionButton('main');
     expect(currentBranch?.getAttribute('aria-selected')).toBe('true');
     expect(currentBranch?.dataset.bitfunState).toBe('current');
     expect(currentBranch?.disabled).toBe(false);
@@ -164,13 +167,11 @@ describe('BranchQuickSwitch', () => {
       root.render(<Harness onSwitchSuccess={onSwitchSuccess} />);
     });
     await vi.waitFor(() => expect(
-      document.querySelector(`[data-testid="branch-quick-switch-option-${selected}"]`),
+      optionButton(selected),
     ).not.toBeNull());
 
     await act(async () => {
-      document.querySelector<HTMLButtonElement>(
-        `[data-testid="branch-quick-switch-option-${selected}"]`,
-      )?.click();
+      optionButton(selected)?.click();
     });
 
     expect(mocks.checkoutBranch).toHaveBeenCalledWith({ workspaceId: 'workspace-1' }, selected);
@@ -204,9 +205,7 @@ describe('BranchQuickSwitch', () => {
       root.render(<Harness onSwitchSuccess={onSwitchSuccess} />);
     });
     await act(async () => {
-      document.querySelector<HTMLButtonElement>(
-        '[data-testid="branch-quick-switch-option-feature"]',
-      )?.click();
+      optionButton('feature')?.click();
     });
 
     expect(mocks.checkoutBranch).toHaveBeenCalledTimes(1);
@@ -214,8 +213,7 @@ describe('BranchQuickSwitch', () => {
       expectedMessage,
       expect.objectContaining({ title: 'quickSwitch.errors.title' }),
     );
-    expect(document.querySelector('[data-testid="branch-quick-switch-option-main"]')
-      ?.getAttribute('aria-selected')).toBe('true');
+    expect(optionButton('main')?.getAttribute('aria-selected')).toBe('true');
     // The picker stays open; checkout failure adds no confirmation dialog.
     expect(document.querySelectorAll('[role="dialog"]')).toHaveLength(1);
     expect(document.querySelector('[role="alertdialog"]')).toBeNull();

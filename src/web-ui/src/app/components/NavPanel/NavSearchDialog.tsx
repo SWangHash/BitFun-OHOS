@@ -324,7 +324,7 @@ const NavSearchDialog: React.FC<NavSearchDialogProps> = ({ open, onClose }) => {
           return (
             <button data-bitfun-component="nav-search-dialog" data-bitfun-part="item" data-bitfun-state={idx === activeIndex ? 'active' : undefined}
               key={item.id}
-              data-testid={`nav-search-result-${item.id}`}
+              data-testid="nav-search-result"
               type="button"
               className={`bitfun-nav-search-dialog__item${idx === activeIndex ? ' bitfun-nav-search-dialog__item--active' : ''}`}
               onMouseEnter={() => setActiveIndex(idx)}

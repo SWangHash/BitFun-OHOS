@@ -647,6 +647,8 @@ export interface ProminentToolCardSummaryProps {
   actionTestId?: string;
   actions?: ReactNode;
   affordanceKind?: ToolCardAffordanceKind;
+  /** data-testid for the expand affordance button rendered in the action region. */
+  affordanceTestId?: string;
   content?: ReactNode;
   expandAffordance?: boolean;
   extra?: ReactNode;
@@ -663,6 +665,7 @@ export function ProminentToolCardSummary({
   actionTestId,
   actions,
   affordanceKind,
+  affordanceTestId,
   content,
   expandAffordance,
   extra,
@@ -748,6 +751,7 @@ export function ProminentToolCardSummary({
               data-bitfun-affordance={resolvedKind}
               data-bitfun-component="flow-chat-tool-card"
               data-bitfun-part="affordanceButton"
+              data-testid={affordanceTestId}
               onClick={(event) => {
                 event.stopPropagation();
                 affordanceAction(event);

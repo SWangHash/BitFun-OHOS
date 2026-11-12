@@ -867,6 +867,7 @@ const GenericFileOperationToolCard: React.FC<FileOperationToolCardProps> = ({
             ? undefined
             : `${toolDisplayName}${t('toolCards.file.failed')}`,
         } : undefined}
+        expandAffordanceTestId="chat-file-change-expand"
         isExpanded={isCardContentExpanded}
         onOpenFile={canOpenFullCode ? {
           label: t('toolCards.file.openFullCodeHint'),
@@ -890,6 +891,7 @@ const GenericFileOperationToolCard: React.FC<FileOperationToolCardProps> = ({
         requiresConfirmation={showConfirmationActions}
         status={isFailed ? 'error' : status}
         statusDetail={headerStatusText}
+        toggleTestId="chat-file-change-surface"
       />
     </div>
   );

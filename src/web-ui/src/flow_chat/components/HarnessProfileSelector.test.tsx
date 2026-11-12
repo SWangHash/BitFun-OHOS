@@ -154,7 +154,7 @@ describe('HarnessProfileSelector', () => {
           ?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
       });
       await act(async () => {
-        document.querySelector<HTMLButtonElement>(`[data-testid="harness-agent-${agentId}"]`)
+        document.querySelector<HTMLButtonElement>(`[data-testid="harness-agent"][data-bitfun-agent-id="${agentId}"]`)
           ?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
       });
 
@@ -271,12 +271,12 @@ describe('HarnessProfileSelector', () => {
     });
     expect(menu?.dataset.bitfunPage).toBe('agents');
     expect(
-      menu?.querySelector('[data-testid="harness-agent-DeepResearch"] [data-bitfun-name="user"][data-size="md"]'),
+      menu?.querySelector('[data-testid="harness-agent"][data-bitfun-agent-id="DeepResearch"] [data-bitfun-name="user"][data-size="md"]'),
     ).not.toBeNull();
     expect(onSelectionComplete).not.toHaveBeenCalled();
 
     await act(async () => {
-      menu?.querySelector<HTMLButtonElement>('[data-testid="harness-agent-DeepResearch"]')
+      menu?.querySelector<HTMLButtonElement>('[data-testid="harness-agent"][data-bitfun-agent-id="DeepResearch"]')
         ?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
     expect(onSelectAgent).toHaveBeenCalledWith('DeepResearch');
@@ -397,7 +397,7 @@ describe('HarnessProfileSelector', () => {
     )).toEqual(['DeepResearch', 'Cowork', 'Plan']);
 
     await act(async () => {
-      document.querySelector<HTMLButtonElement>('[data-testid="harness-agent-DeepResearch"]')
+      document.querySelector<HTMLButtonElement>('[data-testid="harness-agent"][data-bitfun-agent-id="DeepResearch"]')
         ?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
     expect(onSelectAgent).toHaveBeenCalledWith('DeepResearch');
@@ -466,8 +466,6 @@ describe('HarnessProfileSelector', () => {
     expect(Array.from(menu!.querySelectorAll<HTMLElement>('[data-bitfun-part="agent"]')).map(
       row => row.dataset.bitfunAgentId,
     )).toEqual(['QtMigration']);
-    expect(menu?.querySelector('[data-testid="harness-agent-DeepResearch"]')).toBeNull();
-    expect(menu?.querySelector('[data-testid="harness-agent-Plan"]')).toBeNull();
 
     await act(async () => {
       menu!.querySelector<HTMLButtonElement>('[data-testid="harness-industry-back"]')
@@ -684,14 +682,14 @@ describe('HarnessProfileSelector', () => {
         ?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
     expect(
-      document.querySelector<HTMLElement>('[data-testid="harness-agent-Plan"]')?.dataset.bitfunState,
+      document.querySelector<HTMLElement>('[data-testid="harness-agent"][data-bitfun-agent-id="Plan"]')?.dataset.bitfunState,
     ).toBe('available');
     expect(
-      document.querySelector<HTMLElement>('[data-testid="harness-agent-Cowork"]')?.dataset.bitfunState,
+      document.querySelector<HTMLElement>('[data-testid="harness-agent"][data-bitfun-agent-id="Cowork"]')?.dataset.bitfunState,
     ).toBe('available');
 
     await act(async () => {
-      document.querySelector<HTMLButtonElement>('[data-testid="harness-agent-Cowork"]')
+      document.querySelector<HTMLButtonElement>('[data-testid="harness-agent"][data-bitfun-agent-id="Cowork"]')
         ?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
     expect(onSelectAgent).not.toHaveBeenCalled();

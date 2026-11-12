@@ -349,7 +349,7 @@ describe('composer context track layout', () => {
     expect(contextIndex).toBeGreaterThan(additionalModeItemsIndex);
     expect(chatInput).toContain('additionalModeItems.map(item => (');
     expect(chatInput).toContain('data-bitfun-boost-item-kind="additional-mode"');
-    expect(chatInput).toContain('data-testid={`chat-input-additional-mode-${item.id}`}');
+    expect(chatInput).toContain('data-testid="chat-input-additional-mode"');
     expect(chatInput).not.toContain('boost-submenu-item--unavailable');
     expect(chatInput).not.toContain('boost-submenu-item-status');
     expect(chatInput).not.toContain('data-bitfun-boost-item-kind="workflow"');

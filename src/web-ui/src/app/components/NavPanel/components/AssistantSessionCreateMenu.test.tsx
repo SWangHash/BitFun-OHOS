@@ -96,7 +96,10 @@ describe('AssistantSessionCreateMenu', () => {
     const items = [...document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')];
     expect(items.map(item => item.textContent)).toEqual(['Mira', 'Sage']);
 
-    click('nav-assistant-session-menu-item-secondary');
+    const sageItem = [...document.querySelectorAll<HTMLButtonElement>('[data-testid="nav-assistant-session-menu-item"]')]
+      .find(item => item.textContent === 'Sage');
+    expect(sageItem).not.toBeUndefined();
+    act(() => sageItem!.click());
     expect(onCreateAssistant).toHaveBeenCalledWith(secondaryAssistant);
     expect(document.querySelector('[data-testid="nav-assistant-session-menu"]')).toBeNull();
   });

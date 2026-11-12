@@ -346,7 +346,7 @@ export const BranchQuickSwitch: React.FC<BranchQuickSwitchProps> = ({
               className="branch-quick-switch__item"
               data-index={index}
               data-bitfun-state={branch.current ? 'current' : undefined}
-              data-testid={`branch-quick-switch-option-${branch.name}`}
+              data-testid="branch-quick-switch-option"
               disabled={isSwitching}
               indicator={switchingBranch === branch.name
                 ? <Loader2 size={14} className="branch-quick-switch__spinner" aria-hidden />

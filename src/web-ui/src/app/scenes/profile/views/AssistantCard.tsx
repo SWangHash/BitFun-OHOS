@@ -76,7 +76,7 @@ const AssistantCard: React.FC<AssistantCardProps> = ({
           data-bitfun-part="main"
           type="button"
           className="assistant-card__main"
-          data-testid={`assistant-card-${workspace.assistantId || workspace.id}-main`}
+          data-testid="assistant-card-main"
           onClick={onClick}
           aria-label={`${t('nursery.card.configure')}: ${name}`}
           disabled={isDeleting || isSettingPrimary}
@@ -148,7 +148,7 @@ const AssistantCard: React.FC<AssistantCardProps> = ({
                   size="sm"
                   leadingIcon={<Icon name="side-chat" size="sm" />}
                   loading={isStartingSession}
-                  data-testid={`assistant-card-${workspace.assistantId || workspace.id}-new-session-btn`}
+                  data-testid="assistant-card-new-session-btn"
                   onClick={onNewSession}
                   disabled={isStartingSession || isDeleting || isSettingPrimary}
                 >

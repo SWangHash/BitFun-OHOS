@@ -2315,7 +2315,7 @@ const AcpAgentsConfig = forwardRef<AcpAgentsConfigHandle, AcpAgentsConfigProps>(
                                     variant="outline"
                                     size="sm"
                                     leadingIcon={<Icon name="arrow-down" size="sm" />}
-                                    data-testid={`acp-remote-install-cli-btn-${connection.id}-${row.preset?.id ?? 'unknown'}`}
+                                    data-testid={`acp-remote-install-cli-btn-${row.preset?.id ?? 'unknown'}`}
                                     onClick={() => requestInstallPresetClient(row.preset!, {
                                       remoteConnectionId: connection.id,
                                       hostLabel: [connection.username, connection.host]

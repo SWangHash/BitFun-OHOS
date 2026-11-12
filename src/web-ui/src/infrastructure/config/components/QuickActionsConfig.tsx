@@ -227,14 +227,14 @@ const ActionRow: React.FC<ActionRowProps> = ({ action, onToggle, onEdit, onDelet
           checked={action.enabled}
           onChange={() => onToggle(action.id)}
           disabled={disabled}
-          data-testid={`quick-action-enabled-switch-${action.id}`}
+          data-testid="quick-action-enabled-switch"
         />
         <Tooltip content={t('edit.button')}>
           <IconButton
             type="button"
             size="sm"
             aria-label={t('edit.button')}
-            data-testid={`quick-action-edit-${action.id}`}
+            data-testid="quick-action-edit"
             onClick={() => onEdit(action)}
             disabled={disabled}
             icon={<Icon name="edit" size="xs" />}
@@ -246,7 +246,7 @@ const ActionRow: React.FC<ActionRowProps> = ({ action, onToggle, onEdit, onDelet
               type="button"
               size="sm"
               aria-label={t('delete.button')}
-              data-testid={`quick-action-delete-${action.id}`}
+              data-testid="quick-action-delete"
               onClick={() => onDelete(action.id)}
               disabled={disabled}
               className="quick-actions-config__delete-btn"

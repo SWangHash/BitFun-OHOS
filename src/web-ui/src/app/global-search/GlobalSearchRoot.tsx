@@ -599,7 +599,7 @@ export const GlobalSearchContent: React.FC<GlobalSearchContentProps> = ({
                         <ActionCard
                           key={item.id}
                           id={`${instanceId}-option-${item.id}`}
-                          data-testid={`global-search-result-${item.id}`}
+                          data-testid="global-search-result"
                           data-search-result-id={item.id}
                           role="option"
                           aria-selected={selected}

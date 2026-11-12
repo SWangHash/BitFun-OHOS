@@ -306,24 +306,24 @@ describe('ChatInputWorkspaceStrip git refresh behavior', () => {
     expect(menu).not.toBeNull();
     // The active workspace is marked and is not re-selected.
     expect(
-      menu?.querySelector('[data-testid="chat-input-workspace-option-ws-1"]')?.getAttribute('aria-checked'),
+      menu?.querySelector('[data-testid="chat-input-workspace-option"][aria-label*="BitFun"]')?.getAttribute('aria-checked'),
     ).toBe('true');
     expect(
-      menu?.querySelector('[data-testid="chat-input-workspace-option-ws-1"]')?.textContent,
+      menu?.querySelector('[data-testid="chat-input-workspace-option"][aria-label*="D:/workspace/BitFun"]')?.textContent,
     ).toContain('D:/workspace/BitFun');
     expect(
-      menu?.querySelector('[data-testid="chat-input-workspace-option-ws-2"]')?.textContent,
+      menu?.querySelector('[data-testid="chat-input-workspace-option"][aria-label*="D:/workspace/Other"]')?.textContent,
     ).toContain('D:/workspace/Other');
     expect(
-      menu?.querySelector('[data-testid="chat-input-workspace-option-ws-3"]')?.textContent,
+      menu?.querySelector('[data-testid="chat-input-workspace-option"][aria-label*="Primary"]')?.textContent,
     ).toContain('Primary assistant');
     expect(
-      menu?.querySelector('[data-testid="chat-input-workspace-option-ws-4"]')?.textContent,
+      menu?.querySelector('[data-testid="chat-input-workspace-option"][aria-label*="Personal"]')?.textContent,
     ).toContain('Personal assistant');
     expect(menu?.textContent).not.toContain('D:/internal/assistants/');
 
     const other = menu?.querySelector<HTMLButtonElement>(
-      '[data-testid="chat-input-workspace-option-ws-2"]',
+      '[data-testid="chat-input-workspace-option"][aria-label*="D:/workspace/Other"]',
     );
     await act(async () => {
       other?.click();
