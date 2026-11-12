@@ -315,10 +315,7 @@ export default class EntryAbility extends RustAbility implements StatusBarTrayHo
     try { this.desktopSystem.dispose(); } catch (error) {
       hilog.error(DOMAIN, 'DesktopSystem', 'Failed to release idle sleep lock: %{public}s', String(error));
     }
-<<<<<<< HEAD
     this.releaseScheduledJobKeepAlive();
-=======
->>>>>>> ef2dd6f649 (feat(local-model): hold the on-device model service via a service-ability connection)
     this.localModelKeepAlive.dispose();
     this.statusBarTray?.remove();
     RustModule.ohosMarkCleanShutdown();
@@ -628,6 +625,19 @@ export default class EntryAbility extends RustAbility implements StatusBarTrayHo
     this.setNativeTitleButtonsVisible(false, 'startup-sync');
     windowStage.setWindowRectAutoSave(true).catch((error: BusinessError) => {
       hilog.warn(DOMAIN, 'window', `setWindowRectAutoSave failed: ${error.message}`);
+    });
+    // Proactively request notification permission while the app is in the
+    // foreground: the system authorization dialog cannot be shown from the
+    // background, so the grant that send_system_notification_ohos depends on
+    // must happen before the first minimized dialog completion. The call is
+    // idempotent — if already granted it resolves immediately.
+    notificationManager.isNotificationEnabled().then(async (enabled: boolean) => {
+      if (!enabled) {
+        await notificationManager.requestEnableNotification();
+        hilog.info(DOMAIN, 'notification', 'Notification permission requested on window stage create');
+      }
+    }).catch((error: BusinessError) => {
+      hilog.warn(DOMAIN, 'notification', `Failed to check notification permission: ${error.message}`);
     });
     // The calendar manager is a system-service handle that only the
     // `call_calendar` bridge (a user action fired long after the shell is up)
@@ -1319,6 +1329,21 @@ export default class EntryAbility extends RustAbility implements StatusBarTrayHo
         // SERVICE_INFORMATION uses the system's high-priority alert channel.
         await notificationManager.addSlot(slotType);
       }
+      // Click-to-open: the wantAgent tells the system to bring BitFun to the
+      // foreground when the user taps the notification. Without it the
+      // notification is informational only and tapping does nothing.
+      const startWant: Want = {
+        bundleName: 'com.develop.opensource.ohpcd.bitfun',
+        abilityName: 'EntryAbility',
+        action: 'ohos.want.action.home',
+        entities: ['entity.system.home'],
+      };
+      const wantAgentInfo: wantAgent.WantAgentInfo = {
+        wants: [startWant],
+        operationType: wantAgent.OperationType.START_ABILITY,
+        requestCode: 0,
+      };
+      const agent = await wantAgent.getWantAgent(wantAgentInfo);
       const request: notificationManager.NotificationRequest = {
         id: Date.now() % 2147483647,
         notificationSlotType: slotType,
@@ -1329,6 +1354,7 @@ export default class EntryAbility extends RustAbility implements StatusBarTrayHo
             text: params.body ?? '',
           },
         },
+        wantAgent: agent,
       };
       await notificationManager.publish(request);
       return '';
