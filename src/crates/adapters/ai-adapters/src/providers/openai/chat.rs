@@ -515,8 +515,12 @@ pub(crate) fn build_request_body(
 /// Cloud-safe normalization: only fills null or missing `content` with an
 /// empty string. All other fields (tool_calls, name, tool_call_id,
 /// reasoning_content) are preserved intact because cloud providers fully
-/// support the OpenAI spec. Anthropic-style content arrays are flattened
-/// to text strings, but roles and extensions are left alone.
+/// support the OpenAI spec. Content arrays that carry only text parts are
+/// flattened to a joined string, while multimodal arrays (image_url blocks
+/// for computer-use screenshots and user attachments) are preserved
+/// verbatim — flattening them would silently drop the images and the
+/// cloud vision model would never see them. Roles and extensions are left
+/// alone.
 fn normalize_message_content_cloud(messages: Vec<serde_json::Value>) -> Vec<serde_json::Value> {
     messages
         .into_iter()
@@ -525,16 +529,26 @@ fn normalize_message_content_cloud(messages: Vec<serde_json::Value>) -> Vec<serd
                 let content = obj.get("content").cloned();
                 let normalized_content = match content {
                     Some(serde_json::Value::Array(items)) => {
-                        let text = items
-                            .iter()
-                            .filter_map(|item| {
-                                item.get("text")
-                                    .and_then(|text| text.as_str())
-                                    .map(|text| text.to_string())
-                            })
-                            .collect::<Vec<_>>()
-                            .join("\n");
-                        serde_json::Value::String(text)
+                        let is_text_only = items.iter().all(|item| {
+                            matches!(
+                                item.get("type").and_then(serde_json::Value::as_str),
+                                None | Some("text")
+                            )
+                        });
+                        if is_text_only {
+                            let text = items
+                                .iter()
+                                .filter_map(|item| {
+                                    item.get("text")
+                                        .and_then(|text| text.as_str())
+                                        .map(|text| text.to_string())
+                                })
+                                .collect::<Vec<_>>()
+                                .join("\n");
+                            serde_json::Value::String(text)
+                        } else {
+                            serde_json::Value::Array(items)
+                        }
                     }
                     Some(value) if value.is_string() => value,
                     _ => serde_json::Value::String(String::new()),

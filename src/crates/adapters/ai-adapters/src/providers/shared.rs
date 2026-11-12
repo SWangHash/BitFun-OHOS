@@ -50,18 +50,27 @@ pub(crate) fn is_https_endpoint(raw: &str, host: &str, path: &str) -> bool {
     })
 }
 
-/// Returns true when the endpoint is a local inference server (localhost /
-/// 127.0.0.1 / [::1] on any port). Local servers often validate more tightly
-/// than the OpenAI spec (the on-device model foundation service rejects
-/// `stream_options`, `tool` role messages, and `max_tokens`), so the request
-/// builder uses this to skip fields they do not understand.
+/// Returns true when the endpoint is the on-device model foundation service.
+/// The service exposes an Ollama-compatible HTTP API on the fixed local
+/// endpoint `http://localhost:11434(/v1)` (see `ModelSettingsPage`'s
+/// `isLocalOllamaEndpointActive` and `local_model_client`'s default port),
+/// and validates more tightly than the OpenAI spec (it rejects
+/// `stream_options`, `tool` role messages, and `max_tokens`).
+///
+/// The check is deliberately narrow: other loopback HTTP endpoints —
+/// user-configured Ollama on a custom port, LM Studio, vLLM, dev proxies —
+/// implement the full OpenAI surface (tool calling, `max_tokens`,
+/// `stream_options`, large context) and must keep receiving cloud-style
+/// requests.
 pub(crate) fn is_local_inference_endpoint(_client: &crate::client::AIClient, url: &str) -> bool {
     reqwest::Url::parse(url).ok().is_some_and(|parsed| {
         let is_loopback = matches!(
             parsed.host_str(),
             Some("localhost") | Some("127.0.0.1") | Some("[::1]")
         );
-        is_loopback && parsed.scheme() == "http"
+        is_loopback
+            && parsed.scheme() == "http"
+            && parsed.port() == Some(11434)
     })
 }
 

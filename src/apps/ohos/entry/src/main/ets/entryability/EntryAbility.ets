@@ -1331,17 +1331,22 @@ export default class EntryAbility extends RustAbility implements StatusBarTrayHo
       }
       // Click-to-open: the wantAgent tells the system to bring BitFun to the
       // foreground when the user taps the notification. Without it the
-      // notification is informational only and tapping does nothing.
+      // notification is informational only and tapping does nothing. The
+      // bundle/ability names resolve from the live ability context (same
+      // pattern as the status-bar tray agent) and fall back to the product
+      // identifiers when the context is not bound yet.
+      const context = this.context;
       const startWant: Want = {
-        bundleName: 'com.develop.opensource.ohpcd.bitfun',
-        abilityName: 'EntryAbility',
+        bundleName: context?.abilityInfo.bundleName ?? 'com.develop.opensource.ohpcd.bitfun',
+        abilityName: context?.abilityInfo.name ?? 'EntryAbility',
         action: 'ohos.want.action.home',
         entities: ['entity.system.home'],
       };
       const wantAgentInfo: wantAgent.WantAgentInfo = {
         wants: [startWant],
-        operationType: wantAgent.OperationType.START_ABILITY,
+        actionType: wantAgent.OperationType.START_ABILITY,
         requestCode: 0,
+        actionFlags: [wantAgent.WantAgentFlags.UPDATE_PRESENT_FLAG],
       };
       const agent = await wantAgent.getWantAgent(wantAgentInfo);
       const request: notificationManager.NotificationRequest = {

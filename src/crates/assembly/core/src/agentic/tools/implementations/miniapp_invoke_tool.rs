@@ -77,8 +77,20 @@ impl Default for MiniAppInvokeTool {
 
 /// Hardening applied to market-strict apps, mirroring the desktop Tauri
 /// command's `validate_market_host_call` so the agent path never becomes a
-/// weaker bypass around the marketplace runtime.
+/// weaker bypass around the marketplace runtime. The basename check covers
+/// both direct interpreters and the wrappers that would defeat the app's
+/// own allowlist (`env`, `sudo`, `xargs`, `busybox`, `timeout`, …), and the
+/// interpreter names match version-suffixed variants (`python3.11`,
+/// `node20`) after trimming trailing digits.
 fn validate_market_strict_shell_exec(params: &Value) -> BitFunResult<()> {
+    const FORBIDDEN_BASENAMES: &[&str] = &[
+        "sh", "bash", "zsh", "fish", "cmd", "powershell", "pwsh",
+        "python", "python3", "node", "bun", "deno", "ruby", "perl",
+        // Wrappers that launch another program and would bypass the app's
+        // own shell allowlist if only the wrapper were checked.
+        "env", "nohup", "sudo", "xargs", "busybox", "timeout", "time",
+        "nice", "stdbuf", "setsid",
+    ];
     if params
         .get("command")
         .and_then(Value::as_str)
@@ -106,26 +118,25 @@ fn validate_market_strict_shell_exec(params: &Value) -> BitFunResult<()> {
         .rsplit(['/', '\\'])
         .next()
         .unwrap_or_default()
+        .trim()
         .trim_end_matches(".exe")
         .to_ascii_lowercase();
-    if matches!(
-        program.as_str(),
-        "sh" | "bash"
-            | "zsh"
-            | "fish"
-            | "cmd"
-            | "powershell"
-            | "pwsh"
-            | "python"
-            | "python3"
-            | "node"
-            | "bun"
-            | "deno"
-            | "ruby"
-            | "perl"
-    ) {
+    if program.is_empty() {
         return Err(BitFunError::validation(
-            "Shells and general-purpose interpreters are forbidden for marketplace MiniApps.",
+            "Marketplace shell.exec args must start with a program name.",
+        ));
+    }
+    // Version-suffixed interpreters (python3.11, node20, ruby3.2) resolve to
+    // their base name before the forbidden-name check.
+    let base = program
+        .trim_end_matches(|c: char| c.is_ascii_digit() || c == '.')
+        .to_string();
+    if [program.as_str(), base.as_str()]
+        .into_iter()
+        .any(|name| FORBIDDEN_BASENAMES.contains(&name))
+    {
+        return Err(BitFunError::validation(
+            "Shells, general-purpose interpreters, and launch wrappers are forbidden for marketplace MiniApps.",
         ));
     }
     Ok(())
@@ -485,5 +496,30 @@ mod tests {
         assert!(validate_market_strict_shell_exec(&json!({ "args": ["sh", "-c", "ls"] })).is_err());
         assert!(validate_market_strict_shell_exec(&json!({ "args": ["/usr/bin/python3"] })).is_err());
         assert!(validate_market_strict_shell_exec(&json!({ "args": ["curl", "-s", "http://127.0.0.1:9090/version"] })).is_ok());
+    }
+
+    #[test]
+    fn market_strict_hardening_blocks_wrappers_versioned_interpreters_and_empty_programs() {
+        use super::validate_market_strict_shell_exec;
+
+        // Launch wrappers would defeat the app's own basename allowlist.
+        for wrapper in ["env", "nohup", "sudo", "xargs", "busybox", "timeout"] {
+            let args = if wrapper == "timeout" {
+                json!([wrapper, "10", "curl", "-s", "http://example.test"])
+            } else {
+                json!([wrapper, "curl", "-s", "http://example.test"])
+            };
+            assert!(
+                validate_market_strict_shell_exec(&args).is_err(),
+                "{wrapper} must be rejected"
+            );
+        }
+        // Version-suffixed interpreters resolve to their base name.
+        assert!(validate_market_strict_shell_exec(&json!({ "args": ["/usr/bin/python3.11", "-c", "print(1)"] })).is_err());
+        assert!(validate_market_strict_shell_exec(&json!({ "args": ["node20", "-e", "console.log(1)"] })).is_err());
+        assert!(validate_market_strict_shell_exec(&json!({ "args": ["/opt/ruby3.2/bin/ruby", "-e", "puts 1"] })).is_err());
+        // Empty and missing program names are rejected outright.
+        assert!(validate_market_strict_shell_exec(&json!({ "args": [""] })).is_err());
+        assert!(validate_market_strict_shell_exec(&json!({ "args": ["   "] })).is_err());
     }
 }
