@@ -364,6 +364,7 @@ function syncIndentButtons() {
 }
 
 function applyStaticI18n() {
+  document.documentElement.setAttribute('lang', currentLocale());
   for (const el of document.querySelectorAll('[data-i18n]')) {
     // Elements whose copy targets an attribute (placeholder 等) must never get
     // textContent: assigning textContent on a <textarea> SETS ITS VALUE, which
@@ -450,6 +451,11 @@ async function init() {
   syncIndentButtons();
   bindEvents();
   await restoreState();
+  if (window.app && typeof window.app.onLocaleChange === 'function') {
+    window.app.onLocaleChange(() => {
+      applyStaticI18n();
+    });
+  }
 }
 
 init();
