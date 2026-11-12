@@ -51,10 +51,13 @@ const SceneTopBar: React.FC<SceneTopBarProps> = ({
   // The OpenHarmony host paints its own minimize/maximize/close buttons in
   // this corner, so reserve the strip instead of drawing an overlapping set.
   const showHostWindowChromePlaceholder = usesHostWindowControls();
-  // Window drag starts on mousedown. While maximized, it is deferred until the
-  // pointer moves, because Windows restores a maximized window the moment a
-  // native drag begins — even for a plain click.
-  const { onMouseDown: handleChromeMouseDown } = useWindowChromeDrag({ isMaximized });
+  // Window drag starts on mouse down (pointer down for touch/pen). While
+  // maximized, it is deferred until the pointer moves, because Windows restores
+  // a maximized window the moment a native drag begins — even for a plain click.
+  const {
+    onMouseDown: handleChromeMouseDown,
+    onPointerDown: handleChromePointerDown,
+  } = useWindowChromeDrag({ isMaximized });
 
   const handleMouseDown = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
     // Interactive descendants (tabs, buttons, inputs, ...) keep their own
@@ -62,6 +65,11 @@ const SceneTopBar: React.FC<SceneTopBarProps> = ({
     if (blocksWindowChromeInteraction(event, isSingleTab)) return;
     handleChromeMouseDown(event);
   }, [handleChromeMouseDown, isSingleTab]);
+
+  const handlePointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    if (blocksWindowChromeInteraction(event, isSingleTab)) return;
+    handleChromePointerDown(event);
+  }, [handleChromePointerDown, isSingleTab]);
 
   const handleDoubleClick = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
     if (!canDragWindow || event.button !== 0 || blocksWindowChromeInteraction(event, isSingleTab)) return;
@@ -73,6 +81,7 @@ const SceneTopBar: React.FC<SceneTopBarProps> = ({
       bordered={hasTabs}
       className={`bitfun-scene-top-bar ${className}`.trim()}
       onMouseDown={handleMouseDown}
+      onPointerDown={handlePointerDown}
       onDoubleClick={handleDoubleClick}
       data-bitfun-scene="workbench"
       data-bitfun-part="topBar"

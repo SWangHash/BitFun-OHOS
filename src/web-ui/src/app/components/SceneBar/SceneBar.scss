@@ -79,6 +79,9 @@
     padding-inline: var(--bitfun-border-width-default);
     overflow-x: auto;
     overflow-y: hidden;
+    // The surrounding chrome reserves touch gestures for window dragging; the
+    // tab strip keeps its own horizontal pan.
+    touch-action: pan-x;
     overscroll-behavior-x: contain;
     scroll-padding-inline: var(--bitfun-control-tab-group-gap);
     scrollbar-width: none;

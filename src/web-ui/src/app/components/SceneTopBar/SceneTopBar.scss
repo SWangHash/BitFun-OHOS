@@ -25,6 +25,10 @@
   container-name: scene-top-bar;
   container-type: inline-size;
   user-select: none;
+  // The host disables native title-bar moving, so this bar owns the drag. On
+  // touch, a browser pan would steal the gesture and cancel the pointer stream
+  // before the move loop starts; the tab strip restores horizontal panning.
+  touch-action: none;
 
   &:has(.window-controls--windows) {
     // Extend through the scene surface's right gutter so Close reaches the edge.

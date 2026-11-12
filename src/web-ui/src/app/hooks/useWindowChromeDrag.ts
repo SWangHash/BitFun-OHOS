@@ -16,6 +16,11 @@
  * restores the window and then tracks the pointer itself. Restoring the window
  * from the shell first (`recover()`) would end the original press and the move
  * loop could no longer attach, which is why this hook never restores it.
+ *
+ * Touch input cannot use the mouse path: the browser only synthesizes
+ * `mousedown` after the finger lifts (and suppresses it entirely once a pan
+ * starts), so a touch drag never reached the move loop. Touch and pen therefore
+ * enter through `onPointerDown`, which fires while the finger is still down.
  */
 
 import { useCallback, useEffect, useMemo, useRef } from 'react';
@@ -45,14 +50,16 @@ export interface WindowChromeDragOptions {
 }
 
 export interface WindowChromeDragHandlers {
-  /** Attach to the chrome container's onMouseDown. */
+  /** Attach to the chrome container's onMouseDown (mouse drag path). */
   onMouseDown: (event: React.MouseEvent) => void;
+  /** Attach to the same container's onPointerDown (touch and pen drag path). */
+  onPointerDown: (event: React.PointerEvent) => void;
 }
 
 /**
- * Set up the chrome drag gesture. The returned onMouseDown handler must be
- * attached to the same element that receives the double-click maximize gesture
- * so both share the same interactive-target filtering.
+ * Set up the chrome drag gesture. Both returned handlers must be attached to
+ * the same element that receives the double-click maximize gesture so they
+ * share the same interactive-target filtering.
  */
 export const useWindowChromeDrag = (
   options: WindowChromeDragOptions = {},
@@ -87,12 +94,8 @@ export const useWindowChromeDrag = (
     });
   }, []);
 
-  const onMouseDown = useCallback(
-    (event: React.MouseEvent) => {
-      if (!canDragWindow || event.button !== 0 || event.detail > 1) return;
-      // Callers filter interactive targets (buttons, inputs, tabs...) before
-      // calling; this hook only handles the raw chrome gesture.
-      if (event.defaultPrevented) return;
+  const beginGesture = useCallback(
+    (originX: number, originY: number) => {
       // Dispose a stale pending gesture (e.g. the window state changed between
       // renders) before starting a fresh one.
       teardownGesture();
@@ -130,8 +133,8 @@ export const useWindowChromeDrag = (
         // restores a maximized window on press and then owns the move, so the
         // request must wait for real pointer movement.
         const onPointerMove = (moveEvent: PointerEvent) => {
-          const dx = moveEvent.clientX - event.clientX;
-          const dy = moveEvent.clientY - event.clientY;
+          const dx = moveEvent.clientX - originX;
+          const dy = moveEvent.clientY - originY;
           if (
             dx * dx + dy * dy <
             MAXIMIZED_DRAG_START_THRESHOLD_PX * MAXIMIZED_DRAG_START_THRESHOLD_PX
@@ -151,8 +154,35 @@ export const useWindowChromeDrag = (
 
       void startOrDeferChromeDragging();
     },
-    [canDragWindow, isMaximized, startChromeDragging, teardownGesture],
+    [isMaximized, startChromeDragging, teardownGesture],
   );
 
-  return { onMouseDown };
+  const onMouseDown = useCallback(
+    (event: React.MouseEvent) => {
+      if (!canDragWindow || event.button !== 0 || event.detail > 1) return;
+      // Callers filter interactive targets (buttons, inputs, tabs...) before
+      // calling; this hook only handles the raw chrome gesture.
+      if (event.defaultPrevented) return;
+      beginGesture(event.clientX, event.clientY);
+    },
+    [beginGesture, canDragWindow],
+  );
+
+  const onPointerDown = useCallback(
+    (event: React.PointerEvent) => {
+      // Mouse pointers keep the mouse path above; React fires pointer events
+      // before the compatibility mousedown, so acting here too would start two
+      // drags for one press.
+      if (event.pointerType === 'mouse') return;
+      if (!canDragWindow || event.button !== 0) return;
+      if (event.defaultPrevented) return;
+      // Keep the WebView from turning the press into text selection or a
+      // compatibility mouse gesture; the window move loop owns it from here.
+      event.preventDefault();
+      beginGesture(event.clientX, event.clientY);
+    },
+    [beginGesture, canDragWindow],
+  );
+
+  return { onMouseDown, onPointerDown };
 };

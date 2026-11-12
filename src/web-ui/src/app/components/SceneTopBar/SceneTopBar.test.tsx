@@ -149,6 +149,16 @@ describe('SceneTopBar', () => {
       });
     }
 
+    async function touchDown(target: Element, options: PointerEventInit = {}) {
+      await act(async () => {
+        target.dispatchEvent(new PointerEvent('pointerdown', {
+          bubbles: true, cancelable: true, button: 0, pointerType: 'touch', ...options,
+        }));
+        await vi.dynamicImportSettled();
+        await new Promise(resolve => setTimeout(resolve, 0));
+      });
+    }
+
     function doubleClick(target: Element) {
       act(() => target.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, detail: 2, cancelable: true })));
     }
@@ -311,6 +321,29 @@ describe('SceneTopBar', () => {
       } finally {
         startWindowDragging.mockRestore();
       }
+    });
+
+    it('starts dragging from a touch pointerdown while the finger is still down', async () => {
+      const toolbar = renderBar(2);
+      await touchDown(toolbar);
+      expect(startDragging).toHaveBeenCalledOnce();
+      // A mouse press is driven by mousedown; its pointerdown must not start a
+      // second drag for the same press.
+      await touchDown(toolbar, { pointerType: 'mouse' });
+      expect(startDragging).toHaveBeenCalledOnce();
+    });
+
+    it('ignores touch presses on interactive chrome and still defers a maximized touch drag', async () => {
+      const toolbar = renderBar(2, true);
+      const closeButton = toolbar.querySelector<HTMLButtonElement>('[aria-label="Close scene 0"]')!;
+      await touchDown(closeButton);
+      expect(startDragging).not.toHaveBeenCalled();
+
+      await touchDown(toolbar);
+      await pointerMove(3, 3);
+      expect(startDragging).not.toHaveBeenCalled();
+      await pointerMove(9, 9);
+      expect(startDragging).toHaveBeenCalledOnce();
     });
 
     it('still maximizes by double-click while maximized', async () => {
