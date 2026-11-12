@@ -1493,7 +1493,6 @@
     }
   },
   "sessionFilesBadge": {
-    "addQuickAction": "添加快捷动作",
     "files": "文件",
     "filesSummaryCount": "{{count}} 个文件",
     "expandChangeListCue": "展开列表",

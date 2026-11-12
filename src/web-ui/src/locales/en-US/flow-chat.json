@@ -1493,7 +1493,6 @@
     }
   },
   "sessionFilesBadge": {
-    "addQuickAction": "Add quick action",
     "files": "files",
     "filesSummaryCount": "{{count}} files",
     "expandChangeListCue": "Expand list",
