@@ -791,7 +791,7 @@ export const ModelRoundItem = React.memo<ModelRoundItemProps>(
             )}
 
             <span className="model-round-item__ai-disclaimer">
-              {t('modelRound.aiDisclaimer', { defaultValue: '以上内容均由 AI 生成，仅供参考' })}
+              {t('modelRound.aiDisclaimer')}
             </span>
 
             <ForkSessionButton sessionId={sessionId} turnId={turnId} />

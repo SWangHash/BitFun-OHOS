@@ -17,6 +17,8 @@
       "bySharedKey": {
         "agents.claw": 0,
         "agents.code": 0,
+        "agents.ComputerUse": 1,
+        "agents.Cowork": 1,
         "agents.cowork": 0,
         "agents.default": 0,
         "connectionMethods.bitfunServer": 0,
@@ -36,7 +38,7 @@
         "statuses.loading": 5,
         "statuses.running": 6,
         "tools.edit": 33,
-        "tools.explore": 2,
+        "tools.explore": 0,
         "tools.search": 10,
         "tools.shell": 7,
         "agents.Minimal": 3,
