@@ -15,6 +15,9 @@
   padding: 0 var(--bitfun-space-2);
   gap: var(--bitfun-space-1);
   user-select: none;
+  // Dragging this strip moves the window (see useWindowChromeDrag); touch pans
+  // would otherwise cancel the pointer gesture before the host move loop runs.
+  touch-action: none;
 
   &--collapsed {
     justify-content: flex-start;
