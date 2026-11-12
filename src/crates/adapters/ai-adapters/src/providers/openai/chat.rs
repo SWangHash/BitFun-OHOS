@@ -222,6 +222,11 @@ Tool results, when present, appear inside user messages.";
 
 /// Replaces the assembled agent system prompt with the compact local one and
 /// drops tool definitions for local endpoints (see `LOCAL_SYSTEM_PROMPT`).
+/// Harness reminders appended to conversation turns (`<system_reminder>`
+/// Tool Calling Guide / Skill Listing / Agent Listing, plus the legacy
+/// hyphenated form) are stripped as well: the on-device model cannot act on
+/// any of them, and user messages that end up empty after the strip are
+/// removed entirely so strict local servers never see blank turns.
 /// Cloud endpoints never run this.
 fn prepare_messages_for_local_context(mut messages: Vec<serde_json::Value>) -> Vec<serde_json::Value> {
     if let Some(first) = messages.first_mut() {
@@ -229,7 +234,73 @@ fn prepare_messages_for_local_context(mut messages: Vec<serde_json::Value>) -> V
             first["content"] = serde_json::Value::String(LOCAL_SYSTEM_PROMPT.to_string());
         }
     }
+    for message in messages.iter_mut().skip(1) {
+        strip_message_system_reminders(message);
+    }
+    messages.retain(|message| !is_blank_user_message(message));
     messages
+}
+
+const SYSTEM_REMINDER_OPEN: &str = "<system_reminder>";
+const SYSTEM_REMINDER_CLOSE: &str = "</system_reminder>";
+const SYSTEM_REMINDER_OPEN_LEGACY: &str = "<system-reminder>";
+const SYSTEM_REMINDER_CLOSE_LEGACY: &str = "</system-reminder>";
+
+/// Removes every `<tag>…</tag>` span for the given tag pair. Unclosed spans
+/// are kept verbatim (never truncate a message on malformed markup).
+fn remove_tag_spans(text: &str, opening: &str, closing: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut rest = text;
+    loop {
+        let Some(start) = rest.find(opening) else {
+            out.push_str(rest);
+            break;
+        };
+        let after_opening = &rest[start + opening.len()..];
+        let Some(close_rel) = after_opening.find(closing) else {
+            out.push_str(rest);
+            break;
+        };
+        out.push_str(&rest[..start]);
+        rest = &after_opening[close_rel + closing.len()..];
+    }
+    out
+}
+
+fn strip_system_reminder_spans(text: &str) -> String {
+    remove_tag_spans(
+        &remove_tag_spans(text, SYSTEM_REMINDER_OPEN, SYSTEM_REMINDER_CLOSE),
+        SYSTEM_REMINDER_OPEN_LEGACY,
+        SYSTEM_REMINDER_CLOSE_LEGACY,
+    )
+}
+
+fn strip_message_system_reminders(message: &mut serde_json::Value) {
+    let Some(content) = message.get_mut("content") else {
+        return;
+    };
+    match content {
+        serde_json::Value::String(text) => {
+            *content = serde_json::Value::String(strip_system_reminder_spans(text));
+        }
+        serde_json::Value::Array(parts) => {
+            for part in parts.iter_mut() {
+                if let Some(text) = part.get("text").and_then(serde_json::Value::as_str) {
+                    let stripped = strip_system_reminder_spans(text);
+                    part["text"] = serde_json::Value::String(stripped);
+                }
+            }
+        }
+        _ => {}
+    }
+}
+
+fn is_blank_user_message(message: &serde_json::Value) -> bool {
+    message.get("role").and_then(serde_json::Value::as_str) == Some("user")
+        && message
+            .get("content")
+            .and_then(serde_json::Value::as_str)
+            .is_some_and(|content| content.trim().is_empty())
 }
 
 /// Truncates messages so the total stays within a local model's context
@@ -629,6 +700,8 @@ pub(crate) async fn send_stream(
 
 #[cfg(test)]
 mod local_context_truncation_tests {
+    use super::prepare_messages_for_local_context;
+    use super::strip_system_reminder_spans;
     use super::truncate_messages_for_local_context;
     use serde_json::{json, Value};
 
@@ -740,5 +813,96 @@ mod local_context_truncation_tests {
             content_chars
         );
         assert!(content.contains("text"), "serialized form keeps field names");
+    }
+
+    #[test]
+    fn local_prepare_strips_harness_reminders_from_user_turns() {
+        // The on-device model cannot act on Tool Calling Guide / Skill
+        // Listing reminders; they must not survive into the compact request.
+        let system = message("system", Value::String("agent prompt".to_string()));
+        let user = message(
+            "user",
+            Value::String(format!(
+                "what changed?\n\n<system_reminder>\n# Tool Calling Guide\n## Direct tools\n- Read\n</system_reminder>\n\n<system_reminder>\n# Skill Listing\n<available_skills></available_skills>\n</system_reminder>"
+            )),
+        );
+
+        let result = prepare_messages_for_local_context(vec![system, user]);
+
+        assert_eq!(result.len(), 2, "the user turn survives with its real text");
+        let content = result[1]["content"].as_str().expect("string content");
+        assert!(
+            content.contains("what changed?"),
+            "the user's own question survives: {content}"
+        );
+        assert!(
+            !content.contains("Tool Calling Guide") && !content.contains("Skill Listing"),
+            "harness reminders are stripped: {content}"
+        );
+    }
+
+    #[test]
+    fn local_prepare_drops_user_turns_that_are_only_reminders() {
+        let system = message("system", Value::String("agent prompt".to_string()));
+        let blank = message(
+            "user",
+            Value::String(
+                "<system_reminder>\n# Skill Listing\n<available_skills></available_skills>\n</system_reminder>"
+                    .to_string(),
+            ),
+        );
+        let real = message("user", Value::String("real question".to_string()));
+
+        let result = prepare_messages_for_local_context(vec![system, blank, real]);
+
+        assert_eq!(result.len(), 2, "blank reminder-only turn is dropped");
+        assert_eq!(result[1]["content"], "real question");
+    }
+
+    #[test]
+    fn local_prepare_strips_legacy_hyphen_reminders() {
+        let system = message("system", Value::String("agent prompt".to_string()));
+        let user = message(
+            "user",
+            Value::String("hi\n<system-reminder>\n# Tool Calling Guide\n</system-reminder>".to_string()),
+        );
+
+        let result = prepare_messages_for_local_context(vec![system, user]);
+
+        assert_eq!(result.len(), 2);
+        let content = result[1]["content"].as_str().expect("string content");
+        assert!(content.contains("hi"), "user text survives: {content}");
+        assert!(!content.contains("Tool Calling Guide"), "reminder stripped: {content}");
+    }
+
+    #[test]
+    fn local_prepare_strips_reminders_inside_content_arrays() {
+        let system = message("system", Value::String("agent prompt".to_string()));
+        let user = message(
+            "user",
+            json!([
+                {"type": "text", "text": "before"},
+                {"type": "text", "text": "<system_reminder>\n# Skill Listing\n</system_reminder>"},
+                {"type": "text", "text": "after"}
+            ]),
+        );
+
+        let result = prepare_messages_for_local_context(vec![system, user]);
+
+        assert_eq!(result.len(), 2, "the user turn survives with text parts");
+        let parts = result[1]["content"].as_array().expect("array content");
+        assert_eq!(parts[0]["text"], "before");
+        assert_eq!(parts[1]["text"], "");
+        assert_eq!(parts[2]["text"], "after");
+    }
+
+    #[test]
+    fn unclosed_reminder_span_is_kept_verbatim() {
+        // Malformed markup never truncates a message: an opening tag without
+        // its closing counterpart stays as-is.
+        let text = "keep me <system_reminder>\n# Skill Listing";
+        assert_eq!(strip_system_reminder_spans(text), text);
+        let text_legacy = "keep me <system-reminder>\n# Tool Calling Guide";
+        assert_eq!(strip_system_reminder_spans(text_legacy), text_legacy);
     }
 }
