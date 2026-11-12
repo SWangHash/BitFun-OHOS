@@ -4,7 +4,8 @@
  */
 
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
-import { FilePlus, SearchCheck, Zap, GitPullRequest } from 'lucide-react';
+import type { ComponentType } from 'react';
+import { FilePlus, SearchCheck, Zap, GitPullRequest, Plus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { OverflowText, Icon, IconButton, Menu, MenuItem, MenuSeparator, Tooltip, createOverlayPortal } from '@bitfun/ui';
 import { useSnapshotState } from '../../../tools/snapshot_system/hooks/useSnapshotState';
@@ -202,6 +203,24 @@ export const SessionFilesBadge: React.FC<SessionFilesBadgeProps> = ({
     const stored = aiExperienceConfigService.getSettings().quick_actions;
     return stored ?? DEFAULT_QUICK_ACTIONS;
   });
+
+  // Home-page quick action creation: the create dialog lives in the lazily
+  // loaded settings config module and is only pulled in on first use.
+  const [quickActionCreateDialog, setQuickActionCreateDialog] = useState<ComponentType<{ open: boolean; onClose: () => void }> | null>(null);
+  const [isAddQuickActionOpen, setIsAddQuickActionOpen] = useState(false);
+  const openAddQuickActionDialog = useCallback(async () => {
+    setIsReviewMenuOpen(false);
+    setIsAddQuickActionOpen(true);
+    if (!quickActionCreateDialog) {
+      try {
+        const mod = await import('@/infrastructure/config/components/QuickActionsConfig');
+        setQuickActionCreateDialog(() => mod.QuickActionCreateDialog);
+      } catch (error) {
+        log.error('Failed to load quick action create dialog', error);
+        setIsAddQuickActionOpen(false);
+      }
+    }
+  }, [quickActionCreateDialog]);
 
   const badgeRef = useRef<HTMLDivElement>(null);
   const fileTriggerRef = useRef<HTMLButtonElement>(null);
@@ -807,6 +826,7 @@ export const SessionFilesBadge: React.FC<SessionFilesBadgeProps> = ({
   }
 
   const showFileStatsSummary = fileStats.size > 0;
+  const QuickActionCreateDialogComp = quickActionCreateDialog;
 
   return (
     <>
@@ -904,10 +924,24 @@ export const SessionFilesBadge: React.FC<SessionFilesBadgeProps> = ({
                 </MenuItem>
               );
             })}
+
+            <MenuSeparator />
+            <MenuItem data-bitfun-component="session-files-badge" data-bitfun-part="reviewItem"
+              data-testid="session-files-quick-action-add"
+              onClick={() => { void openAddQuickActionDialog(); }}
+              type="button"
+              leading={<Plus size={12} />}
+            >
+              <span>{t('sessionFilesBadge.addQuickAction')}</span>
+            </MenuItem>
           </Menu>,
           getAppearanceOverlayHost(),
         )}
       </div>
+
+      {QuickActionCreateDialogComp && (
+        <QuickActionCreateDialogComp open={isAddQuickActionOpen} onClose={() => setIsAddQuickActionOpen(false)} />
+      )}
 
       {showFileStatsSummary ? (
       <button

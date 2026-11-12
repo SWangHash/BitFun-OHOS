@@ -339,12 +339,7 @@ const QuickActionsConfig: React.FC = () => {
     let saved = false;
     if (modalTarget === null) {
       // Create mode
-      const newAction: QuickAction = {
-        id: `custom_${Date.now()}`,
-        label,
-        prompt,
-        enabled: true,
-      };
+      const newAction = buildCustomQuickAction(label, prompt);
       saved = await persist([...actions, newAction]);
     } else if (modalTarget) {
       // Edit mode
@@ -475,6 +470,55 @@ const QuickActionsConfig: React.FC = () => {
         confirmDanger
       />
     </ConfigPageLayout>
+  );
+};
+
+function buildCustomQuickAction(label: string, prompt: string): QuickAction {
+  return { id: `custom_${Date.now()}`, label, prompt, enabled: true };
+}
+
+export interface QuickActionCreateDialogProps {
+  open: boolean;
+  onClose: () => void;
+}
+
+/**
+ * Self-contained create dialog so surfaces outside the settings page (the
+ * chat footer actions menu) can add a quick action without mounting the full
+ * config page. Saves through the shared service; its change listeners
+ * refresh every rendered list, including the footer menu.
+ */
+export const QuickActionCreateDialog: React.FC<QuickActionCreateDialogProps> = ({ open, onClose }) => {
+  const { t } = useTranslation('settings/quick-actions');
+  const [saving, setSaving] = useState(false);
+
+  const handleSubmit = useCallback(async (label: string, prompt: string): Promise<boolean> => {
+    setSaving(true);
+    try {
+      const settings = await aiExperienceConfigService.getSettingsAsync();
+      const actions = settings.quick_actions ?? DEFAULT_QUICK_ACTIONS;
+      await aiExperienceConfigService.saveSettings({
+        quick_actions: [...actions, buildCustomQuickAction(label, prompt)],
+      });
+      onClose();
+      return true;
+    } catch (error) {
+      log.error('Failed to add quick action', error);
+      return false;
+    } finally {
+      setSaving(false);
+    }
+  }, [onClose]);
+
+  return (
+    <ActionFormModal
+      isOpen={open}
+      target={undefined}
+      onClose={onClose}
+      onSubmit={handleSubmit}
+      saving={saving}
+      t={t}
+    />
   );
 };
 
