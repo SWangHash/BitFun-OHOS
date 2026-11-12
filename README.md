@@ -16,14 +16,6 @@ It runs natively on **Windows**, **macOS**, and **HarmonyOS PC**, with a Harmony
 [![Website](https://img.shields.io/badge/website-bitfun.work-0b7285?style=flat-square)](https://www.bitfun.work/)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20HarmonyOS-blue?style=flat-square)](https://www.bitfun.work/)
 
-## Join the community
-
-Scan the QR code with WeChat to add us and request to join the OpenBitFun community group.
-
-<a href="./png/openbitfun-community-wechat.png">
-  <img src="./png/openbitfun-community-wechat.png" alt="WeChat QR code for joining the OpenBitFun community" width="147" />
-</a>
-
 </div>
 
 ![The BitFun desktop interface](./png/bitfun_desktop.jpg)
@@ -90,73 +82,4 @@ Which commands may run where is declared in the [Product Operation Registry](./d
 
 ## License
 
-BitFun is distributed through GitCode. Describe what you need and let the agent build it. Each Mini App pairs a dedicated interface with an agent conversation, so you can use the app for everyday work and keep improving it through chat.
-
-Install and reuse the apps you build, or explore the [Mini App Marketplace](https://market.bitfun.com/miniapp/) for tools that fit your work.
-
-## Extend BitFun with BitFun
-
-**Customize the roles, tools, interface, and source code.** Start with an agent that fits your work, then extend the workspace around it:
-
-- **Build a specialist agent.** Choose a model, define its role, and equip it with the tools and workflows it needs for motion comic production, visual design, code review, or your own field.
-- **Connect tools and workflows.** Connect tools through MCP, turn repeatable processes into Skills, and use Hooks to customize how tasks run.
-- **Change the interface and source.** Choose a built-in theme, or modify the UI, tools, and runtime source to build your own version of BitFun.
-
-**You can ask BitFun's Code Agent to modify and extend BitFun itself.**
-
-Learn more about [agent management](./docs/interactive-capabilities/capabilities/feature.agents.md), [Hooks and compatibility](./docs/features/agent-hooks.md), and the [product architecture](./docs/architecture/product-architecture.md).
-
-## Built for sustained work
-
-The Rust Agent Runtime manages session state, context, and tool execution. Persistent sessions, interruption recovery, long-term memory, and support for extended tasks help keep work moving. Context compression and cache reuse help control resource consumption over longer runs.
-
-In this **DeepSWE v1.1** evaluation, BitFun achieved:
-
-- **GLM-5.3-Flash**: **64.6%** pass rate, **42.9 minutes** median runtime (P50).
-- **DeepSeek-V4-Flash**: **56.6%** pass rate, **19.6 minutes** median runtime (P50).
-
-![DeepSWE v1.1 comparison: pass rate, runtime P50, and token P50](./png/openbitfun-deepswe-v1.1.png)
-
-## More to explore
-
-**These are just some of BitFun's features.** Explore more tools, workflows, and extensions as you put it to work on your own tasks.
-
-![A selection of BitFun's features](./png/openbitfun-feature-wall.jpg)
-
-## Where we're headed
-
-BitFun is still evolving. Here are three directions we want to explore:
-
-- **Lights-Out Factory**: Plan and design during the day, let tasks continue on a server, and come back the next morning to review the results.
-- **Infinite Radius**: Extend from desktops and phones to wearables and embedded devices, so work can continue in more places.
-- **App Evolution**: Enable more people to shape software, from personal tools to versions tailored to a profession or industry.
-
-Getting there means making long-running tasks more reliable, the runtime more efficient, and the desktop experience smoother.
-
-## Build with it. Help shape it.
-
-**Share what you build, offer feedback, or contribute code to help shape BitFun.**
-
-Share your use cases and experience, contribute agents, Skills, or Mini Apps, or help improve the docs, interface, and runtime. Ideas and questions are welcome in this repository's Issues and Discussions. See the [contribution guide](./CONTRIBUTING.md) for the development workflow.
-
-<details>
-<summary>Download, setup, and running from source</summary>
-
-Get the Windows, macOS, or Linux package from the [official download page](https://bitfun.com/download). Install it, configure a model, and open a workspace to get started. See the [user guide](https://playbook.bitfun.com) for usage instructions and [download verification](./docs/verify-downloads.md) for package signature checks.
-
-**Migration note:** BitFun 1.0.0 is not data-compatible with legacy 0.2.x releases. To migrate legacy data,
-use the [BitFun Data Tools](src/apps/data-tools/README.md), currently available
-for stable releases 0.2.17–0.2.19.
-
-To run from source, install [Node.js](https://nodejs.org/) 22.12+, [pnpm](https://pnpm.io/) 10.15.0, the [Rust toolchain](https://rustup.rs/), and the [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/). Clone the repository, then run:
-
-```bash
-pnpm install
-pnpm run desktop:dev
-```
-
-Desktop development supports frontend hot reload and automatic Rust rebuilds. See the [CLI guide](./src/apps/cli/README.md) for the command-line workflow.
-
-</details>
-
-Core code is licensed under the [MIT License](./LICENSE); third-party dependencies and assets retain their own licenses. BitFun is distributed through GitCode. Thanks to the open-source authors and contributors who make this work possible. To report a vulnerability, see the [security policy](./SECURITY.md).
+BitFun is distributed through GitCode. Core code is licensed under the [MIT License](./LICENSE); third-party dependencies and assets retain their own licenses. To report a vulnerability, see the [security policy](./SECURITY.md).
