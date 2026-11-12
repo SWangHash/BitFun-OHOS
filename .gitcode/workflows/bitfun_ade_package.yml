@@ -21,7 +21,7 @@
 #     dirs). NSIS is NOT possible here: @tauri-apps/cli v2.10 filters the
 #     --bundles values by host platform, and GitHub CI bundles NSIS on a
 #     real Windows runner.
-#   - macOS (opt-in): aarch64 cross-compile inside the shared rust-ci-macos
+#   - macOS (opt-in): aarch64 + x86_64 cross-compile inside the shared rust-ci-macos
 #     image (cargo-zigbuild + /opt/MacOSX.sdk, same shape as the
 #     agent_kernel CLI pipelines), ad-hoc signed post-link with a cached
 #     ldid; dev-preview zip. A real .app/DMG with Developer ID signing and
@@ -51,7 +51,7 @@ on:
         default: true
         type: boolean
       package_mac:
-        description: '打包 macOS（aarch64 交叉编译，开发者预览 zip，需 macos_package runner）'
+        description: '打包 macOS（aarch64 + x86_64 交叉编译，开发者预览 zip，需 macos_package runner）'
         required: false
         default: true
         type: boolean
@@ -96,19 +96,19 @@ on:
         default: false
         type: boolean
       release_tag:
-        description: 'Release 标签（如 v2.0.2）'
+        description: 'Release 标签（如 v2.0.3）'
         required: false
-        default: 'v2.0.2'
+        default: 'v2.0.3'
         type: string
       package_name:
-        description: '产物包名（文件名主干，如 bitfun-v2.0.2）'
+        description: '产物包名（文件名主干，如 bitfun-v2.0.3）'
         required: false
-        default: 'bitfun-v2.0.2'
+        default: 'bitfun-v2.0.3'
         type: string
       release_title:
         description: 'Release 标题；重跑想保留原 Release 标题时清空此框'
         required: false
-        default: 'BitFun ADE v2.0.2'
+        default: 'BitFun ADE v2.0.3'
         type: string
   schedule:
     # GitCode schedule uses Asia/Shanghai time. 00:10 instead of the exact
@@ -204,7 +204,7 @@ jobs:
             package_name="bitfun-daily.$build_date"
             release_title="BitFun Desktop daily $build_date"
             windows_artifact_name="bitfun-daily-$build_date-windows-x64"
-            macos_artifact_name="bitfun-daily-$build_date-macos-aarch64"
+            macos_artifact_name="bitfun-daily-$build_date-macos"
             ohos_artifact_name="bitfun-daily-$build_date-ohos"
           fi
           echo "Resolved configuration: daily=$is_daily branch=$branch remote=$remote tag=$release_tag"
@@ -808,7 +808,7 @@ jobs:
         run: docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
 
   macos:
-    name: macOS package (aarch64 cross, dev preview)
+    name: macOS package (aarch64 and x86_64 cross, dev preview)
     needs:
       - resolve-run-config
       - prune-old-daily-artifacts
@@ -894,7 +894,8 @@ jobs:
           set -eu
           seed='/opt/.gitcode-cache/sherpa-onnx'
           for archive in \
-            'sherpa-onnx-v1.13.4-osx-arm64-static-lib.tar.bz2'; do
+            'sherpa-onnx-v1.13.4-osx-arm64-static-lib.tar.bz2' \
+            'sherpa-onnx-v1.13.4-osx-x64-static-lib.tar.bz2'; do
             if [ ! -f "$seed/$archive" ]; then
               echo "::error::$seed/$archive is missing." >&2
               echo "Seed it with the pre-downloaded release archive (scp/upload once per runner):" >&2
@@ -995,7 +996,7 @@ jobs:
             cat "$cfg"
           '
 
-      - name: Cross build desktop (aarch64; x86_64 pending)
+      - name: Cross build desktop (aarch64 and x86_64)
         run: |
           set -eu
           # Two targets share the container, frontend artifacts and caches;
@@ -1018,7 +1019,7 @@ jobs:
           # scripts/ci/fix-macho-duplicate-dylibs.mjs, so the raw zig link
           # output keeps correct two-level binds. dynamic_lookup stays as
           # belt-and-suspenders for symbols absent from every tbd.
-          for target in aarch64-apple-darwin; do # x86_64 pending: enable after aarch64 is validated
+          for target in aarch64-apple-darwin x86_64-apple-darwin; do
             build_args="--runner cargo-zigbuild --no-bundle --target $target --verbose"
             case "$DEBUG_FLAG" in
               true|True|TRUE) build_args="$build_args --debug" ;;
@@ -1077,7 +1078,7 @@ jobs:
                     ;;
                 esac
               fi
-              for arch in aarch64; do # x86_64 pending: enable after aarch64 is validated
+              for arch in aarch64 x86_64; do
                 rel=/workspace/target/$arch-apple-darwin/$profile
                 binary="$rel/bitfun-desktop"
                 if [ ! -f "$binary" ]; then

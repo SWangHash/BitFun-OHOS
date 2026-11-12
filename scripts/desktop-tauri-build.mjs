@@ -59,6 +59,7 @@ async function main() {
   const miniappShell = prepareMiniAppShell({
     target: optionValue(forward, '--target'),
     profile: forward.includes('--debug') ? 'debug' : optionValue(forward, '--profile') || 'release',
+    runner: optionValue(forward, '--runner'),
   });
   const flashgrepBinary = prepareMacOSFlashgrepForSigning(
     ensureFlashgrepBinary({ target: optionValue(forward, '--target') || rustHostTargetTriple() }),

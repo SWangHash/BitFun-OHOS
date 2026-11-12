@@ -21,11 +21,19 @@ done
 APP=BitFun.app
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-# Copy instead of move so the payload survives and the script is re-runnable
-# after a partial failure.
-cp -R bitfun-desktop frontend resources mobile-web "$APP/Contents/MacOS/"
+# Tauri resolves frontend/dist, flashgrep/, resources/ and mobile-web/ under
+# the RESOURCE directory, which on macOS is Contents/Resources — not the
+# exe's Contents/MacOS (the side-by-side zip layout matches Windows, where
+# the resource dir IS the exe directory). The executable stays in MacOS.
+# Copy instead of move so the payload survives and the script is
+# re-runnable after a partial failure.
+cp bitfun-desktop "$APP/Contents/MacOS/"
+for dir in frontend resources mobile-web; do
+  if [ -d "$dir" ]; then cp -R "$dir" "$APP/Contents/Resources/"; fi
+done
+mkdir -p "$APP/Contents/Resources/flashgrep"
 for sidecar in flashgrep*; do
-  if [ -e "$sidecar" ]; then cp -R "$sidecar" "$APP/Contents/MacOS/"; fi
+  if [ -e "$sidecar" ]; then cp -R "$sidecar" "$APP/Contents/Resources/flashgrep/"; fi
 done
 # App icon (staged by the package pipeline); without it Finder and the Dock
 # show the generic application icon.

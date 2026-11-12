@@ -15,7 +15,7 @@ const DESIGN_SYSTEM_CONSUMER_ENTRIES = [
 ];
 
 export function prepareMiniAppShell({
-  root = ROOT, target, profile = 'debug', env = process.env, run = spawnSync,
+  root = ROOT, target, profile = 'debug', runner, env = process.env, run = spawnSync,
 } = {}) {
   const shellEnv = { ...env };
   // The sidecar has its own Tauri context; a parent CLI's config must not embed
@@ -50,7 +50,10 @@ export function prepareMiniAppShell({
   const triples = triple === 'universal-apple-darwin'
     ? ['aarch64-apple-darwin', 'x86_64-apple-darwin'] : [target];
   const binaries = triples.map((buildTarget) => {
-    execute('cargo', ['build', '--locked', '-p', SHELL_NAME, '--profile', 'miniapp-shell',
+    // Cross-compile pipelines route every cargo invocation through the same
+    // runner as `tauri build --runner` (cargo-xwin / cargo-zigbuild); a plain
+    // cargo build links with the host toolchain and fails on foreign targets.
+    execute(runner || 'cargo', ['build', '--locked', '-p', SHELL_NAME, '--profile', 'miniapp-shell',
       ...(buildTarget ? ['--target', buildTarget] : [])]);
     const binary = join(targetDir, ...(buildTarget ? [buildTarget] : []), 'miniapp-shell', name);
     const bytes = statSync(binary).size;
@@ -86,5 +89,6 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   prepareMiniAppShell({
     target: args.includes('--target') ? option('--target') : undefined,
     profile: args.includes('--profile') ? option('--profile') : 'debug',
+    runner: args.includes('--runner') ? option('--runner') : undefined,
   });
 }

@@ -105,6 +105,36 @@ for (const target of [undefined, 'x86_64-pc-windows-msvc', 'x86_64-unknown-linux
   });
 }
 
+test('cross-compile packaging builds the shell through the configured cargo runner', (t) => {
+  const root = fixture(t);
+  seedDesignSystemConsumers(root);
+  const calls = [];
+  const run = (command, args) => {
+    calls.push({ command, args });
+    if (command === 'rustc') return { status: 0, stdout: 'host: x86_64-unknown-linux-gnu\n' };
+    if (command === 'node') return { status: 0 };
+    if (command === 'cargo-xwin') {
+      assert.deepEqual(args, ['build', '--locked', '-p', SHELL_NAME, '--profile', 'miniapp-shell',
+        '--target', 'x86_64-pc-windows-msvc']);
+      const binary = join(root, 'target/x86_64-pc-windows-msvc/miniapp-shell', `${SHELL_NAME}.exe`);
+      mkdirSync(dirname(binary), { recursive: true });
+      writeFileSync(binary, 'window-only-binary');
+      return { status: 0 };
+    }
+    return assert.fail(command);
+  };
+  const result = prepareMiniAppShell({
+    root, target: 'x86_64-pc-windows-msvc', profile: 'release', runner: 'cargo-xwin', env: {}, run,
+  });
+  assert.deepEqual(calls.map(({ command }) => command), ['rustc', 'node', 'node', 'cargo-xwin']);
+  assert.equal(readFileSync(result.sidecar, 'utf8'), 'window-only-binary');
+});
+
+test('Desktop forwards the tauri --runner value to the miniapp shell build', () => {
+  const source = readFileSync(resolve(ROOT, 'scripts', 'desktop-tauri-build.mjs'), 'utf8');
+  assert.match(source, /runner: optionValue\(forward, '--runner'\)/);
+});
+
 test('a failed shell build never stages the full host as a fallback', (t) => {
   const root = fixture(t);
   assert.throws(() => prepareMiniAppShell({ root, env: {}, run: (command) => command === 'rustc'
